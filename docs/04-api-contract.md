@@ -175,6 +175,19 @@ Mọi endpoint danh sách admin trả `meta` phân trang; tạo mới trả `201
 
 ## 3. Mẫu request / response
 
+### 3.0 `MovieSummary` và `MovieDetail` (v1.4)
+```json
+// MovieSummary — phần tử của GET /movies
+{ "id": "m1...", "title": "Nhà Bà Tư", "slug": "nha-ba-tu", "posterUrl": null, "durationMin": 102,
+  "ageRating": "T13", "status": "NOW_SHOWING", "releaseDate": "2026-09-12",
+  "genres": [{ "id": "g1...", "name": "Hài" }] }
+
+// MovieDetail — GET /movies/:slug = MovieSummary + các trường sau
+{ "description": "...", "director": "...", "actors": "A, B", "language": "Tiếng Việt", "trailerUrl": null }
+```
+- `GET /movies`: sắp xếp `releaseDate` mới → cũ; `q` tìm theo tên không phân biệt dấu/hoa thường; `status` ∈ `NOW_SHOWING | COMING_SOON | ENDED`.
+- `releaseDate` dạng `YYYY-MM-DD`.
+
 ### 3.1 `POST /auth/login`
 ```json
 // Request
@@ -504,3 +517,4 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 02/10/2026 | 1.0 | Bản đầu tiên | — |
 | 02/10/2026 | 1.1 | Làm rõ giá ghế đôi trong sơ đồ ghế và trong đơn | Rà soát Giai đoạn 6 |
 | 01/10/2026 | 1.2 | Mục 5.1: gom `client/`, `server/` vào thư mục `code/` (không đổi API) | Người A |
+| 01/10/2026 | 1.4 | Mục 3.0: định nghĩa MovieSummary / MovieDetail (bổ sung, không đổi endpoint) | Người A |
