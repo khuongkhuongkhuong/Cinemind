@@ -192,3 +192,62 @@ export async function getOrder({ userId, orderId }) {
   if (order.userId !== userId) throw new AppError('FORBIDDEN');
   return toOrderDto(order);
 }
+
+/**
+ * Hủy đơn đang giữ ghế (BR-07): đơn -> CANCELLED và nhả ghế, trong một transaction.
+ * Chỉ hủy được đơn PENDING còn hạn; sau khi thanh toán thì không hủy (BR-08).
+ * @param {{ userId: string, orderId: string }} params
+ * @returns {Promise<object>} `Order` đã CANCELLED
+ * @throws {AppError} NOT_FOUND | FORBIDDEN | ORDER_EXPIRED | ORDER_NOT_PENDING
+ */
+export async function cancelOrder({ userId, orderId }) {
+  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { userId: true } });
+  if (!order) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy đơn hàng.' });
+  if (order.userId !== userId) throw new AppError('FORBIDDEN');
+
+  const cancelled = await prisma.$transaction(async (tx) => {
+    // Cập nhật CÓ ĐIỀU KIỆN trong một câu lệnh: nếu IPN thanh toán vừa chuyển đơn sang PAID cùng lúc,
+    // điều kiện status = PENDING sai => count = 0 => không hủy nhầm đơn đã trả tiền.
+    const { count } = await tx.order.updateMany({
+      where: { id: orderId, status: 'PENDING', expiresAt: { gt: new Date() } },
+      data: { status: 'CANCELLED' },
+    });
+    if (count === 1) await tx.seatLock.deleteMany({ where: { orderId } });
+    return count === 1;
+  });
+
+  if (!cancelled) {
+    // Không hủy được: xem lý do để báo đúng mã lỗi (đã hết hạn giữ ghế, hay đơn không còn PENDING).
+    const now = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
+    throw new AppError(now.status === 'PENDING' ? 'ORDER_EXPIRED' : 'ORDER_NOT_PENDING');
+  }
+  return getOrder({ userId, orderId });
+}
+
+/**
+ * Dọn đơn PENDING đã quá hạn: -> EXPIRED và xóa SeatLock HELD của đơn (03-database mục 5.6).
+ * Chỉ để dữ liệu sạch: hệ thống vẫn ĐÚNG khi hàm này không chạy, vì lượt giữ quá hạn đã được coi là trống.
+ * @param {{ now?: Date }} [params]
+ * @returns {Promise<number>} số đơn đã chuyển EXPIRED
+ */
+export async function expirePendingOrders({ now = new Date() } = {}) {
+  const stale = await prisma.order.findMany({
+    where: { status: 'PENDING', expiresAt: { lt: now } }, // dùng index (status, expiresAt)
+    select: { id: true },
+  });
+  let expired = 0;
+  for (const { id } of stale) {
+    await prisma.$transaction(async (tx) => {
+      // Có điều kiện status = PENDING: nếu IPN vừa xác nhận đơn này thì count = 0 và ta không đụng vào.
+      const { count } = await tx.order.updateMany({
+        where: { id, status: 'PENDING', expiresAt: { lt: now } },
+        data: { status: 'EXPIRED' },
+      });
+      if (count === 1) {
+        await tx.seatLock.deleteMany({ where: { orderId: id, status: 'HELD' } });
+        expired++;
+      }
+    });
+  }
+  return expired;
+}
