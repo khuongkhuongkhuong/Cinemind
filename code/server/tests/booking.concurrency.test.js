@@ -35,7 +35,7 @@ async function newUsers(n) {
 
 before(async () => {
   // Dùng suất chiếu XA nhất để không đụng các test khác chạy song song.
-  showtime = await prisma.showtime.findFirst({ where: { status: 'OPEN' }, orderBy: { startTime: 'desc' } });
+  showtime = await prisma.showtime.findFirst({ where: { status: 'OPEN', startTime: { lt: new Date(Date.now() + 30 * 86_400_000) } }, orderBy: { startTime: 'desc' } });
   seats = await prisma.seat.findMany({ where: { roomId: showtime.roomId } });
 });
 

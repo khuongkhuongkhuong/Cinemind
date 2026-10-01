@@ -62,8 +62,9 @@ Mã khuyến mãi mẫu: `CINE10` (giảm 10%, tối đa 30.000đ, đơn từ 10
 | Đặt vé | `POST /orders` (giữ ghế) · `GET /orders/:id` · `PUT /orders/:id/combos` · `POST` / `DELETE /orders/:id/promotion` · `POST /orders/:id/cancel` |
 | Thanh toán | `POST /orders/:id/payments` · `GET /payments/:txnRef/status` |
 | Vé của tôi | `GET /me/orders?status&page` · `GET /me/orders/:code` (có `qrContent`) |
+| Soát vé (STAFF/ADMIN) | `GET /staff/tickets/:code` · `POST /staff/tickets/:code/check-in` (`:code` nhận cả nội dung QR `CINEMIND:<mã>`) |
 
-**Chưa có** (sẽ làm ở Sprint 3): `/me/profile`, `/me/password`, `/staff/*` (soát vé), `/admin/*`.
+**Chưa có** (Sprint 3): `/me/profile`, `/me/password`, `/admin/*`.
 
 ### Thử luồng thanh toán khi chưa có VNPay
 
