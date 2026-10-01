@@ -9,12 +9,13 @@ const { lookupTicket, checkIn, evaluateCheckIn } = await import('../src/services
 const { normalizeTicketCode } = await import('../src/lib/code.js');
 const { default: app } = await import('../src/app.js');
 const { signAccessToken } = await import('../src/lib/jwt.js');
+const { createRoleUsers } = await import('./helpers/role-users.js');
 
 const minute = 60_000;
 const RUN = Date.now();
 let showtime; // suất có sẵn trong seed (dùng với `now` giả lập)
 let nearShowtime; // suất tạo riêng bắt đầu sau 5 phút (dùng giờ thật cho test HTTP)
-let customer; let staff;
+let customer; let staff; let roles;
 let n = 0;
 
 const failErr = (p) => p.then(() => null, (e) => e);
@@ -37,12 +38,14 @@ before(async () => {
   });
   const mk = (role) => prisma.user.create({ data: { email: `test-staff-${RUN}-${role}@example.com`, passwordHash: 'x', fullName: role, role } });
   [customer, staff] = [await mk('USER'), await mk('STAFF')];
+  roles = await createRoleUsers(prisma, `chk${RUN}`);
 });
 
 after(async () => {
   await prisma.order.deleteMany({ where: { userId: customer.id } });
   await prisma.showtime.delete({ where: { id: nearShowtime.id } });
   await prisma.user.deleteMany({ where: { id: { in: [customer.id, staff.id] } } });
+  await roles.cleanup();
   await prisma.$disconnect();
 });
 
@@ -132,21 +135,21 @@ test('HTTP: phân quyền — không token 401, USER 403, STAFF và ADMIN dùng 
   const o = await makeOrder({}, nearShowtime);
   const server = app.listen(0);
   const base = `http://localhost:${server.address().port}/api/v1/staff/tickets`;
-  const as = (id, role) => ({ headers: { Authorization: `Bearer ${signAccessToken({ id, role })}` } });
+  const as = (role) => ({ headers: { Authorization: `Bearer ${roles.token(role)}` } });
   try {
     assert.equal((await fetch(`${base}/${o.code}`)).status, 401);
-    const forbidden = await fetch(`${base}/${o.code}`, as(customer.id, 'USER'));
+    const forbidden = await fetch(`${base}/${o.code}`, as('USER'));
     assert.equal(forbidden.status, 403);
     assert.equal((await forbidden.json()).error.code, 'FORBIDDEN');
-    assert.equal((await fetch(`${base}/${o.code}/check-in`, { method: 'POST', ...as(customer.id, 'USER') })).status, 403);
+    assert.equal((await fetch(`${base}/${o.code}/check-in`, { method: 'POST', ...as('USER') })).status, 403);
 
-    const look = await (await fetch(`${base}/${o.code}`, as(staff.id, 'STAFF'))).json();
+    const look = await (await fetch(`${base}/${o.code}`, as('STAFF'))).json();
     assert.equal(look.data.canCheckIn, true); // suất bắt đầu sau 5 phút, trong khung giờ thật
     const qr = encodeURIComponent(`CINEMIND:${o.code}`);
-    const res = await fetch(`${base}/${qr}/check-in`, { method: 'POST', ...as(staff.id, 'ADMIN') });
+    const res = await fetch(`${base}/${qr}/check-in`, { method: 'POST', ...as('ADMIN') });
     assert.equal(res.status, 200);
     assert.ok((await res.json()).data.checkedInAt);
-    const twice = await fetch(`${base}/${o.code}/check-in`, { method: 'POST', ...as(staff.id, 'STAFF') });
+    const twice = await fetch(`${base}/${o.code}/check-in`, { method: 'POST', ...as('STAFF') });
     assert.equal(twice.status, 409);
     assert.equal((await twice.json()).error.code, 'TICKET_ALREADY_USED');
   } finally {

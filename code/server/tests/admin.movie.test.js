@@ -9,11 +9,12 @@ const svc = await import('../src/services/adminMovie.service.js');
 const { getMovieBySlug } = await import('../src/services/catalog.service.js');
 const { default: app } = await import('../src/app.js');
 const { signAccessToken } = await import('../src/lib/jwt.js');
+const { createRoleUsers } = await import('./helpers/role-users.js');
 
 const RUN = Date.now();
 const DAY = 86_400_000;
 const TITLE = `Phim Thử Nghiệm ${RUN}`; // "Phim Thu Nghiem <RUN>" khi bỏ dấu
-let room; let genres; let user;
+let room; let genres; let user; let roles;
 const movieIds = new Set();
 
 const failCode = (p) => p.then(() => null, (e) => e.code);
@@ -33,6 +34,7 @@ before(async () => {
   room = await prisma.room.create({ data: { cinemaId: cinema.id, name: `TestRoom-${RUN}-M` } });
   genres = await prisma.genre.findMany({ take: 3, orderBy: { name: 'asc' } });
   user = await prisma.user.create({ data: { email: `test-amov-${RUN}@example.com`, passwordHash: 'x', fullName: 'Test' } });
+  roles = await createRoleUsers(prisma, `mov${RUN}`);
 });
 
 after(async () => {
@@ -41,6 +43,7 @@ after(async () => {
   await prisma.room.delete({ where: { id: room.id } });
   await prisma.movie.deleteMany({ where: { id: { in: ids } } });
   await prisma.user.delete({ where: { id: user.id } });
+  await roles.cleanup();
   await prisma.$disconnect();
 });
 
@@ -131,7 +134,7 @@ test('danh sách admin thấy cả phim ENDED; lọc theo trạng thái; tìm kh
 test('HTTP: chỉ ADMIN; URL nguy hiểm, trường lạ (slug), dữ liệu sai bị 400; vòng đời tạo -> sửa -> trạng thái -> xóa (204)', async () => {
   const server = app.listen(0);
   const url = `http://localhost:${server.address().port}/api/v1/admin/movies`;
-  const hdr = (role) => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${signAccessToken({ id: user.id, role })}` });
+  const hdr = (role) => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${roles.token(role)}` });
   const send = (method, path, role, body) => fetch(url + path, { method, headers: hdr(role), body: body && JSON.stringify(body) });
   try {
     assert.equal((await fetch(url)).status, 401);

@@ -9,9 +9,10 @@ const { prisma } = await import('../src/config/prisma.js');
 const { getRevenueReport } = await import('../src/services/report.service.js');
 const { default: app } = await import('../src/app.js');
 const { signAccessToken } = await import('../src/lib/jwt.js');
+const { createRoleUsers } = await import('./helpers/role-users.js');
 
 const RUN = Date.now();
-let user; let st1; let st2;
+let user; let roles; let st1; let st2;
 let n = 0;
 
 const failCode = (p) => p.then(() => null, (e) => e.code);
@@ -34,6 +35,7 @@ async function makeOrder({ showtime, status = 'PAID', paidAt, total, seats }) {
 
 before(async () => {
   user = await prisma.user.create({ data: { email: `test-rep-${RUN}@example.com`, passwordHash: 'x', fullName: 'Test' } });
+  roles = await createRoleUsers(prisma, `rep${RUN}`);
   const all = await prisma.showtime.findMany({ include: { room: true } });
   st1 = all[0];
   st2 = all.find((s) => s.movieId !== st1.movieId && s.room.cinemaId !== st1.room.cinemaId); // khác phim VÀ khác rạp
@@ -50,6 +52,7 @@ before(async () => {
 after(async () => {
   await prisma.order.deleteMany({ where: { userId: user.id } });
   await prisma.user.delete({ where: { id: user.id } });
+  await roles.cleanup();
   await prisma.$disconnect();
 });
 
@@ -107,7 +110,7 @@ test('khoảng ngày sai: from > to, hoặc quá 366 ngày -> VALIDATION_ERROR',
 test('HTTP: chỉ ADMIN (401/403 với người khác); mặc định 30 ngày gần nhất theo ngày; tham số sai 400', async () => {
   const server = app.listen(0);
   const base = `http://localhost:${server.address().port}/api/v1/admin/reports/revenue`;
-  const hdr = (role) => ({ headers: { Authorization: `Bearer ${signAccessToken({ id: user.id, role })}` } });
+  const hdr = (role) => ({ headers: { Authorization: `Bearer ${roles.token(role)}` } });
   try {
     assert.equal((await fetch(base)).status, 401);
     assert.equal((await fetch(base, hdr('USER'))).status, 403);

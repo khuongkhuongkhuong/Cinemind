@@ -9,11 +9,12 @@ const svc = await import('../src/services/adminOrder.service.js');
 const { lookupTicket } = await import('../src/services/ticket.service.js');
 const { default: app } = await import('../src/app.js');
 const { signAccessToken } = await import('../src/lib/jwt.js');
+const { createRoleUsers } = await import('./helpers/role-users.js');
 
 const RUN = Date.now();
 const minute = 60_000;
 let showtime;
-let alice; let bob;
+let alice; let bob; let roles;
 const orders = {};
 let n = 0;
 
@@ -28,6 +29,7 @@ const makeOrder = (user, data = {}) => prisma.order.create({
 before(async () => {
   showtime = await prisma.showtime.findFirst({ orderBy: { startTime: 'asc' } });
   alice = await prisma.user.create({ data: { email: `test-aord-${RUN}-alice@example.com`, passwordHash: 'x', fullName: `Alice Nguyen ${RUN}` } });
+  roles = await createRoleUsers(prisma, `ord${RUN}`);
   bob = await prisma.user.create({ data: { email: `test-aord-${RUN}-bob@example.com`, passwordHash: 'x', fullName: `Bob Tran ${RUN}` } });
   orders.refund = await makeOrder(alice, { status: 'REFUND_PENDING', paidAt: new Date() });
   orders.paid = await makeOrder(alice, { status: 'PAID', paidAt: new Date() });
@@ -42,6 +44,7 @@ after(async () => {
   await prisma.payment.deleteMany({ where: { order: { userId: { in: ids } } } });
   await prisma.order.deleteMany({ where: { userId: { in: ids } } });
   await prisma.user.deleteMany({ where: { id: { in: ids } } });
+  await roles.cleanup();
   await prisma.$disconnect();
 });
 
@@ -108,7 +111,7 @@ test('HTTP: không token 401; USER và STAFF 403; ADMIN xem được và hoàn t
   const o = await makeOrder(bob, { status: 'REFUND_PENDING', paidAt: new Date() });
   const server = app.listen(0);
   const base = `http://localhost:${server.address().port}/api/v1/admin/orders`;
-  const hdr = (role) => ({ headers: { Authorization: `Bearer ${signAccessToken({ id: alice.id, role })}` } });
+  const hdr = (role) => ({ headers: { Authorization: `Bearer ${roles.token(role)}` } });
   try {
     assert.equal((await fetch(base)).status, 401);
     assert.equal((await fetch(base, hdr('USER'))).status, 403);
