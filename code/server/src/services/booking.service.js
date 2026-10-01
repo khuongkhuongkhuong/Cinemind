@@ -12,7 +12,7 @@ const MAX_ATTEMPTS = 3;
 // Nhiều người giành ghế cùng lúc => transaction phải xếp hàng chờ nhau; nới thời gian chờ mặc định (2s/5s).
 const TX_OPTIONS = { maxWait: 10_000, timeout: 15_000 };
 
-const orderInclude = {
+export const orderInclude = {
   showtime: {
     select: {
       id: true, startTime: true, format: true, audio: true,
@@ -26,7 +26,7 @@ const orderInclude = {
 };
 
 /** Dòng Order của Prisma -> cấu trúc `Order` dùng chung (04-api-contract mục 3.4). */
-function toOrderDto(o) {
+export function toOrderDto(o) {
   const { showtime } = o;
   return {
     id: o.id,

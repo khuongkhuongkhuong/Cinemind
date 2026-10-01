@@ -9,3 +9,11 @@ export function generateOrderCode(length = 8) {
   for (let i = 0; i < length; i++) code += ALPHABET[randomInt(ALPHABET.length)];
   return code;
 }
+
+/**
+ * Chuẩn hóa mã vé người/máy quét nhập vào: nhận cả mã trần ("K7Q2M9XA") lẫn nội dung QR ("CINEMIND:K7Q2M9XA"),
+ * bỏ khoảng trắng, không phân biệt hoa/thường.
+ */
+export function normalizeTicketCode(input) {
+  return String(input ?? '').trim().replace(/^cinemind:/i, '').trim().toUpperCase();
+}
