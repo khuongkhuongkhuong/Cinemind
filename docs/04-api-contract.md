@@ -139,6 +139,10 @@
 | PATCH | `/me/profile` | USER | `{ fullName?, phone? }` | `user` (S) |
 | PUT | `/me/password` | USER | `{ currentPassword, newPassword }` | `204` (S) |
 
+**Hồ sơ & mật khẩu (v1.13):**
+- `PATCH /me/profile` chỉ nhận `fullName` và `phone` (`null` = xóa số). Trường lạ như `role`, `email`, `points` bị từ chối `400 VALIDATION_ERROR` (không bị bỏ qua lặng lẽ). Body rỗng → 400.
+- `PUT /me/password`: sai `currentPassword` → **`400 VALIDATION_ERROR`** với `details.fields.currentPassword` (không phải `401`, vì client dùng `401` để hiểu là hết phiên); `newPassword` phải ≥ 8 ký tự và khác mật khẩu cũ. Thành công trả `204` và **thu hồi mọi refresh token** (đăng xuất các thiết bị khác) nhưng đặt cookie refresh mới cho thiết bị đang dùng, nên client không cần làm gì thêm. Access token cũ còn dùng được tới khi hết hạn (tối đa 15 phút). Giới hạn 10 lần / 15 phút.
+
 ### 2.5 Thanh toán VNPay (server ↔ VNPay)
 
 | Method | Path | Gọi bởi | Ghi chú |
@@ -556,3 +560,4 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 01/10/2026 | 1.10 | Mục 2.7: định nghĩa trả về, luật trùng giờ và "đã bán vé" của suất chiếu admin — bổ sung | Người A |
 | 01/10/2026 | 1.11 | Mục 2.7: định nghĩa trả về của đơn hàng admin và quy tắc hoàn tiền — bổ sung | Người A |
 | 01/10/2026 | 1.12 | Mục 2.7: định nghĩa chi tiết báo cáo doanh thu (mặc định, giới hạn, cách tính) — bổ sung | Người A |
+| 01/10/2026 | 1.13 | Mục 2.4: quy tắc hồ sơ và đổi mật khẩu (mã lỗi, thu hồi refresh token) — bổ sung | Người A |
