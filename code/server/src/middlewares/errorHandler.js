@@ -15,6 +15,12 @@ export function errorHandler(err, req, res, next) {
   if (err.type === 'entity.parse.failed') {
     return fail(res, { status: 400, code: 'VALIDATION_ERROR', message: 'JSON không hợp lệ.' });
   }
+  // Lỗi do CLIENT gây ra mà thư viện (body-parser, router...) đã gán mã 4xx: body quá lớn (413), %xx hỏng trong URL (400)...
+  // Không phải lỗi hệ thống nên không trả 500 và không ghi log lỗi.
+  if (Number.isInteger(err.status) && err.status >= 400 && err.status < 500) {
+    const message = err.status === 413 ? 'Dữ liệu gửi lên quá lớn.' : 'Yêu cầu không hợp lệ.';
+    return fail(res, { status: err.status, code: 'VALIDATION_ERROR', message });
+  }
   // Lỗi không lường trước: log đầy đủ ở server, KHÔNG lộ chi tiết kỹ thuật cho client.
   console.error(err);
   const def = ERROR_CODES.INTERNAL_ERROR;

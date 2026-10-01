@@ -4,17 +4,18 @@ import { env } from '../config/env.js';
 import { AppError } from '../utils/AppError.js';
 
 export const ACCESS_TTL = '15m';
+const ALG = 'HS256'; // ghim thuật toán ở cả ký và kiểm: không cho token tự chọn thuật toán (alg confusion)
 export const REFRESH_TTL_MS = 7 * 24 * 3600_000;
 
 /** Access token (JWT, 15 phút): chỉ chứa id + role, KHÔNG chứa dữ liệu nhạy cảm. */
 export function signAccessToken({ id, role }) {
-  return jwt.sign({ role }, env.JWT_ACCESS_SECRET, { subject: id, expiresIn: ACCESS_TTL });
+  return jwt.sign({ role }, env.JWT_ACCESS_SECRET, { subject: id, expiresIn: ACCESS_TTL, algorithm: ALG });
 }
 
 /** @returns {{ id: string, role: string }} @throws AppError TOKEN_EXPIRED | UNAUTHORIZED */
 export function verifyAccessToken(token) {
   try {
-    const payload = jwt.verify(token, env.JWT_ACCESS_SECRET);
+    const payload = jwt.verify(token, env.JWT_ACCESS_SECRET, { algorithms: [ALG] });
     return { id: payload.sub, role: payload.role };
   } catch (err) {
     if (err.name === 'TokenExpiredError') throw new AppError('TOKEN_EXPIRED');

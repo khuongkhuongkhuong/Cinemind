@@ -4,6 +4,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.NODE_ENV = 'development'; // để route /dev/.../simulate được bật
+process.env.ENABLE_DEV_ROUTES = 'true'; // cổng giả lập phải được bật CÓ CHỦ ĐÍCH (config/env.js)
 const { prisma } = await import('../src/config/prisma.js');
 const { env } = await import('../src/config/env.js');
 const { holdSeats, expirePendingOrders } = await import('../src/services/booking.service.js');
