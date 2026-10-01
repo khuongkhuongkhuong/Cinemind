@@ -1,0 +1,293 @@
+{
+  "genres": [
+    "Hành động",
+    "Hài",
+    "Tình cảm",
+    "Kinh dị",
+    "Hoạt hình",
+    "Khoa học viễn tưởng",
+    "Gia đình",
+    "Phiêu lưu",
+    "Tâm lý"
+  ],
+  "movies": [
+    {
+      "title": "Nhà Bà Tư",
+      "genres": [
+        "Hài",
+        "Gia đình"
+      ],
+      "durationMin": 102,
+      "ageRating": "T13",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-09-12",
+      "language": "Tiếng Việt",
+      "description": "Nhà Bà Tư — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Cú Nhảy Cuối Cùng",
+      "genres": [
+        "Hành động"
+      ],
+      "durationMin": 128,
+      "ageRating": "T16",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-09-05",
+      "language": "Tiếng Anh",
+      "description": "Cú Nhảy Cuối Cùng — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Mùa Hè Của Mây",
+      "genres": [
+        "Tình cảm",
+        "Tâm lý"
+      ],
+      "durationMin": 115,
+      "ageRating": "T13",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-09-19",
+      "language": "Tiếng Việt",
+      "description": "Mùa Hè Của Mây — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Căn Phòng Số 9",
+      "genres": [
+        "Kinh dị"
+      ],
+      "durationMin": 98,
+      "ageRating": "T18",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-09-26",
+      "language": "Tiếng Việt",
+      "description": "Căn Phòng Số 9 — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Thế Giới Bong Bóng",
+      "genres": [
+        "Hoạt hình",
+        "Gia đình"
+      ],
+      "durationMin": 92,
+      "ageRating": "P",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-09-14",
+      "language": "Tiếng Việt",
+      "description": "Thế Giới Bong Bóng — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Hành Tinh Cuối",
+      "genres": [
+        "Khoa học viễn tưởng",
+        "Phiêu lưu"
+      ],
+      "durationMin": 140,
+      "ageRating": "T13",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-09-20",
+      "language": "Tiếng Anh",
+      "description": "Hành Tinh Cuối — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Phố Đêm Sài Gòn",
+      "genres": [
+        "Hành động",
+        "Tâm lý"
+      ],
+      "durationMin": 122,
+      "ageRating": "T18",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-09-27",
+      "language": "Tiếng Việt",
+      "description": "Phố Đêm Sài Gòn — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Ngày Mai Nắng Lên",
+      "genres": [
+        "Tình cảm"
+      ],
+      "durationMin": 108,
+      "ageRating": "K",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-09-21",
+      "language": "Tiếng Việt",
+      "description": "Ngày Mai Nắng Lên — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Bí Mật Dưới Hầm",
+      "genres": [
+        "Kinh dị"
+      ],
+      "durationMin": 95,
+      "ageRating": "T16",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-09-28",
+      "language": "Tiếng Việt",
+      "description": "Bí Mật Dưới Hầm — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Gấu Con Đi Học",
+      "genres": [
+        "Hoạt hình",
+        "Gia đình"
+      ],
+      "durationMin": 85,
+      "ageRating": "P",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-09-07",
+      "language": "Tiếng Việt",
+      "description": "Gấu Con Đi Học — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Siêu Trộm Hà Nội",
+      "genres": [
+        "Hài",
+        "Hành động"
+      ],
+      "durationMin": 110,
+      "ageRating": "T13",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-09-13",
+      "language": "Tiếng Việt",
+      "description": "Siêu Trộm Hà Nội — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Đảo Kho Báu",
+      "genres": [
+        "Phiêu lưu",
+        "Gia đình"
+      ],
+      "durationMin": 118,
+      "ageRating": "K",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-09-24",
+      "language": "Tiếng Anh",
+      "description": "Đảo Kho Báu — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Đường Về Nhà",
+      "genres": [
+        "Tâm lý",
+        "Gia đình"
+      ],
+      "durationMin": 125,
+      "ageRating": "K",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-09-10",
+      "language": "Tiếng Việt",
+      "description": "Đường Về Nhà — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Vùng Tối",
+      "genres": [
+        "Khoa học viễn tưởng",
+        "Kinh dị"
+      ],
+      "durationMin": 132,
+      "ageRating": "T16",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-09-29",
+      "language": "Tiếng Anh",
+      "description": "Vùng Tối — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Tết Này Về Quê",
+      "genres": [
+        "Hài",
+        "Gia đình"
+      ],
+      "durationMin": 100,
+      "ageRating": "P",
+      "status": "COMING_SOON",
+      "releaseDate": "2026-11-10",
+      "language": "Tiếng Việt",
+      "description": "Tết Này Về Quê — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Chiến Binh Lửa",
+      "genres": [
+        "Hành động",
+        "Phiêu lưu"
+      ],
+      "durationMin": 145,
+      "ageRating": "T16",
+      "status": "COMING_SOON",
+      "releaseDate": "2026-11-14",
+      "language": "Tiếng Anh",
+      "description": "Chiến Binh Lửa — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Thư Tình Mùa Đông",
+      "genres": [
+        "Tình cảm"
+      ],
+      "durationMin": 112,
+      "ageRating": "T13",
+      "status": "COMING_SOON",
+      "releaseDate": "2026-11-21",
+      "language": "Tiếng Việt",
+      "description": "Thư Tình Mùa Đông — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Rừng Thì Thầm",
+      "genres": [
+        "Kinh dị"
+      ],
+      "durationMin": 101,
+      "ageRating": "T18",
+      "status": "COMING_SOON",
+      "releaseDate": "2026-12-05",
+      "language": "Tiếng Việt",
+      "description": "Rừng Thì Thầm — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    },
+    {
+      "title": "Chuyến Xe Đêm",
+      "genres": [
+        "Tâm lý"
+      ],
+      "durationMin": 105,
+      "ageRating": "T16",
+      "status": "ENDED",
+      "releaseDate": "2026-06-01",
+      "language": "Tiếng Việt",
+      "description": "Chuyến Xe Đêm — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
+      "director": "Đạo diễn mẫu",
+      "actors": "Diễn viên A, Diễn viên B"
+    }
+  ]
+}
