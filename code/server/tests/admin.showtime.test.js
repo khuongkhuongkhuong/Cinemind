@@ -9,11 +9,12 @@ const svc = await import('../src/services/showtime.service.js');
 const { getBasePrice } = await import('../src/services/pricing.service.js');
 const { default: app } = await import('../src/app.js');
 const { signAccessToken } = await import('../src/lib/jwt.js');
+const { createRoleUsers } = await import('./helpers/role-users.js');
 
 const minute = 60_000;
 const DAY = 24 * 60 * minute;
 const RUN = Date.now();
-let movie; let room; let otherRoom; let customer;
+let movie; let room; let otherRoom; let customer; let roles;
 let T0; // gốc thời gian: 60 ngày nữa, làm tròn giờ — xa hơn dữ liệu seed (7 ngày) nên không đụng ai
 const createdIds = new Set();
 
@@ -33,6 +34,7 @@ before(async () => {
   room = await prisma.room.create({ data: { cinemaId: cinema.id, name: `TestRoom-${RUN}-A` } });
   otherRoom = await prisma.room.create({ data: { cinemaId: cinema.id, name: `TestRoom-${RUN}-B` } });
   customer = await prisma.user.create({ data: { email: `test-ashow-${RUN}@example.com`, passwordHash: 'x', fullName: 'Test' } });
+  roles = await createRoleUsers(prisma, `sho${RUN}`);
 });
 
 after(async () => {
@@ -41,6 +43,7 @@ after(async () => {
   await prisma.showtime.deleteMany({ where: { OR: [{ id: { in: ids } }, { roomId: { in: [room.id, otherRoom.id] } }] } });
   await prisma.room.deleteMany({ where: { id: { in: [room.id, otherRoom.id] } } });
   await prisma.user.delete({ where: { id: customer.id } });
+  await roles.cleanup();
   await prisma.$disconnect();
 });
 
@@ -144,7 +147,7 @@ test('danh sách admin: lọc theo phòng + ngày (giờ VN), có phân trang', 
 test('HTTP: không token 401, USER và STAFF 403 (chỉ ADMIN), ADMIN tạo 201 và gặp 409 khi trùng; body sai 400', async () => {
   const server = app.listen(0);
   const url = `http://localhost:${server.address().port}/api/v1/admin/showtimes`;
-  const hdr = (role) => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${signAccessToken({ id: customer.id, role })}` });
+  const hdr = (role) => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${roles.token(role)}` });
   const body = { movieId: movie.id, roomId: room.id, startTime: at(8, 0).toISOString(), format: 'F3D', audio: 'DUBBED' };
   try {
     assert.equal((await fetch(url)).status, 401);

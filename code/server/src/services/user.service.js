@@ -56,3 +56,11 @@ export async function changePassword({ userId, currentPassword, newPassword }) {
   const { refreshToken } = await issueTokens(user);
   return { refreshToken };
 }
+
+/**
+ * Vai trò và trạng thái HIỆN TẠI của tài khoản trong DB (không tin vai trò ghi trong access token).
+ * @param {{ userId: string }} params
+ * @returns {Promise<{ role: string, isActive: boolean } | null>} null nếu tài khoản không còn tồn tại
+ */
+export const getAccountState = ({ userId }) =>
+  prisma.user.findUnique({ where: { id: userId }, select: { role: true, isActive: true } });
