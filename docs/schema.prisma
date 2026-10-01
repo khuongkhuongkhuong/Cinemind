@@ -1,0 +1,452 @@
+// =============================================================
+//  Hệ thống đặt vé xem phim — Prisma schema (PostgreSQL)
+//  Tài liệu giải thích: docs/03-database.md
+//  Quy ước: tiền = số nguyên VND; thời gian lưu UTC
+// =============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------- ENUMS ----------------------------
+
+enum Role {
+  USER
+  STAFF
+  ADMIN
+}
+
+enum AgeRating {
+  P
+  K
+  T13
+  T16
+  T18
+}
+
+enum MovieStatus {
+  COMING_SOON
+  NOW_SHOWING
+  ENDED
+}
+
+enum SeatType {
+  STANDARD
+  VIP
+  COUPLE
+}
+
+enum ShowFormat {
+  F2D
+  F3D
+  IMAX
+}
+
+enum AudioType {
+  SUBTITLE // phụ đề
+  DUBBED // lồng tiếng
+}
+
+enum ShowtimeStatus {
+  OPEN
+  CANCELLED
+}
+
+enum DayType {
+  WEEKDAY
+  WEEKEND // T6–CN và ngày lễ
+}
+
+enum OrderStatus {
+  PENDING // đang giữ ghế, chờ thanh toán
+  PAID
+  CANCELLED
+  EXPIRED
+  REFUND_PENDING // đã trả tiền nhưng mất ghế (BR-31)
+  REFUNDED
+}
+
+enum LockStatus {
+  HELD
+  SOLD
+}
+
+enum PaymentProvider {
+  VNPAY
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+enum OrderSource {
+  WEB
+  AI_CHAT // đơn tạo qua AI Agent (giai đoạn sau)
+}
+
+enum ChatSessionStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  TOOL
+}
+
+// -------------------------- TÀI KHOẢN --------------------------
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  phone        String?
+  role         Role     @default(USER)
+  points       Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  refreshTokens   RefreshToken[]
+  orders          Order[]        @relation("OrderUser")
+  checkedInOrders Order[]        @relation("OrderCheckedInBy")
+  chatSessions    ChatSession[]
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique // lưu bản băm, không lưu token gốc
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ----------------------------- PHIM -----------------------------
+
+model Movie {
+  id          String      @id @default(uuid()) @db.Uuid
+  title       String
+  slug        String      @unique
+  searchKey   String // tên không dấu, chữ thường — tìm "nha ba nu" ra "Nhà Bà Nữ"
+  description String
+  durationMin Int
+  ageRating   AgeRating
+  status      MovieStatus @default(COMING_SOON)
+  releaseDate DateTime    @db.Date
+  director    String?
+  actors      String?
+  language    String?
+  posterUrl   String?
+  trailerUrl  String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  genres    MovieGenre[]
+  showtimes Showtime[]
+
+  @@index([status, releaseDate])
+}
+
+model Genre {
+  id     String       @id @default(uuid()) @db.Uuid
+  name   String       @unique
+  movies MovieGenre[]
+}
+
+model MovieGenre {
+  movieId String @db.Uuid
+  genreId String @db.Uuid
+
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  genre Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([movieId, genreId])
+  @@index([genreId])
+}
+
+// ----------------------------- RẠP -----------------------------
+
+model City {
+  id      String   @id @default(uuid()) @db.Uuid
+  name    String   @unique
+  cinemas Cinema[]
+}
+
+model Cinema {
+  id       String  @id @default(uuid()) @db.Uuid
+  cityId   String  @db.Uuid
+  name     String
+  address  String
+  phone    String?
+  isActive Boolean @default(true)
+
+  city  City   @relation(fields: [cityId], references: [id])
+  rooms Room[]
+
+  @@index([cityId])
+}
+
+model Room {
+  id       String  @id @default(uuid()) @db.Uuid
+  cinemaId String  @db.Uuid
+  name     String
+  isActive Boolean @default(true)
+
+  cinema    Cinema     @relation(fields: [cinemaId], references: [id])
+  seats     Seat[]
+  showtimes Showtime[]
+
+  @@unique([cinemaId, name])
+}
+
+model Seat {
+  id       String   @id @default(uuid()) @db.Uuid
+  roomId   String   @db.Uuid
+  row      String   @db.VarChar(2) // "G"
+  number   Int // 7
+  type     SeatType @default(STANDARD)
+  pairCode String? // hai ghế đôi cùng pairCode
+  isActive Boolean  @default(true) // false = ghế hỏng
+
+  room       Room        @relation(fields: [roomId], references: [id])
+  locks      SeatLock[]
+  orderSeats OrderSeat[]
+
+  @@unique([roomId, row, number])
+}
+
+// ----------------------- LỊCH CHIẾU & GIÁ -----------------------
+
+model Showtime {
+  id        String         @id @default(uuid()) @db.Uuid
+  movieId   String         @db.Uuid
+  roomId    String         @db.Uuid
+  startTime DateTime
+  endTime   DateTime // start + thời lượng + thời gian dọn phòng
+  format    ShowFormat
+  audio     AudioType      @default(SUBTITLE)
+  basePrice Int // chốt từ PriceRule khi tạo suất
+  status    ShowtimeStatus @default(OPEN)
+  createdAt DateTime       @default(now())
+
+  movie  Movie      @relation(fields: [movieId], references: [id])
+  room   Room       @relation(fields: [roomId], references: [id])
+  orders Order[]
+  locks  SeatLock[]
+
+  @@index([movieId, startTime]) // lịch chiếu theo phim
+  @@index([roomId, startTime]) // chặn trùng giờ trong phòng
+  @@index([startTime])
+}
+
+model PriceRule {
+  id        String     @id @default(uuid()) @db.Uuid
+  format    ShowFormat
+  dayType   DayType
+  basePrice Int
+
+  @@unique([format, dayType])
+}
+
+model SeatTypeSurcharge {
+  seatType  SeatType @id
+  surcharge Int // COUPLE: xem BR-13
+}
+
+// --------------------------- MARKETING ---------------------------
+
+model Combo {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  price       Int
+  imageUrl    String?
+  isActive    Boolean @default(true)
+
+  orderCombos OrderCombo[]
+}
+
+model Promotion {
+  id            String       @id @default(uuid()) @db.Uuid
+  code          String       @unique
+  name          String
+  description   String?
+  discountType  DiscountType
+  discountValue Int // % hoặc số tiền
+  maxDiscount   Int? // trần giảm cho loại PERCENT
+  minOrderValue Int          @default(0)
+  startAt       DateTime
+  endAt         DateTime
+  usageLimit    Int? // null = không giới hạn
+  usedCount     Int          @default(0)
+  isActive      Boolean      @default(true)
+
+  orders Order[]
+}
+
+model Banner {
+  id        String    @id @default(uuid()) @db.Uuid
+  title     String
+  imageUrl  String
+  linkUrl   String?
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
+  startAt   DateTime?
+  endAt     DateTime?
+}
+
+// ---------------------------- ĐẶT VÉ ----------------------------
+
+model Order {
+  id            String      @id @default(uuid()) @db.Uuid
+  code          String      @unique // mã đặt vé / QR, chuỗi ngẫu nhiên (BR-32)
+  userId        String      @db.Uuid
+  showtimeId    String      @db.Uuid
+  status        OrderStatus @default(PENDING)
+  source        OrderSource @default(WEB)
+  expiresAt     DateTime // hạn giữ ghế (BR-01)
+  seatTotal     Int
+  comboTotal    Int         @default(0)
+  discount      Int         @default(0)
+  total         Int
+  promotionId   String?     @db.Uuid
+  paidAt        DateTime?
+  checkedInAt   DateTime?
+  checkedInById String?     @db.Uuid
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  user        User       @relation("OrderUser", fields: [userId], references: [id])
+  checkedInBy User?      @relation("OrderCheckedInBy", fields: [checkedInById], references: [id])
+  showtime    Showtime   @relation(fields: [showtimeId], references: [id])
+  promotion   Promotion? @relation(fields: [promotionId], references: [id])
+
+  seats    OrderSeat[]
+  combos   OrderCombo[]
+  locks    SeatLock[]
+  payments Payment[]
+
+  @@index([userId, createdAt]) // "Vé của tôi"
+  @@index([status, expiresAt]) // tác vụ dọn đơn hết hạn
+  @@index([showtimeId])
+  @@index([promotionId, userId]) // BR-22: mỗi tài khoản dùng mã 1 lần
+}
+
+// Dòng hóa đơn = "vé" của từng ghế. Lịch sử, KHÔNG xóa.
+model OrderSeat {
+  id        String   @id @default(uuid()) @db.Uuid
+  orderId   String   @db.Uuid
+  seatId    String   @db.Uuid
+  seatLabel String // "G7" — chốt
+  seatType  SeatType // chốt
+  price     Int // chốt (BR-14)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seat  Seat  @relation(fields: [seatId], references: [id])
+
+  @@unique([orderId, seatId])
+  @@index([seatId])
+}
+
+model OrderCombo {
+  id        String @id @default(uuid()) @db.Uuid
+  orderId   String @db.Uuid
+  comboId   String @db.Uuid
+  quantity  Int
+  unitPrice Int // chốt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  combo Combo @relation(fields: [comboId], references: [id])
+
+  @@unique([orderId, comboId])
+}
+
+// ⭐ Khóa ghế theo suất. Khóa chính kép (showtimeId, seatId) = UNIQUE chống trùng ghế.
+// Không có dòng = ghế trống. HELD quá hạn = coi như trống. SOLD = đã bán.
+model SeatLock {
+  showtimeId String     @db.Uuid
+  seatId     String     @db.Uuid
+  orderId    String     @db.Uuid
+  status     LockStatus @default(HELD)
+  expiresAt  DateTime? // null khi SOLD
+  createdAt  DateTime   @default(now())
+
+  showtime Showtime @relation(fields: [showtimeId], references: [id])
+  seat     Seat     @relation(fields: [seatId], references: [id])
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@id([showtimeId, seatId])
+  @@index([orderId])
+  @@index([status, expiresAt])
+}
+
+model Payment {
+  id            String          @id @default(uuid()) @db.Uuid
+  orderId       String          @db.Uuid
+  provider      PaymentProvider @default(VNPAY)
+  txnRef        String          @unique // mã giao dịch gửi VNPay
+  amount        Int
+  status        PaymentStatus   @default(PENDING)
+  bankCode      String?
+  providerTxnNo String? // mã giao dịch phía VNPay
+  responseCode  String?
+  rawData       Json? // toàn bộ dữ liệu IPN để đối soát
+  createdAt     DateTime        @default(now())
+  paidAt        DateTime?
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+}
+
+// ------------------- AI AGENT (tạo sẵn, dùng ở giai đoạn AI) -------------------
+
+// Một cuộc hội thoại. `state` = bản nháp đặt vé (phim, thành phố, ngày, số vé,
+// sở thích ghế, orderId đang giữ...) — xem docs/07-ai-hooks.md
+model ChatSession {
+  id           String            @id @default(uuid()) @db.Uuid
+  userId       String?           @db.Uuid // null = khách chưa đăng nhập
+  status       ChatSessionStatus @default(ACTIVE)
+  state        Json              @default("{}")
+  createdAt    DateTime          @default(now())
+  lastActiveAt DateTime          @default(now())
+
+  user     User?         @relation(fields: [userId], references: [id])
+  messages ChatMessage[]
+
+  @@index([userId, lastActiveAt])
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid()) @db.Uuid
+  sessionId  String   @db.Uuid
+  role       ChatRole
+  content    String
+  toolName   String? // khi role = TOOL hoặc ASSISTANT gọi tool
+  toolInput  Json?
+  toolOutput Json?
+  createdAt  DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
