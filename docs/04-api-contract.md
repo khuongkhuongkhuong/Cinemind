@@ -357,6 +357,12 @@ Frontend tự vẽ QR từ `qrContent` (thư viện QR phía client); nhân viê
 { "success": false, "error": { "code": "TICKET_ALREADY_USED", "message": "Vé đã được sử dụng lúc 19:32.", "details": { "checkedInAt": "2026-10-02T12:32:10.000Z" } } }
 ```
 
+**`GET /staff/tickets/:code`** (v1.9) trả `{ order, canCheckIn, reason? }`. Khi `canCheckIn = false`, `reason` ∈ `NOT_PAID` | `ALREADY_USED` | `TOO_EARLY` | `TOO_LATE` | `SHOWTIME_CANCELLED`. Khung giờ hợp lệ (BR-34): từ 30 phút trước đến 30 phút sau giờ bắt đầu suất (gồm cả hai đầu mút).
+
+**Tham số `:code`** chấp nhận cả mã trần (`K7Q2M9XA`) lẫn nội dung QR (`CINEMIND:K7Q2M9XA`), không phân biệt hoa/thường, để máy quét dán thẳng vào được.
+
+**Lỗi của `POST .../check-in`:** `TICKET_NOT_PAID` (422) · `TICKET_ALREADY_USED` (409, `details.checkedInAt`) · `CHECKIN_NOT_ALLOWED` (422, `details.reason` ∈ `TOO_EARLY` | `TOO_LATE` | `SHOWTIME_CANCELLED`). Hai nhân viên quét cùng một vé cùng lúc: đúng một người thành công.
+
 ---
 
 ## 4. Hướng dẫn làm song song
@@ -539,3 +545,5 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 01/10/2026 | 1.6 | Mục 3.6: ghi rõ điều kiện thành công, ý nghĩa RspCode, dạng txnRef sau khi đối chiếu VNPay v2.1.0 (không đổi endpoint) | Người A |
 | 01/10/2026 | 1.7 | Mục 3.7: định nghĩa OrderSummary, qrContent chỉ khi PAID, quy ước 404 (bổ sung) | Người A |
 | 01/10/2026 | 1.8 | Mục 3.4: quy tắc combo/khuyến mãi (tự gỡ mã, lệch tiền sau khi tạo link) — bổ sung | Người A |
+| 01/10/2026 | 1.9 | Mục 3.8: định nghĩa reason của tra cứu vé, mã lỗi check-in, :code nhận cả nội dung QR — bổ sung | Người A |
+| 01/10/2026 | 1.9 | Mục 3.8: định nghĩa reason của tra cứu vé, mã lỗi check-in, :code nhận cả nội dung QR — bổ sung | Người A |
