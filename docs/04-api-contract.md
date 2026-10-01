@@ -81,6 +81,7 @@
 - **Refresh token**: sống 7 ngày, server đặt trong **cookie `httpOnly`** (JavaScript không đọc được → khó bị đánh cắp), `path=/api/v1/auth`.
 - Client (Axios interceptor): nhận `401 TOKEN_EXPIRED` → gọi `POST /auth/refresh` → lưu access token mới → gửi lại request cũ. Refresh thất bại → chuyển về `/login`.
 - Axios cần `withCredentials: true` để gửi cookie.
+- **Rotation (v1.3):** mỗi lần `POST /auth/refresh` thành công, server thu hồi refresh token cũ và đặt cookie mới (token chỉ dùng được một lần). Response vẫn chỉ có `{ accessToken }`; client không cần xử lý thêm vì cookie do trình duyệt tự cập nhật.
 
 ### 1.4 Ký hiệu quyền
 
@@ -518,6 +519,7 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 |---|---|---|---|
 | 02/10/2026 | 1.0 | Bản đầu tiên | — |
 | 02/10/2026 | 1.1 | Làm rõ giá ghế đôi trong sơ đồ ghế và trong đơn | Rà soát Giai đoạn 6 |
-| 01/10/2026 | 1.5 | Mục 3.3: định nghĩa ShowtimeDetail, isOpenForSale (bổ sung) | Người A |
 | 01/10/2026 | 1.2 | Mục 5.1: gom `client/`, `server/` vào thư mục `code/` (không đổi API) | Người A |
+| 01/10/2026 | 1.3 | Mục 1.3: refresh token xoay vòng (rotation); response không đổi | Người A |
 | 01/10/2026 | 1.4 | Mục 3.0: định nghĩa MovieSummary / MovieDetail (bổ sung, không đổi endpoint) | Người A |
+| 01/10/2026 | 1.5 | Mục 3.3: định nghĩa ShowtimeDetail, isOpenForSale (bổ sung) | Người A |
