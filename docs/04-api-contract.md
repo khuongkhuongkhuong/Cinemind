@@ -333,6 +333,17 @@ Trả `Order` (như 3.4) với `status: "PAID"`, `paidAt`, và thêm:
 ```json
 { "qrContent": "CINEMIND:K7Q2M9XA" }
 ```
+- `qrContent` chỉ có khi đơn `PAID`; các trạng thái khác trả `null` (v1.7). Mã đơn không phải của mình → `404 NOT_FOUND` (không lộ sự tồn tại của mã). Mã không phân biệt hoa/thường.
+
+**`OrderSummary`** (phần tử của `GET /me/orders`, v1.7) — gọn hơn `Order`:
+```json
+{ "id": "o1...", "code": "K7Q2M9XA", "status": "PAID", "total": 210000, "createdAt": "...", "paidAt": "...", "checkedInAt": null,
+  "seatLabels": ["G5", "G6"],
+  "showtime": { "id": "s2...", "startTime": "...", "format": "F2D", "audio": "SUBTITLE",
+                "movie": { "title": "...", "ageRating": "T16", "posterUrl": null }, "cinema": { "name": "..." }, "room": { "name": "Phòng 3" } } }
+```
+`GET /me/orders?status=PAID&page=1&pageSize=20`: `status` ∈ các trạng thái đơn (mặc định `PAID`), sắp theo `createdAt` mới → cũ.
+
 Frontend tự vẽ QR từ `qrContent` (thư viện QR phía client); nhân viên quét được chuỗi → lấy phần mã sau dấu `:`.
 
 ### 3.8 `POST /staff/tickets/:code/check-in`
@@ -523,3 +534,4 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 01/10/2026 | 1.3 | Mục 1.3: refresh token xoay vòng (rotation); response không đổi | Người A |
 | 01/10/2026 | 1.4 | Mục 3.0: định nghĩa MovieSummary / MovieDetail (bổ sung, không đổi endpoint) | Người A |
 | 01/10/2026 | 1.5 | Mục 3.3: định nghĩa ShowtimeDetail, isOpenForSale (bổ sung) | Người A |
+| 01/10/2026 | 1.7 | Mục 3.7: định nghĩa OrderSummary, qrContent chỉ khi PAID, quy ước 404 (bổ sung) | Người A |

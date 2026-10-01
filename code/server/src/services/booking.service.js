@@ -3,6 +3,7 @@ import { AppError } from '../utils/AppError.js';
 import { generateOrderCode } from '../lib/code.js';
 import { calcSeatPrices, getSurcharges } from './pricing.service.js';
 import { isOpenForSale } from './showtime.service.js';
+import { buildMeta, toSkipTake } from '../utils/pagination.js';
 
 const HOLD_MINUTES = 10; // BR-01: giữ ghế 10 phút, không gia hạn
 const MAX_SEATS = 8; // BR-02
@@ -250,4 +251,48 @@ export async function expirePendingOrders({ now = new Date() } = {}) {
     });
   }
   return expired;
+}
+
+/**
+ * "Vé của tôi": danh sách đơn của chính mình theo trạng thái (mặc định PAID), mới nhất trước.
+ * @param {{ userId: string, status?: string, page: number, pageSize: number }} params
+ * @returns {Promise<{ items: object[], meta: object }>} items là `OrderSummary` (04-api-contract mục 3.7)
+ */
+export async function listMyOrders({ userId, status = 'PAID', page, pageSize }) {
+  const where = { userId, status };
+  const [total, rows] = await Promise.all([
+    prisma.order.count({ where }),
+    prisma.order.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      ...toSkipTake({ page, pageSize }),
+      select: {
+        id: true, code: true, status: true, total: true, createdAt: true, paidAt: true, checkedInAt: true,
+        seats: { select: { seatLabel: true }, orderBy: { seatLabel: 'asc' } },
+        showtime: orderInclude.showtime,
+      },
+    }),
+  ]);
+  const items = rows.map(({ seats, showtime, ...o }) => ({
+    ...o,
+    seatLabels: seats.map((s) => s.seatLabel),
+    showtime: {
+      id: showtime.id, startTime: showtime.startTime, format: showtime.format, audio: showtime.audio,
+      movie: showtime.movie, cinema: { name: showtime.room.cinema.name }, room: { name: showtime.room.name },
+    },
+  }));
+  return { items, meta: buildMeta({ page, pageSize }, total) };
+}
+
+/**
+ * Chi tiết một đơn/vé của mình theo MÃ ĐƠN, kèm nội dung QR (chỉ khi đã thanh toán).
+ * Mã của người khác trả NOT_FOUND (không phải FORBIDDEN) để không ai dò được mã nào tồn tại.
+ * @param {{ userId: string, code: string }} params code không phân biệt hoa/thường
+ * @returns {Promise<object>} `Order` + `qrContent`
+ * @throws {AppError} NOT_FOUND
+ */
+export async function getMyOrderByCode({ userId, code }) {
+  const order = await prisma.order.findUnique({ where: { code: code.toUpperCase() }, include: orderInclude });
+  if (!order || order.userId !== userId) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy vé.' });
+  return { ...toOrderDto(order), qrContent: order.status === 'PAID' ? `CINEMIND:${order.code}` : null };
 }
