@@ -176,6 +176,8 @@ Mọi endpoint danh sách admin trả `meta` phân trang; tạo mới trả `201
 
 **Đơn hàng (v1.11):** `GET /admin/orders` trả mỗi đơn `{ id, code, status, total, createdAt, paidAt, checkedInAt, user: { id, email, fullName }, seatLabels, showtime: { startTime, movieTitle, cinemaName } }`, mới nhất trước; `q` tìm theo mã đơn / email / họ tên (không phân biệt hoa-thường); `from`/`to` là `YYYY-MM-DD` giờ VN, `to` gồm cả ngày đó. `GET /admin/orders/:id` trả `Order` + `user` + `payments[]` (không có dữ liệu thô của cổng thanh toán). `PATCH /admin/orders/:id/refund` chỉ nhận đơn `REFUND_PENDING`; đơn ở trạng thái khác (kể cả đã `REFUNDED`) → `409 ORDER_NOT_PENDING`. Hệ thống **không tự chuyển tiền**: admin hoàn qua VNPay rồi bấm ghi nhận.
 
+**Báo cáo doanh thu (v1.12):** `GET /admin/reports/revenue?from&to&groupBy` — `from`/`to` là `YYYY-MM-DD` giờ VN, gồm cả ngày `to`; mặc định là 30 ngày kết thúc hôm nay; tối đa 366 ngày (quá hoặc `from > to` → `400 VALIDATION_ERROR`); `groupBy` ∈ `day` (mặc định) | `movie` | `cinema`. Chỉ tính đơn `PAID`, ngày tính theo `paidAt` (lúc thu tiền) theo giờ VN. `revenue` = tổng tiền khách thực trả (sau giảm giá), `ticketCount` = số ghế (ghế đôi tính 2), `orderCount` = số đơn. `day` trả đủ mọi ngày trong khoảng, ngày không có doanh thu có `revenue = 0` (để vẽ biểu đồ liên tục); `movie`/`cinema` chỉ liệt kê nhóm có doanh thu, xếp theo doanh thu giảm dần. Đơn `REFUND_PENDING`, `REFUNDED` không tính.
+
 ---
 
 ## 3. Mẫu request / response
@@ -553,3 +555,4 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 01/10/2026 | 1.9 | Mục 3.8: định nghĩa reason của tra cứu vé, mã lỗi check-in, :code nhận cả nội dung QR — bổ sung | Người A |
 | 01/10/2026 | 1.10 | Mục 2.7: định nghĩa trả về, luật trùng giờ và "đã bán vé" của suất chiếu admin — bổ sung | Người A |
 | 01/10/2026 | 1.11 | Mục 2.7: định nghĩa trả về của đơn hàng admin và quy tắc hoàn tiền — bổ sung | Người A |
+| 01/10/2026 | 1.12 | Mục 2.7: định nghĩa chi tiết báo cáo doanh thu (mặc định, giới hạn, cách tính) — bổ sung | Người A |
