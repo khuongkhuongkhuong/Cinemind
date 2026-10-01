@@ -44,7 +44,7 @@ async function newOrder() {
 const row = (id) => prisma.order.findUnique({ where: { id } });
 
 before(async () => {
-  [showtime] = await prisma.showtime.findMany({ where: { status: 'OPEN' }, orderBy: { startTime: 'desc' }, skip: 4, take: 1 });
+  [showtime] = await prisma.showtime.findMany({ where: { status: 'OPEN', startTime: { lt: new Date(Date.now() + 30 * 86_400_000) } }, orderBy: { startTime: 'desc' }, skip: 4, take: 1 });
   seats = (await prisma.seat.findMany({ where: { roomId: showtime.roomId } }))
     .sort((a, b) => a.row.localeCompare(b.row) || a.number - b.number);
   comboA = await prisma.combo.create({ data: { name: `TestA-${RUN}`, price: 50_000 } });

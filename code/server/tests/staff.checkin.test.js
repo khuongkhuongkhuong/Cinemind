@@ -28,7 +28,7 @@ const makeOrder = (data = {}, st = showtime) => prisma.order.create({
 const at = (offsetMin) => new Date(showtime.startTime.getTime() + offsetMin * minute);
 
 before(async () => {
-  [showtime] = await prisma.showtime.findMany({ where: { status: 'OPEN' }, orderBy: { startTime: 'desc' }, skip: 5, take: 1 });
+  [showtime] = await prisma.showtime.findMany({ where: { status: 'OPEN', startTime: { lt: new Date(Date.now() + 30 * 86_400_000) } }, orderBy: { startTime: 'desc' }, skip: 5, take: 1 });
   nearShowtime = await prisma.showtime.create({
     data: {
       ...Object.fromEntries(['movieId', 'roomId', 'format', 'audio', 'basePrice'].map((k) => [k, showtime[k]])),
