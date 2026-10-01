@@ -10,3 +10,7 @@ export async function create(req, res) {
 export async function detail(req, res) {
   ok(res, await bookingService.getOrder({ userId: req.user.id, orderId: req.params.id }));
 }
+
+export async function cancel(req, res) {
+  ok(res, await bookingService.cancelOrder({ userId: req.user.id, orderId: req.params.id }));
+}

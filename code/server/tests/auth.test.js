@@ -17,7 +17,7 @@ before(async () => {
 });
 
 after(async () => {
-  await prisma.user.deleteMany({ where: { email: { startsWith: 'test-' } } }); // RefreshToken xóa theo (cascade)
+  await prisma.user.deleteMany({ where: { email } }); // RefreshToken xóa theo (cascade)
   await prisma.$disconnect();
   server.close();
 });
