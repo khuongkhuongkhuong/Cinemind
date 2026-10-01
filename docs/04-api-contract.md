@@ -174,6 +174,8 @@ Mọi endpoint danh sách admin trả `meta` phân trang; tạo mới trả `201
 
 **Suất chiếu (v1.10):** mỗi phần tử trả `{ id, startTime, endTime, format, audio, basePrice, status, movie: { id, title }, cinema: { id, name }, room: { id, name } }`. `startTime` nhận chuỗi ISO 8601 và phải ở tương lai. Trùng giờ = hai khoảng `[start, end)` chồng nhau trong cùng phòng, bỏ qua suất đã hủy; suất nối đuôi (bắt đầu đúng lúc suất trước kết thúc) **không** trùng. "Đã bán vé" (`RESOURCE_IN_USE`) = suất có đơn `PAID`, `REFUND_PENDING`, hoặc `PENDING` còn hạn giữ ghế. Hủy suất là đổi `status = CANCELLED` (không xóa); gọi lại trên suất đã hủy trả nguyên suất đó. Cả nhóm `/admin/*` chỉ ADMIN (STAFF nhận `403`).
 
+**Đơn hàng (v1.11):** `GET /admin/orders` trả mỗi đơn `{ id, code, status, total, createdAt, paidAt, checkedInAt, user: { id, email, fullName }, seatLabels, showtime: { startTime, movieTitle, cinemaName } }`, mới nhất trước; `q` tìm theo mã đơn / email / họ tên (không phân biệt hoa-thường); `from`/`to` là `YYYY-MM-DD` giờ VN, `to` gồm cả ngày đó. `GET /admin/orders/:id` trả `Order` + `user` + `payments[]` (không có dữ liệu thô của cổng thanh toán). `PATCH /admin/orders/:id/refund` chỉ nhận đơn `REFUND_PENDING`; đơn ở trạng thái khác (kể cả đã `REFUNDED`) → `409 ORDER_NOT_PENDING`. Hệ thống **không tự chuyển tiền**: admin hoàn qua VNPay rồi bấm ghi nhận.
+
 ---
 
 ## 3. Mẫu request / response
@@ -550,3 +552,4 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 01/10/2026 | 1.9 | Mục 3.8: định nghĩa reason của tra cứu vé, mã lỗi check-in, :code nhận cả nội dung QR — bổ sung | Người A |
 | 01/10/2026 | 1.9 | Mục 3.8: định nghĩa reason của tra cứu vé, mã lỗi check-in, :code nhận cả nội dung QR — bổ sung | Người A |
 | 01/10/2026 | 1.10 | Mục 2.7: định nghĩa trả về, luật trùng giờ và "đã bán vé" của suất chiếu admin — bổ sung | Người A |
+| 01/10/2026 | 1.11 | Mục 2.7: định nghĩa trả về của đơn hàng admin và quy tắc hoàn tiền — bổ sung | Người A |
