@@ -7,3 +7,11 @@ export const createOrderSchema = z.object({
 });
 
 export const orderIdParam = z.object({ id: z.uuid('id không hợp lệ') });
+
+export const createPaymentSchema = z.object({
+  bankCode: z.string().trim().max(20).optional(),
+});
+
+export const simulateSchema = z.object({
+  result: z.enum(['SUCCESS', 'FAILED']),
+});
