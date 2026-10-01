@@ -3,13 +3,13 @@ import { AppError } from '../utils/AppError.js';
 import { removeAccents } from '../lib/text.js';
 import { buildMeta, toSkipTake } from '../utils/pagination.js';
 
-const genreSelect = { genres: { select: { genre: { select: { id: true, name: true } } } } };
+export const genreSelect = { genres: { select: { genre: { select: { id: true, name: true } } } } };
 
 /** Date (kiểu @db.Date) -> "YYYY-MM-DD" như hợp đồng API. */
 const dateOnly = (d) => d.toISOString().slice(0, 10);
 
 /** Dòng Prisma -> MovieSummary (04-api-contract mục 3.0). */
-function toSummary(m) {
+export function toSummary(m) {
   return {
     id: m.id,
     title: m.title,
@@ -20,6 +20,18 @@ function toSummary(m) {
     status: m.status,
     releaseDate: dateOnly(m.releaseDate),
     genres: m.genres.map((g) => g.genre),
+  };
+}
+
+/** Dòng Prisma -> MovieDetail = MovieSummary + các trường mô tả (04-api-contract mục 3.0). */
+export function toDetail(m) {
+  return {
+    ...toSummary(m),
+    description: m.description,
+    director: m.director,
+    actors: m.actors,
+    language: m.language,
+    trailerUrl: m.trailerUrl,
   };
 }
 
@@ -56,14 +68,7 @@ export async function listMovies({ status, q, genreId, page, pageSize }) {
 export async function getMovieBySlug({ slug }) {
   const m = await prisma.movie.findUnique({ where: { slug }, include: genreSelect });
   if (!m) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phim.' });
-  return {
-    ...toSummary(m),
-    description: m.description,
-    director: m.director,
-    actors: m.actors,
-    language: m.language,
-    trailerUrl: m.trailerUrl,
-  };
+  return toDetail(m);
 }
 
 /** @returns {Promise<Array<{ id: string, name: string }>>} */

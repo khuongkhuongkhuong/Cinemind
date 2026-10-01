@@ -9,6 +9,8 @@ const roomIds = testRooms.map((r) => r.id);
 await prisma.order.deleteMany({ where: { showtime: { roomId: { in: roomIds } } } });
 await prisma.showtime.deleteMany({ where: { roomId: { in: roomIds } } });
 await prisma.room.deleteMany({ where: { id: { in: roomIds } } });
+// Phim do test admin tạo (mô tả cố định 'Mô tả thử') và chưa có suất chiếu
+await prisma.movie.deleteMany({ where: { description: 'Mô tả thử', showtimes: { none: {} } } });
 const orders = await prisma.order.deleteMany({ where }); // SeatLock, OrderSeat xóa theo (cascade)
 const users = await prisma.user.deleteMany({ where: { email: { startsWith: 'test-' } } });
 console.log(`Đã xóa ${orders.count} đơn và ${users.count} user test.`);
