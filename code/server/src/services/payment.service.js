@@ -141,6 +141,14 @@ async function markPaid(tx, payment, query) {
   // chỉ ghi nhận SUCCESS (đã làm ở trên), admin xử lý hoàn tiền thủ công.
   if (!['PENDING', 'EXPIRED', 'CANCELLED'].includes(order.status)) return true;
 
+  // Số tiền đã thu phải KHỚP tổng đơn hiện tại. Khách tạo link thanh toán rồi đổi combo/mã giảm giá thì tổng đổi;
+  // trả theo link cũ sẽ thu sai số tiền => KHÔNG ghi PAID. Ghi nhận khoản thu, nhả ghế, chờ admin hoàn tiền.
+  if (order.total !== payment.amount) {
+    await tx.seatLock.deleteMany({ where: { orderId: order.id } });
+    await tx.order.update({ where: { id: order.id }, data: { status: 'REFUND_PENDING' } });
+    return true;
+  }
+
   // Xóa lượt giữ HELD đã quá hạn của NGƯỜI KHÁC trên các ghế của đơn, để ta có thể chiếm chỗ.
   const seatIds = order.seats.map((s) => s.seatId);
   await tx.seatLock.deleteMany({

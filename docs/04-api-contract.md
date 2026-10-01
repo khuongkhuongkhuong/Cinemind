@@ -298,6 +298,8 @@ Mọi endpoint danh sách admin trả `meta` phân trang; tạo mới trả `201
   }
 }
 ```
+> **Quy tắc combo / khuyến mãi (v1.8):** server tự tính mọi khoản tiền; giá combo chốt vào đơn lúc chọn. Mã khuyến mãi không phân biệt hoa/thường, áp trên tổng vé + combo. Nếu sau khi đổi combo mà mã không còn đủ điều kiện (vd dưới mức tối thiểu) thì **mã tự bị gỡ** (response có `promotion: null`). Đổi combo/mã **sau khi đã tạo link thanh toán** làm link cũ lệch số tiền: IPN của link đó không ghi `PAID` mà chuyển đơn `REFUND_PENDING` (client nên tạo giao dịch mới).
+
 > Cấu trúc `Order` này dùng chung cho mọi endpoint trả về đơn hàng. Sau `PUT /combos` hoặc `POST /promotion`, `combos` có dạng `[{ comboId, name, quantity, unitPrice, subtotal }]` và `promotion` có dạng `{ code, name, discount }`.
 
 ### 3.5 `POST /orders/:id/payments`
@@ -536,3 +538,4 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 01/10/2026 | 1.5 | Mục 3.3: định nghĩa ShowtimeDetail, isOpenForSale (bổ sung) | Người A |
 | 01/10/2026 | 1.6 | Mục 3.6: ghi rõ điều kiện thành công, ý nghĩa RspCode, dạng txnRef sau khi đối chiếu VNPay v2.1.0 (không đổi endpoint) | Người A |
 | 01/10/2026 | 1.7 | Mục 3.7: định nghĩa OrderSummary, qrContent chỉ khi PAID, quy ước 404 (bổ sung) | Người A |
+| 01/10/2026 | 1.8 | Mục 3.4: quy tắc combo/khuyến mãi (tự gỡ mã, lệch tiền sau khi tạo link) — bổ sung | Người A |

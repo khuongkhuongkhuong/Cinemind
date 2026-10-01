@@ -15,3 +15,12 @@ export const createPaymentSchema = z.object({
 export const simulateSchema = z.object({
   result: z.enum(['SUCCESS', 'FAILED']),
 });
+
+export const setCombosSchema = z.object({
+  // quantity 1..10 và combo hợp lệ do service kiểm (BR-20) để trả đúng details.fields.items
+  items: z.array(z.object({ comboId: z.uuid('comboId không hợp lệ'), quantity: z.number() })).max(20),
+});
+
+export const applyPromotionSchema = z.object({
+  code: z.string().trim().min(1, 'Vui lòng nhập mã').max(30),
+});
