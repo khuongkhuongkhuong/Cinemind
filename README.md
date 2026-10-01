@@ -6,7 +6,7 @@ Hệ thống đặt vé xem phim thông minh (luồng giống CGV, thương hi�
 |---|---|---|
 | [`docs/`](docs/README.md) | Bộ tài liệu thiết kế (yêu cầu, use case, CSDL, hợp đồng API, giao diện, kế hoạch) | Cả hai |
 | [`code/server/`](code/server/README.md) | Backend: Express + Prisma + PostgreSQL | Người A |
-| `code/client/` | Frontend: React + Vite + Tailwind (chưa tạo) | Người B |
+| [`code/client/`](code/client/README.md) | Frontend: React + Vite + Tailwind | Người B |
 | [`CLAUDE.md`](CLAUDE.md) | Quy tắc kiến trúc và quy trình làm việc | Cả hai |
 
 ## Chạy thử nhanh
@@ -20,6 +20,10 @@ cp .env.example .env     # rồi sửa DATABASE_URL và JWT_*_SECRET
 npm run db:migrate
 npm run db:seed
 npm run dev              # http://localhost:4000/api/v1/health
+
+cd ../client             # giao diện (cần backend đang chạy)
+npm install
+npm run dev              # http://localhost:5173
 ```
 
 ## Quy trình nhóm (tóm tắt)
