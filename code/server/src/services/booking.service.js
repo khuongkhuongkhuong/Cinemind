@@ -4,6 +4,7 @@ import { generateOrderCode } from '../lib/code.js';
 import { calcSeatPrices, getSurcharges } from './pricing.service.js';
 import { isOpenForSale } from './showtime.service.js';
 import { buildMeta, toSkipTake } from '../utils/pagination.js';
+import { assertPromotionUsable, calcDiscount, findPromotionByCode } from './promotion.service.js';
 
 const HOLD_MINUTES = 10; // BR-01: giữ ghế 10 phút, không gia hạn
 const MAX_SEATS = 8; // BR-02
@@ -20,6 +21,8 @@ const orderInclude = {
     },
   },
   seats: { orderBy: { seatLabel: 'asc' } },
+  combos: { include: { combo: { select: { name: true } } }, orderBy: { combo: { name: 'asc' } } },
+  promotion: { select: { code: true, name: true } },
 };
 
 /** Dòng Order của Prisma -> cấu trúc `Order` dùng chung (04-api-contract mục 3.4). */
@@ -40,8 +43,10 @@ function toOrderDto(o) {
       room: { name: showtime.room.name },
     },
     seats: o.seats.map((s) => ({ seatId: s.seatId, label: s.seatLabel, type: s.seatType, price: s.price })),
-    combos: [],
-    promotion: null,
+    combos: o.combos.map((c) => ({
+      comboId: c.comboId, name: c.combo.name, quantity: c.quantity, unitPrice: c.unitPrice, subtotal: c.quantity * c.unitPrice,
+    })),
+    promotion: o.promotion ? { code: o.promotion.code, name: o.promotion.name, discount: o.discount } : null,
     seatTotal: o.seatTotal,
     comboTotal: o.comboTotal,
     discount: o.discount,
@@ -295,4 +300,120 @@ export async function getMyOrderByCode({ userId, code }) {
   const order = await prisma.order.findUnique({ where: { code: code.toUpperCase() }, include: orderInclude });
   if (!order || order.userId !== userId) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy vé.' });
   return { ...toOrderDto(order), qrContent: order.status === 'PAID' ? `CINEMIND:${order.code}` : null };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Combo & khuyến mãi: mọi thao tác đổi tiền đều đi qua MỘT hàm tính lại (recalcOrder) để số tiền
+// luôn do SERVER tính từ giá đã chốt (BR-14, BR-15), không rải công thức ở nhiều nơi.
+// ---------------------------------------------------------------------------------------------
+
+const MAX_COMBO_QTY = 10; // BR-20
+
+/**
+ * Tính lại seatTotal / comboTotal / discount / total của đơn từ các dòng đã chốt giá, rồi ghi vào Order.
+ * Nếu mã khuyến mãi đang áp không còn hợp lệ với tổng mới (vd bỏ combo làm đơn dưới mức tối thiểu) thì GỠ mã,
+ * để khách không bao giờ trả theo một mã mà họ không còn đủ điều kiện.
+ * @param {object} tx prisma transaction
+ * @param {string} orderId
+ */
+async function recalcOrder(tx, orderId) {
+  const order = await tx.order.findUnique({
+    where: { id: orderId },
+    include: { seats: true, combos: true, promotion: true },
+  });
+  const seatTotal = order.seats.reduce((sum, s) => sum + s.price, 0);
+  const comboTotal = order.combos.reduce((sum, c) => sum + c.quantity * c.unitPrice, 0);
+  const subtotal = seatTotal + comboTotal;
+
+  let promotionId = order.promotionId;
+  let discount = 0;
+  if (order.promotion) {
+    try {
+      await assertPromotionUsable({ promotion: order.promotion, userId: order.userId, subtotal, orderId, db: tx });
+      discount = calcDiscount(order.promotion, subtotal);
+    } catch (err) {
+      if (err.code !== 'PROMO_INVALID') throw err;
+      promotionId = null; // gỡ mã
+    }
+  }
+  await tx.order.update({
+    where: { id: orderId },
+    data: { seatTotal, comboTotal, discount, promotionId, total: subtotal - discount },
+  });
+}
+
+/**
+ * Chạy `work(tx)` trong transaction trên MỘT ĐƠN còn PENDING và còn hạn của chính user.
+ * Câu cập nhật có điều kiện đầu tiên vừa kiểm tra trạng thái, vừa KHÓA dòng đơn: nếu IPN thanh toán / hủy đơn
+ * xảy ra cùng lúc thì một bên phải chờ bên kia xong, không ai ghi chồng lên ai.
+ */
+async function withPendingOrder({ userId, orderId }, work) {
+  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { userId: true } });
+  if (!order) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy đơn hàng.' });
+  if (order.userId !== userId) throw new AppError('FORBIDDEN');
+
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.order.updateMany({
+      where: { id: orderId, status: 'PENDING', expiresAt: { gt: new Date() } },
+      data: { updatedAt: new Date() },
+    });
+    if (count === 0) {
+      const now = await tx.order.findUnique({ where: { id: orderId }, select: { status: true } });
+      throw new AppError(now.status === 'PENDING' ? 'ORDER_EXPIRED' : 'ORDER_NOT_PENDING');
+    }
+    await work(tx);
+    await recalcOrder(tx, orderId);
+  }, TX_OPTIONS);
+  return getOrder({ userId, orderId });
+}
+
+/**
+ * Chọn combo bắp nước: THAY CẢ DANH SÁCH (`[]` = bỏ hết). Giá combo được chốt vào đơn lúc này (BR-14).
+ * @param {{ userId: string, orderId: string, items: Array<{ comboId: string, quantity: number }> }} params
+ * @returns {Promise<object>} `Order` với tổng tiền mới
+ * @throws {AppError} NOT_FOUND | FORBIDDEN | ORDER_EXPIRED | ORDER_NOT_PENDING | VALIDATION_ERROR
+ */
+export async function setCombos({ userId, orderId, items }) {
+  const fieldError = (message) => new AppError('VALIDATION_ERROR', { details: { fields: { items: message } } });
+  if (new Set(items.map((i) => i.comboId)).size !== items.length) throw fieldError('Mỗi combo chỉ xuất hiện một lần.');
+  if (items.some((i) => !Number.isInteger(i.quantity) || i.quantity < 1 || i.quantity > MAX_COMBO_QTY)) {
+    throw fieldError(`Số lượng mỗi combo từ 1 đến ${MAX_COMBO_QTY}.`);
+  }
+  const combos = await prisma.combo.findMany({ where: { id: { in: items.map((i) => i.comboId) }, isActive: true } });
+  if (combos.length !== items.length) throw fieldError('Có combo không tồn tại hoặc đã ngừng bán.');
+  const priceOf = new Map(combos.map((c) => [c.id, c.price]));
+
+  return withPendingOrder({ userId, orderId }, async (tx) => {
+    await tx.orderCombo.deleteMany({ where: { orderId } });
+    if (items.length) {
+      await tx.orderCombo.createMany({
+        data: items.map((i) => ({ orderId, comboId: i.comboId, quantity: i.quantity, unitPrice: priceOf.get(i.comboId) })),
+      });
+    }
+  });
+}
+
+/**
+ * Áp một mã khuyến mãi (mỗi đơn 1 mã — mã mới thay mã cũ, BR-23). Lượt dùng chưa bị trừ (chỉ trừ khi thanh toán, BR-24).
+ * @param {{ userId: string, orderId: string, code: string }} params
+ * @returns {Promise<object>} `Order` đã giảm giá
+ * @throws {AppError} PROMO_INVALID (details.reason) | NOT_FOUND | FORBIDDEN | ORDER_EXPIRED | ORDER_NOT_PENDING
+ */
+export async function applyPromotion({ userId, orderId, code }) {
+  return withPendingOrder({ userId, orderId }, async (tx) => {
+    const order = await tx.order.findUnique({ where: { id: orderId }, include: { seats: true, combos: true } });
+    const subtotal = order.seats.reduce((s, x) => s + x.price, 0) + order.combos.reduce((s, c) => s + c.quantity * c.unitPrice, 0);
+    const promotion = await findPromotionByCode({ code, db: tx });
+    await assertPromotionUsable({ promotion, userId, subtotal, orderId, db: tx });
+    await tx.order.update({ where: { id: orderId }, data: { promotionId: promotion.id } });
+  });
+}
+
+/**
+ * Gỡ mã khuyến mãi khỏi đơn.
+ * @param {{ userId: string, orderId: string }} params
+ * @returns {Promise<object>} `Order`
+ */
+export function removePromotion({ userId, orderId }) {
+  return withPendingOrder({ userId, orderId }, (tx) => tx.order.update({ where: { id: orderId }, data: { promotionId: null } }));
 }

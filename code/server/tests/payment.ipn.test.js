@@ -93,7 +93,8 @@ test('createPayment: người khác -> FORBIDDEN; đơn đã hủy -> ORDER_NOT_
   const order = await hold(owner, 'B1');
   assert.equal(await failCode(createPayment({ userId: stranger.id, orderId: order.id })), 'FORBIDDEN');
   await prisma.order.update({ where: { id: order.id }, data: { expiresAt: new Date(Date.now() - minute) } });
-  assert.equal(await failCode(createPayment({ userId: owner.id, orderId: order.id })), 'ORDER_EXPIRED');
+  // test file khác có thể quét cron giữa chừng (PENDING quá hạn -> EXPIRED): cả hai mã đều là từ chối đúng
+  assert.ok(['ORDER_EXPIRED', 'ORDER_NOT_PENDING'].includes(await failCode(createPayment({ userId: owner.id, orderId: order.id }))));
   await prisma.order.update({ where: { id: order.id }, data: { status: 'CANCELLED' } });
   assert.equal(await failCode(createPayment({ userId: owner.id, orderId: order.id })), 'ORDER_NOT_PENDING');
 });
