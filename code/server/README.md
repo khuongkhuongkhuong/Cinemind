@@ -68,7 +68,7 @@ Mã khuyến mãi mẫu: `CINE10` (giảm 10%, tối đa 30.000đ, đơn từ 10
 
 ### Thử luồng thanh toán khi chưa có VNPay
 
-Khi `NODE_ENV=development` (mặc định trong `.env.example`), có cổng giả lập để chạy trọn luồng mà không cần tài khoản VNPay:
+Khi `NODE_ENV=development` **và `ENABLE_DEV_ROUTES=true`** (cả hai đều có sẵn trong `.env.example`), có cổng giả lập để chạy trọn luồng mà không cần tài khoản VNPay. Cổng này cho phép đánh dấu một đơn là đã trả tiền mà không cần đăng nhập, nên **mặc định tắt và production từ chối khởi động nếu bật** (xem `docs/08-security-review.md`):
 
 ```
 POST /api/v1/dev/payments/:txnRef/simulate     body: { "result": "SUCCESS" }   (hoặc "FAILED")
@@ -133,7 +133,17 @@ Quy tắc kiến trúc và các bất biến cốt lõi (chống trùng ghế b�
 | `npm run db:clean-test` | Dọn dữ liệu rác nếu test bị ngắt giữa chừng |
 | `npm run spike:seatlock` | Thí nghiệm chống trùng ghế bằng khóa chính |
 
-## 6. Lỗi thường gặp
+## 6. Cấu hình bảo mật
+
+| Biến | Ý nghĩa |
+|---|---|
+| `ENABLE_DEV_ROUTES` | `true` để bật cổng giả lập thanh toán khi dev/demo. Mặc định tắt |
+| `TRUST_PROXY` | Số bước nhảy proxy tin cậy (vd `1` khi chạy sau Nginx) để giới hạn tốc độ tính đúng IP khách |
+| `NODE_ENV=production` | Kích hoạt kiểm tra khởi động: secret ≥ 32 ký tự, khác nhau, không phải giá trị mẫu; `CLIENT_URL` HTTPS; đủ cấu hình VNPay thật; không bật cổng giả lập |
+
+Danh sách kiểm tra trước khi triển khai: `docs/08-security-review.md` mục 5.
+
+## 7. Lỗi thường gặp
 
 | Triệu chứng | Nguyên nhân / cách xử lý |
 |---|---|
@@ -141,5 +151,6 @@ Quy tắc kiến trúc và các bất biến cốt lõi (chống trùng ghế b�
 | `P1001 Can't reach database` | PostgreSQL chưa chạy, hoặc sai cổng |
 | Trình duyệt báo CORS | `CLIENT_URL` trong `.env` chưa khớp địa chỉ frontend (cả cổng) |
 | Đăng nhập được nhưng refresh `401` | Axios chưa bật `withCredentials: true` |
+| Gọi `/dev/...` bị 404 | Chưa đặt `ENABLE_DEV_ROUTES=true` (hoặc `NODE_ENV` không phải `development`) |
 | Không có suất chiếu hôm nay | Seed chỉ tạo 7 ngày kể từ lúc chạy; chạy lại `npm run db:seed` |
 | `npm test` báo ghế đã có người giữ | Có dữ liệu rác từ lần test trước: `npm run db:clean-test` |

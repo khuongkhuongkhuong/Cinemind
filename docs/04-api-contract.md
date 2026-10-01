@@ -72,8 +72,10 @@
 | 422 | `PROMO_INVALID` | Mã không dùng được. `details.reason`: `NOT_FOUND` \| `NOT_STARTED` \| `EXPIRED` \| `USAGE_LIMIT_REACHED` \| `MIN_ORDER_NOT_MET` \| `ALREADY_USED` |
 | 422 | `TICKET_NOT_PAID` | Tra cứu vé của đơn chưa thanh toán |
 | 422 | `CHECKIN_NOT_ALLOWED` | Ngoài khung giờ check-in (BR-34). `details.reason`: `TOO_EARLY` \| `TOO_LATE` |
-| 429 | `RATE_LIMITED` | Gọi quá nhiều lần (đăng nhập sai liên tục) |
+| 429 | `RATE_LIMITED` | Gọi quá nhiều lần theo IP: đăng nhập 20 lần / 15 phút, đăng ký 20 lần / giờ, `/auth/refresh` 60 lần / 15 phút, đổi mật khẩu 10 lần / 15 phút |
 | 500 | `INTERNAL_ERROR` | Lỗi không mong đợi (không lộ chi tiết kỹ thuật ra ngoài) |
+
+**Quy tắc chung về an toàn (v1.18):** body JSON tối đa 100 KB (lớn hơn → `413` với `code = VALIDATION_ERROR`); chuỗi chứa ký tự NUL (`\u0000`, `%00`) hoặc `%xx` hỏng trong URL → `400 VALIDATION_ERROR`. Mọi phản hồi có `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` và CSP chặn nhúng; các route `/auth`, `/me`, `/orders`, `/payments`, `/staff`, `/admin` trả `Cache-Control: no-store` (production thêm HSTS). Access token chỉ nhận thuật toán HS256.
 
 ### 1.3 Xác thực (JWT)
 
@@ -149,7 +151,7 @@
 |---|---|---|---|
 | GET | `/payments/vnpay/ipn` | **VNPay** | Query `vnp_*` có chữ ký. Response theo định dạng VNPay (mục 3.6). Chỉ endpoint này được đổi đơn sang PAID |
 | — | Return URL = `<client>/payment/result` | Trình duyệt | Trang P07 của frontend; đọc `vnp_TxnRef` trên URL rồi gọi `/payments/:txnRef/status` |
-| POST | `/dev/payments/:txnRef/simulate` | Dev | `{ result: "SUCCESS" \| "FAILED" }` — **chỉ bật khi `NODE_ENV=development`**; giả lập IPN để test/demo khi không có mạng |
+| POST | `/dev/payments/:txnRef/simulate` | Dev | `{ result: "SUCCESS" \| "FAILED" }` — **chỉ bật khi `NODE_ENV=development` VÀ `ENABLE_DEV_ROUTES=true`** (mặc định tắt; production từ chối khởi động nếu bật); giả lập IPN để test/demo khi không có mạng |
 
 ### 2.6 Nhân viên soát vé
 
@@ -564,7 +566,6 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 01/10/2026 | 1.7 | Mục 3.7: định nghĩa OrderSummary, qrContent chỉ khi PAID, quy ước 404 (bổ sung) | Người A |
 | 01/10/2026 | 1.8 | Mục 3.4: quy tắc combo/khuyến mãi (tự gỡ mã, lệch tiền sau khi tạo link) — bổ sung | Người A |
 | 01/10/2026 | 1.9 | Mục 3.8: định nghĩa reason của tra cứu vé, mã lỗi check-in, :code nhận cả nội dung QR — bổ sung | Người A |
-| 01/10/2026 | 1.9 | Mục 3.8: định nghĩa reason của tra cứu vé, mã lỗi check-in, :code nhận cả nội dung QR — bổ sung | Người A |
 | 01/10/2026 | 1.10 | Mục 2.7: định nghĩa trả về, luật trùng giờ và "đã bán vé" của suất chiếu admin — bổ sung | Người A |
 | 01/10/2026 | 1.11 | Mục 2.7: định nghĩa trả về của đơn hàng admin và quy tắc hoàn tiền — bổ sung | Người A |
 | 01/10/2026 | 1.12 | Mục 2.7: định nghĩa chi tiết báo cáo doanh thu (mặc định, giới hạn, cách tính) — bổ sung | Người A |
@@ -573,3 +574,4 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 01/10/2026 | 1.15 | Mục 2.7: quản lý tài khoản; vai trò đọc lại từ DB trên /admin và /staff — bổ sung | Người A |
 | 01/10/2026 | 1.16 | Mục 2.7: quy tắc thể loại, combo, khuyến mãi (xóa, ràng buộc, trường) — bổ sung | Người A |
 | 01/10/2026 | 1.17 | Mục 2.7: quy tắc bảng giá (đủ ô, phạm vi ảnh hưởng) và banner (URL an toàn) — bổ sung | Người A |
+| 02/10/2026 | 1.18 | Mục 1.2, 2.5: giới hạn tốc độ, 413, header bảo mật, cổng giả lập cần ENABLE_DEV_ROUTES; sửa dòng lịch sử 1.9 bị lặp (rà soát bảo mật) | Người A |
