@@ -238,6 +238,8 @@ Mọi endpoint danh sách admin trả `meta` phân trang; tạo mới trả `201
   }
 }
 ```
+- `ShowtimeDetail` (`GET /showtimes/:id`) chính là khối `showtime` ở trên (v1.5).
+- `isOpenForSale` = suất `OPEN` **và** còn > 15 phút trước giờ chiếu (BR-04).
 - `status`: `AVAILABLE` | `HELD` | `SOLD` | `UNAVAILABLE` (ghế hỏng). Lượt giữ quá hạn trả về `AVAILABLE`.
 - Ghế đôi: `price` trên **mỗi** ghế của cặp là giá **cả cặp** (để hiển thị); khi giữ ghế, client gửi **cả hai** `seatId`. Trong `Order.seats`, mỗi ghế đôi có `price` = **một nửa** giá cặp, nên tổng luôn đúng.
 
@@ -503,4 +505,5 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 |---|---|---|---|
 | 02/10/2026 | 1.0 | Bản đầu tiên | — |
 | 02/10/2026 | 1.1 | Làm rõ giá ghế đôi trong sơ đồ ghế và trong đơn | Rà soát Giai đoạn 6 |
+| 01/10/2026 | 1.5 | Mục 3.3: định nghĩa ShowtimeDetail, isOpenForSale (bổ sung) | Người A |
 | 01/10/2026 | 1.2 | Mục 5.1: gom `client/`, `server/` vào thư mục `code/` (không đổi API) | Người A |
