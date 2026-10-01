@@ -13,7 +13,7 @@ const cookieOptions = {
   path: '/api/v1/auth',
 };
 
-const setRefreshCookie = (res, token) => res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: REFRESH_TTL_MS });
+export const setRefreshCookie = (res, token) => res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: REFRESH_TTL_MS });
 
 export async function register(req, res) {
   const { refreshToken, ...data } = await authService.register(req.body);

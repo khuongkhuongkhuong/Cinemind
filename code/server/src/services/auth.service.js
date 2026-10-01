@@ -13,7 +13,7 @@ const toPublicUser = (u) => ({
   id: u.id, email: u.email, fullName: u.fullName, phone: u.phone, role: u.role, points: u.points,
 });
 
-async function issueTokens(user) {
+export async function issueTokens(user) {
   const refreshToken = generateRefreshToken();
   await prisma.refreshToken.create({
     data: {
