@@ -326,7 +326,7 @@ Response **theo định dạng VNPay**, không theo mục 1.1:
 | Sai số tiền | `{ "RspCode": "04", "Message": "Invalid amount" }` |
 | Sai chữ ký | `{ "RspCode": "97", "Message": "Invalid signature" }` |
 
-> Đối chiếu lại với tài liệu tích hợp VNPay sandbox khi code.
+> Đã đối chiếu tài liệu VNPay v2.1.0 (v1.6): chữ ký HMAC-SHA512 trên các tham số `vnp_*` sắp theo tên, `vnp_Amount` = VND × 100; thanh toán chỉ thành công khi **cả** `vnp_ResponseCode` và `vnp_TransactionStatus` đều là `00`. `RspCode` 00 và 02 làm VNPay ngừng gọi lại; 01/04/97/99 thì VNPay gọi lại tối đa 10 lần, cách 5 phút. `txnRef` có dạng `<mã đơn>-<lần thứ n>`.
 
 ### 3.7 `GET /me/orders/:code`
 Trả `Order` (như 3.4) với `status: "PAID"`, `paidAt`, và thêm:
@@ -523,3 +523,4 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 01/10/2026 | 1.3 | Mục 1.3: refresh token xoay vòng (rotation); response không đổi | Người A |
 | 01/10/2026 | 1.4 | Mục 3.0: định nghĩa MovieSummary / MovieDetail (bổ sung, không đổi endpoint) | Người A |
 | 01/10/2026 | 1.5 | Mục 3.3: định nghĩa ShowtimeDetail, isOpenForSale (bổ sung) | Người A |
+| 01/10/2026 | 1.6 | Mục 3.6: ghi rõ điều kiện thành công, ý nghĩa RspCode, dạng txnRef sau khi đối chiếu VNPay v2.1.0 (không đổi endpoint) | Người A |
