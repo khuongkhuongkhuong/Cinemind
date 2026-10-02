@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+/* Bảng màu Cinemind: nền tối kiểu rạp chiếu, nhấn đỏ thương hiệu, vàng cho ghế VIP / điểm nhấn. */
+@theme {
+  --font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+
+  --color-ink-950: #0b0d14;
+  --color-ink-900: #11141d;
+  --color-ink-800: #171b27;
+  --color-ink-700: #1f2433;
+  --color-ink-600: #2a3043;
+  --color-ink-500: #3b4259;
+  --color-ink-300: #8a93ad;
+  --color-ink-100: #e6e9f2;
+
+  --color-brand-400: #fb5d78;
+  --color-brand-500: #f43f5e;
+  --color-brand-600: #e11d48;
+  --color-brand-700: #be123c;
+
+  --color-gold-400: #fbbf24;
+  --color-gold-500: #f59e0b;
+
+  --color-ok: #22c55e;
+  --color-warn: #f59e0b;
+  --color-bad: #ef4444;
+}
+
+html { color-scheme: dark; }
+body { background: var(--color-ink-950); color: var(--color-ink-100); font-family: var(--font-sans); }
+
+/* Vòng focus rõ ràng cho điều hướng bằng bàn phím */
+:focus-visible { outline: 2px solid var(--color-brand-400); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

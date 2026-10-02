@@ -101,7 +101,7 @@ flowchart TD
 │ └──────┘  [▶ Xem trailer]                                 │
 ├──────────────────────────────────────────────────────────┤
 │ Thành phố: [Hà Nội ▾]                                     │
-│ Ngày: [T5 02/10] [T6 03/10] [T7 04/10] ... (7 ngày)        │
+│ Ngày: [T6 02/10] [T7 03/10] [CN 04/10] ... (7 ngày)        │
 │ ── Rạp A ────────────────────────────────────────         │
 │    2D Phụ đề:   [09:30] [13:15] [19:45]                    │
 │    3D Lồng tiếng: [16:00]                                  │
@@ -114,7 +114,7 @@ flowchart TD
 ### P05 — Chọn ghế ⭐
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ Tên phim · Rạp A · Phòng 3 · 19:45 T5 02/10 · 2D Phụ đề    │
+│ Tên phim · Rạp A · Phòng 3 · 19:45 T6 02/10 · 2D Phụ đề    │
 ├──────────────────────────────────────────────────────────┤
 │                    ═════ MÀN HÌNH ═════                    │
 │   A  ▢ ▢ ▢ ▢ ▢ ▢ ▢ ▢ ▢ ▢ ▢ ▢                              │
@@ -172,7 +172,7 @@ flowchart TD
 │     Mã đặt vé: K7Q2-M9XA     │
 │  Tên phim [T16]              │
 │  Rạp A · Phòng 3             │
-│  19:45 T5 02/10/2026         │
+│  19:45 T6 02/10/2026         │
 │  Ghế: G7, G8                 │
 │  Combo: 1 × Combo 1          │
 │  Tổng: 154.000đ · Đã thanh toán│
@@ -216,7 +216,7 @@ flowchart TD
 |---|---|
 | Trạng thái dữ liệu | Mỗi trang có đủ 3 trạng thái: **đang tải** (skeleton), **rỗng**, **lỗi** (kèm nút thử lại) |
 | Thông báo | Toast cho thành công / lỗi ngắn; hộp thoại cho lỗi chặn luồng (hết giờ giữ ghế) |
-| Tiền, giờ | Định dạng `154.000đ`; giờ Việt Nam `19:45 T5 02/10/2026` |
+| Tiền, giờ | Định dạng `154.000đ`; giờ Việt Nam `19:45 T6 02/10/2026` |
 | Responsive | Tối thiểu 360 px; sơ đồ ghế cuộn ngang trên điện thoại (NFR-16) |
 | Màu trạng thái ghế | Thống nhất một bộ màu cho Thường / VIP / Đôi / Đang chọn / Đang giữ / Đã bán, kèm chú thích |
 | Dữ liệu từ server | Dùng TanStack Query; dữ liệu giả (mock) theo đúng `04-api-contract.md` khi backend chưa xong |
