@@ -32,7 +32,7 @@ export default function TicketDetailPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-5">
-      <Link to="/me/tickets" className="text-sm text-ink-300 hover:text-white">← Vé của tôi</Link>
+      <Link to="/me/tickets" className="text-sm text-ink-300 hover:text-brand-600">← Vé của tôi</Link>
 
       <article aria-label={`Vé ${order.code}`} className="overflow-hidden rounded-2xl border border-ink-600 bg-ink-900">
         <div className="space-y-4 p-6 text-center">

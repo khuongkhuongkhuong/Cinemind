@@ -45,7 +45,7 @@ export default function MovieDetailPage() {
   return (
     <div className="space-y-8">
       <nav aria-label="Đường dẫn" className="text-sm text-ink-300">
-        <Link to="/movies" className="hover:text-white">Phim</Link> <span aria-hidden="true">/</span> <span className="text-ink-100">{movie.title}</span>
+        <Link to="/movies" className="hover:text-brand-600">Phim</Link> <span aria-hidden="true">/</span> <span className="text-ink-100">{movie.title}</span>
       </nav>
 
       <section className="grid gap-6 sm:grid-cols-[14rem_1fr] lg:grid-cols-[16rem_1fr]">

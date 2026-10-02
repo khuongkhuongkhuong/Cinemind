@@ -69,6 +69,11 @@ src/
 - Thao tác nhạy cảm (đổi vai trò, khóa tài khoản, hoàn tiền, xóa) đều qua hộp xác nhận; admin không tự khóa / tự đổi vai trò mình (server cũng chặn, UI chỉ ẩn nút cho tiện).
 - Form chỉ khởi tạo một lần từ dữ liệu server (không dựng lại khi refetch) để không xóa chữ đang gõ dở.
 
+### Giao diện (theme)
+- Phong cách rạp chiếu thương mại: nền kem sáng, nhấn **đỏ** (`brand-*`), chữ tối, chân trang tối. Toàn bộ màu nằm ở `@theme` trong `src/index.css`; tên token `ink-*` giữ nguyên nhưng **thang đã đảo** (ink-950 = nền trang, ink-900 = thẻ trắng, ink-100 = chữ chính) — muốn đổi màu chủ đạo chỉ sửa file đó.
+- Màu nhạt của Tailwind từng dùng cho chữ trên nền tối (`red-300`, `green-300`…) được gán lại tông đậm trong `@theme` để đọc được trên nền sáng.
+- Phân loại độ tuổi dùng ô đặc màu + chữ (không chỉ màu); ghế VIP / đôi có nền màu riêng để phân biệt với ghế thường.
+
 ## 5. Đăng nhập hoạt động thế nào
 
 - **Access token** (15 phút) chỉ nằm trong **bộ nhớ** (`api/tokenStore.js`), **không** ghi `localStorage` — XSS không đọc được từ kho lưu trữ.

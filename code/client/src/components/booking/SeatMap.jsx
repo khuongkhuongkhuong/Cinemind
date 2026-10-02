@@ -8,15 +8,15 @@ const STATUS_LABEL = { AVAILABLE: 'còn trống', HELD: 'đang được giữ', 
 function seatStyle(seat, selected) {
   if (selected) return 'border-brand-500 bg-brand-600 text-white';
   switch (seat.status) {
-    case 'SOLD': return 'cursor-not-allowed border-ink-700 bg-ink-600 text-ink-300';
+    case 'SOLD': return 'cursor-not-allowed border-ink-500 bg-ink-500 text-ink-900';
     case 'HELD': return 'cursor-not-allowed border-warn/60 text-warn [background:repeating-linear-gradient(45deg,transparent,transparent_3px,rgba(245,158,11,0.25)_3px,rgba(245,158,11,0.25)_6px)]';
-    case 'UNAVAILABLE': return 'cursor-not-allowed border-dashed border-ink-700 text-ink-600';
+    case 'UNAVAILABLE': return 'cursor-not-allowed border-dashed border-ink-600 text-ink-500';
     default:
       return seat.type === 'VIP'
-        ? 'border-gold-400 bg-gold-400/10 text-gold-400 hover:bg-gold-400/30'
+        ? 'border-amber-500 bg-amber-100 text-gold-400 hover:bg-amber-200'
         : seat.type === 'COUPLE'
-          ? 'border-pink-400 bg-pink-400/10 text-pink-300 hover:bg-pink-400/30'
-          : 'border-ink-300 bg-ink-800 text-ink-100 hover:bg-ink-600';
+          ? 'border-pink-400 bg-pink-100 text-pink-300 hover:bg-pink-200'
+          : 'border-ink-500 bg-white text-ink-100 hover:bg-ink-700';
   }
 }
 
@@ -64,12 +64,12 @@ export function SeatLegend() {
   const chip = 'inline-flex h-6 w-6 items-center justify-center rounded border text-[10px] font-bold';
   return (
     <ul aria-label="Chú thích" className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-ink-300">
-      <li className="flex items-center gap-2"><span className={`${chip} border-ink-300 bg-ink-800`} /> Thường</li>
-      <li className="flex items-center gap-2"><span className={`${chip} border-gold-400 bg-gold-400/10`} /> VIP</li>
-      <li className="flex items-center gap-2"><span className={`${chip} w-10 border-pink-400 bg-pink-400/10`} /> Đôi</li>
+      <li className="flex items-center gap-2"><span className={`${chip} border-ink-500 bg-white`} /> Thường</li>
+      <li className="flex items-center gap-2"><span className={`${chip} border-amber-500 bg-amber-100`} /> VIP</li>
+      <li className="flex items-center gap-2"><span className={`${chip} w-10 border-pink-400 bg-pink-100`} /> Đôi</li>
       <li className="flex items-center gap-2"><span className={`${chip} border-brand-500 bg-brand-600 text-white`}>✔</span> Đang chọn</li>
       <li className="flex items-center gap-2"><span className={`${chip} border-warn/60 text-warn`}>▒</span> Đang được giữ</li>
-      <li className="flex items-center gap-2"><span className={`${chip} border-ink-700 bg-ink-600`}>■</span> Đã bán</li>
+      <li className="flex items-center gap-2"><span className={`${chip} border-ink-500 bg-ink-500 text-ink-900`}>■</span> Đã bán</li>
     </ul>
   );
 }

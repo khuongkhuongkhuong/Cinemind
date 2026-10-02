@@ -34,7 +34,7 @@ export function ToastProvider({ children }) {
           >
             <span aria-hidden="true" className="font-bold">{ICONS[t.type]}</span>
             <span className="flex-1">{t.message}</span>
-            <button type="button" onClick={() => dismiss(t.id)} aria-label="Đóng thông báo" className="text-ink-300 hover:text-white">×</button>
+            <button type="button" onClick={() => dismiss(t.id)} aria-label="Đóng thông báo" className="text-ink-300 hover:text-brand-600">×</button>
           </div>
         ))}
       </div>
