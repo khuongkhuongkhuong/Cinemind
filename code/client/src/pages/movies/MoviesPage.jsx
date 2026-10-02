@@ -58,7 +58,7 @@ export default function MoviesPage() {
       <div role="tablist" aria-label="Loại phim" className="mt-4 flex gap-2">
         {TABS.map((t) => (
           <button key={t.value} role="tab" type="button" aria-selected={statusParam === t.value} onClick={() => update({ status: t.value })}
-            className={`h-10 rounded-lg px-4 text-sm font-semibold transition-colors ${statusParam === t.value ? 'bg-brand-600 text-white' : 'bg-ink-800 text-ink-300 hover:text-white'}`}>
+            className={`h-11 border-b-4 px-4 text-sm font-bold uppercase tracking-wide transition-colors ${statusParam === t.value ? 'border-brand-600 text-ink-100' : 'border-transparent text-ink-300 hover:text-brand-600'}`}>
             {t.label}
           </button>
         ))}

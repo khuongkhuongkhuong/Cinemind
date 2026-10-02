@@ -5,7 +5,7 @@ import { formatDuration } from '@/lib/format';
 /** Ảnh poster; thiếu ảnh hoặc ảnh lỗi thì hiện khối màu có chữ cái đầu của tên phim. */
 export function Poster({ movie, className = '' }) {
   return (
-    <div className={`relative aspect-[2/3] overflow-hidden rounded-xl bg-gradient-to-br from-ink-600 to-ink-800 ${className}`}>
+    <div className={`relative aspect-[2/3] overflow-hidden rounded bg-gradient-to-br from-ink-600 to-ink-800 ${className}`}>
       <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-6xl font-black text-ink-500">
         {movie.title.trim().charAt(0).toUpperCase()}
       </div>
@@ -23,12 +23,12 @@ export function Poster({ movie, className = '' }) {
 export default function MovieCard({ movie }) {
   return (
     <article className="group flex flex-col gap-2">
-      <Link to={`/movies/${movie.slug}`} className="relative block rounded-xl transition-transform group-hover:-translate-y-1" aria-label={`${movie.title} — xem chi tiết`}>
+      <Link to={`/movies/${movie.slug}`} className="relative block rounded shadow-md transition-transform group-hover:-translate-y-1" aria-label={`${movie.title} — xem chi tiết`}>
         <Poster movie={movie} />
         <AgeBadge rating={movie.ageRating} className="absolute left-2 top-2 backdrop-blur" />
       </Link>
       <div className="min-w-0">
-        <h3 className="truncate font-semibold text-ink-100" title={movie.title}>
+        <h3 className="truncate font-bold text-ink-100" title={movie.title}>
           <Link to={`/movies/${movie.slug}`} className="hover:text-brand-400">{movie.title}</Link>
         </h3>
         <p className="truncate text-xs text-ink-300">
@@ -38,7 +38,7 @@ export default function MovieCard({ movie }) {
       {movie.status === 'NOW_SHOWING' && (
         <Link
           to={`/movies/${movie.slug}`}
-          className="inline-flex h-9 items-center justify-center rounded-lg bg-brand-600 text-sm font-semibold text-white hover:bg-brand-500"
+          className="inline-flex h-9 items-center justify-center rounded bg-brand-600 text-sm font-bold uppercase tracking-wide text-white hover:bg-brand-500"
         >
           Mua vé
         </Link>

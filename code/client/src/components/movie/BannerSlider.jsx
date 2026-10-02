@@ -20,7 +20,7 @@ function Slide({ banner }) {
   const [broken, setBroken] = useState(false);
   return (
     <BannerLink banner={banner}>
-      <div className="relative h-full w-full bg-gradient-to-br from-brand-700 via-ink-800 to-ink-900">
+      <div className="relative h-full w-full bg-gradient-to-br from-brand-700 to-brand-600">
         {!broken && banner.imageUrl && (
           <img src={banner.imageUrl} alt="" onError={() => setBroken(true)} className="absolute inset-0 h-full w-full object-cover" />
         )}

@@ -6,7 +6,7 @@ import Button from '@/components/ui/Button';
 
 const NAV = [{ to: '/movies', label: 'Phim' }, { to: '/cinemas', label: 'Rạp' }];
 const navClass = ({ isActive }) =>
-  `rounded-md px-3 py-2 text-sm font-medium transition-colors ${isActive ? 'text-white' : 'text-ink-300 hover:text-white'}`;
+  `px-3 py-2 text-sm font-bold uppercase tracking-wide transition-colors ${isActive ? 'text-brand-600' : 'text-ink-100 hover:text-brand-600'}`;
 
 /** Menu tài khoản theo vai trò: Vé của tôi, Hồ sơ, [Soát vé], [Quản trị], Đăng xuất (05-ui-pages mục 2). */
 function UserMenu({ user, onLogout }) {
@@ -73,9 +73,9 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-30 border-b border-ink-700 bg-ink-900/90 backdrop-blur">
+    <header className="sticky top-0 z-30 border-b border-t-4 border-ink-700 border-t-brand-600 bg-ink-900/95 shadow-sm backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
-        <Link to="/" className="text-xl font-extrabold tracking-wide text-white" aria-label="Cinemind — trang chủ">
+        <Link to="/" className="text-2xl font-black tracking-wide text-ink-100" aria-label="Cinemind — trang chủ">
           CINE<span className="text-brand-500">MIND</span>
         </Link>
 
@@ -122,7 +122,7 @@ export default function Header() {
           </form>
           <nav aria-label="Điều hướng chính (di động)" className="flex flex-col">
             {NAV.map((n) => <NavLink key={n.to} to={n.to} className={navClass}>{n.label}</NavLink>)}
-            {!user && status !== 'loading' && <Link to="/register" className="px-3 py-2 text-sm text-ink-300 hover:text-white">Đăng ký</Link>}
+            {!user && status !== 'loading' && <Link to="/register" className="px-3 py-2 text-sm text-ink-300 hover:text-brand-600">Đăng ký</Link>}
           </nav>
         </div>
       )}

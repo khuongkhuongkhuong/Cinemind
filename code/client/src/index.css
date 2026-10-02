@@ -1,32 +1,46 @@
 @import "tailwindcss";
 
-/* Bảng màu Cinemind: nền tối kiểu rạp chiếu, nhấn đỏ thương hiệu, vàng cho ghế VIP / điểm nhấn. */
+/*
+ * Bảng màu Cinemind — phong cách rạp chiếu phim thương mại: nền kem sáng, nhấn ĐỎ, chữ tối, chân trang tối.
+ * Tên token (ink / brand / gold) giữ nguyên để không phải sửa từng component; ý nghĩa của thang "ink":
+ *   ink-950 nền trang · ink-900 nền thẻ/hộp (trắng) · ink-800 nền ô nhập/chip · ink-700/600/500 đường viền nhạt → đậm
+ *   ink-300 chữ phụ · ink-200 chữ phụ đậm · ink-100 chữ chính
+ */
 @theme {
   --font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
 
-  --color-ink-950: #0b0d14;
-  --color-ink-900: #11141d;
-  --color-ink-800: #171b27;
-  --color-ink-700: #1f2433;
-  --color-ink-600: #2a3043;
-  --color-ink-500: #3b4259;
-  --color-ink-300: #8a93ad;
-  --color-ink-100: #e6e9f2;
+  --color-ink-950: #fdfcf0;
+  --color-ink-900: #ffffff;
+  --color-ink-800: #f5f3e7;
+  --color-ink-700: #e7e4d3;
+  --color-ink-600: #d4d0ba;
+  --color-ink-500: #a7a390;
+  --color-ink-300: #6b675a;
+  --color-ink-200: #4a483f;
+  --color-ink-100: #222222;
 
-  --color-brand-400: #fb5d78;
-  --color-brand-500: #f43f5e;
-  --color-brand-600: #e11d48;
-  --color-brand-700: #be123c;
+  --color-brand-400: #cf150b;
+  --color-brand-500: #ee3a30;
+  --color-brand-600: #e71a0f;
+  --color-brand-700: #b3120a;
 
-  --color-gold-400: #fbbf24;
-  --color-gold-500: #f59e0b;
+  --color-gold-400: #a16207;
+  --color-gold-500: #ca8a04;
 
-  --color-ok: #22c55e;
-  --color-warn: #f59e0b;
-  --color-bad: #ef4444;
+  --color-ok: #16a34a;
+  --color-warn: #d97706;
+  --color-bad: #dc2626;
+
+  /* Chữ màu nhạt (từng dùng trên nền tối) đổi sang tông đậm để đọc được trên nền sáng. */
+  --color-red-200: #991b1b;
+  --color-red-300: #b91c1c;
+  --color-green-300: #15803d;
+  --color-amber-300: #b45309;
+  --color-pink-300: #be185d;
+  --color-pink-400: #db2777;
 }
 
-html { color-scheme: dark; }
+html { color-scheme: light; }
 body { background: var(--color-ink-950); color: var(--color-ink-100); font-family: var(--font-sans); }
 
 /* Vòng focus rõ ràng cho điều hướng bằng bàn phím */

@@ -3,7 +3,7 @@ import Spinner from './Spinner';
 
 const VARIANTS = {
   primary: 'bg-brand-600 text-white hover:bg-brand-500 active:bg-brand-700 disabled:hover:bg-brand-600',
-  secondary: 'bg-ink-700 text-ink-100 hover:bg-ink-600 border border-ink-500',
+  secondary: 'bg-ink-900 text-ink-100 hover:bg-ink-800 border border-ink-500',
   ghost: 'text-ink-100 hover:bg-ink-700',
   danger: 'bg-bad/90 text-white hover:bg-bad',
 };
@@ -19,7 +19,7 @@ const Button = forwardRef(function Button(
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...props}
     >
       {loading && <Spinner className="h-4 w-4" />}

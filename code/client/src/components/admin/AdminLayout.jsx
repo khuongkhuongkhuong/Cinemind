@@ -16,7 +16,7 @@ const NAV = [
 ];
 
 const link = ({ isActive }) =>
-  `flex items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'text-ink-300 hover:bg-ink-800 hover:text-white'}`;
+  `flex items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'text-ink-300 hover:bg-ink-800 hover:text-brand-600'}`;
 
 /**
  * Khung trang quản trị (05-ui-pages A01–A10): thanh bên trái + nội dung. Trên điện thoại thanh bên thành dải cuộn ngang.
@@ -28,8 +28,8 @@ export default function AdminLayout() {
     <div className="flex min-h-screen flex-col lg:flex-row">
       <aside className="border-b border-ink-700 bg-ink-900 lg:sticky lg:top-0 lg:h-screen lg:w-60 lg:shrink-0 lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between gap-3 px-4 py-3 lg:block lg:py-5">
-          <Link to="/admin" className="text-xl font-extrabold tracking-wide text-white">CINE<span className="text-brand-500">MIND</span> <span className="text-xs font-semibold text-ink-300">Quản trị</span></Link>
-          <Link to="/" className="text-xs text-ink-300 hover:text-white lg:mt-1 lg:block">← Về trang khách</Link>
+          <Link to="/admin" className="text-xl font-extrabold tracking-wide text-ink-100">CINE<span className="text-brand-500">MIND</span> <span className="text-xs font-semibold text-ink-300">Quản trị</span></Link>
+          <Link to="/" className="text-xs text-ink-300 hover:text-brand-600 lg:mt-1 lg:block">← Về trang khách</Link>
         </div>
         <nav aria-label="Quản trị" className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-col lg:px-3 lg:pb-0">
           {NAV.map((n) => (

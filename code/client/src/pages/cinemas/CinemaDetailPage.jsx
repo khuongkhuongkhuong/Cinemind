@@ -21,7 +21,7 @@ export default function CinemaDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <Link to="/cinemas" className="text-sm text-ink-300 hover:text-white">← Tất cả rạp</Link>
+      <Link to="/cinemas" className="text-sm text-ink-300 hover:text-brand-600">← Tất cả rạp</Link>
       <h1 className="mt-2 text-3xl font-extrabold">{q.data?.cinema.name ?? 'Lịch chiếu theo rạp'}</h1>
       {q.data && <p className="text-ink-300">{q.data.cinema.address}</p>}
 
