@@ -304,3 +304,40 @@ export async function cancelShowtime({ showtimeId }) {
   });
   return toAdminShowtime(updated);
 }
+
+/**
+ * Lịch chiếu của MỘT RẠP trong một ngày, nhóm theo phim -> (định dạng, phụ đề/lồng tiếng) (docs 3.2b).
+ * Chỉ suất OPEN; rạp đã tắt coi như không tồn tại với khách.
+ * @param {{ cinemaId: string, date: string }} params date dạng YYYY-MM-DD (giờ VN)
+ * @returns {Promise<{ date: string, cinema: object, movies: object[] }>}
+ * @throws {AppError} NOT_FOUND
+ */
+export async function listShowtimesByCinema({ cinemaId, date }) {
+  const cinema = await prisma.cinema.findFirst({ where: { id: cinemaId, isActive: true }, select: { id: true, name: true, address: true } });
+  if (!cinema) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy rạp.' });
+
+  const { from, to } = vnDayRange(date);
+  const now = new Date();
+  const rows = await prisma.showtime.findMany({
+    where: { status: 'OPEN', startTime: { gte: from, lt: to }, room: { cinemaId } },
+    orderBy: { startTime: 'asc' },
+    select: {
+      id: true, startTime: true, format: true, audio: true, status: true,
+      movie: { select: { id: true, title: true, slug: true, ageRating: true, posterUrl: true, durationMin: true } },
+    },
+  });
+
+  const byMovie = new Map();
+  for (const s of rows) {
+    if (!byMovie.has(s.movie.id)) byMovie.set(s.movie.id, { movie: s.movie, groups: new Map() });
+    const { groups } = byMovie.get(s.movie.id);
+    const key = `${s.format}|${s.audio}`;
+    if (!groups.has(key)) groups.set(key, { format: s.format, audio: s.audio, showtimes: [] });
+    groups.get(key).showtimes.push({ id: s.id, startTime: s.startTime, isOpenForSale: isOpenForSale(s, now) });
+  }
+  return {
+    date,
+    cinema,
+    movies: [...byMovie.values()].map(({ movie, groups }) => ({ movie, groups: [...groups.values()] })),
+  };
+}

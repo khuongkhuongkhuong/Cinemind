@@ -113,7 +113,7 @@
 | GET | `/cities` | Public | — | `[{ id, name }]` |
 | GET | `/cinemas` | Public | `cityId` | `[{ id, name, address, cityId }]` |
 | GET | `/movies/:movieId/showtimes` | Public | `date` (bắt buộc), `cityId` (bắt buộc) | Suất chiếu **nhóm theo rạp → định dạng** (mẫu 3.2) |
-| GET | `/cinemas/:cinemaId/showtimes` | Public | `date` | Suất chiếu nhóm theo phim (S) |
+| GET | `/cinemas/:cinemaId/showtimes` | Public | `date` (bắt buộc) | Suất chiếu của một rạp **nhóm theo phim → định dạng** (mẫu 3.2b) (S) |
 | GET | `/showtimes/:id` | Public | — | `ShowtimeDetail` (phim, rạp, phòng, giờ, định dạng, `isOpenForSale`) |
 | GET | `/showtimes/:id/seats` | Public | — | **Sơ đồ ghế** (mẫu 3.3) |
 | GET | `/combos` | Public | — | `[{ id, name, description, price, imageUrl }]` |
@@ -166,7 +166,7 @@
 |---|---|---|
 | Phim | `GET /admin/movies?q&status&page` · `POST /admin/movies` · `PUT /admin/movies/:id` · `PATCH /admin/movies/:id/status` `{ status }` · `DELETE /admin/movies/:id` | Xóa phim đã có suất → `RESOURCE_IN_USE`; dùng "Ngừng chiếu" (`ENDED`). Ảnh nhập dạng URL (upload file: C) |
 | Thể loại | `GET/POST /admin/genres` · `PUT/DELETE /admin/genres/:id` | |
-| Rạp, phòng | `GET /admin/cinemas` · `POST /admin/cinemas` · `PUT /admin/cinemas/:id` · `GET /admin/rooms/:id/seats` | Tạo phòng + sơ đồ ghế bằng seed (S: màn hình) |
+| Rạp, phòng | `GET /admin/cinemas` · `POST /admin/cinemas` `{ cityId, name, address, phone?, isActive? }` · `PUT /admin/cinemas/:id` (sửa một phần, cùng các trường) · `GET /admin/rooms/:id/seats` | Tạo / sửa **rạp** (v1.20). Phòng + sơ đồ ghế vẫn nạp bằng seed (S) |
 | Suất chiếu | `GET /admin/showtimes?cinemaId&roomId&date&page` · `POST /admin/showtimes` `{ movieId, roomId, startTime, format, audio, basePrice? }` · `PUT /admin/showtimes/:id` · `PATCH /admin/showtimes/:id/cancel` | Server tự tính `endTime` (thời lượng + 15 phút dọn phòng) và `basePrice` từ bảng giá nếu không gửi. Trùng giờ → `SHOWTIME_OVERLAP`. Sửa / hủy suất đã bán vé → `RESOURCE_IN_USE` |
 | Bảng giá | `GET /admin/pricing` → `{ priceRules[], surcharges[] }` · `PUT /admin/pricing` (cùng cấu trúc) | Không ảnh hưởng đơn / suất đã tạo (BR-14) |
 | Đơn hàng | `GET /admin/orders?status&from&to&q&page` · `GET /admin/orders/:id` (kèm `payments[]`) · `PATCH /admin/orders/:id/refund` | `refund`: chỉ từ `REFUND_PENDING` → `REFUNDED` (ghi nhận hoàn tiền thủ công) |
@@ -178,7 +178,9 @@
 
 Mọi endpoint danh sách admin trả `meta` phân trang; tạo mới trả `201`; xóa thành công trả `204`.
 
-**Rạp & phòng (v1.19, chỉ đọc):** `GET /admin/cinemas` trả `[{ id, name, address, phone, isActive, city: { id, name }, rooms: [{ id, name, isActive, seatCount }] }]` (gồm cả rạp / phòng đã tắt) để chọn phòng khi tạo suất chiếu. `GET /admin/rooms/:id/seats` trả `{ room: { id, name, cinema: { id, name } }, rows[], seats: [{ id, row, number, label, type, pairCode, isActive }] }` — sơ đồ ghế **vật lý** (không có trạng thái đặt chỗ hay giá; chúng thuộc về từng suất chiếu). `POST /admin/cinemas` và `PUT /admin/cinemas/:id` **chưa làm** (mức S; dữ liệu rạp nạp bằng seed).
+**Rạp & phòng (v1.19, chỉ đọc):** `GET /admin/cinemas` trả `[{ id, name, address, phone, isActive, city: { id, name }, rooms: [{ id, name, isActive, seatCount }] }]` (gồm cả rạp / phòng đã tắt) để chọn phòng khi tạo suất chiếu. `GET /admin/rooms/:id/seats` trả `{ room: { id, name, cinema: { id, name } }, rows[], seats: [{ id, row, number, label, type, pairCode, isActive }] }` — sơ đồ ghế **vật lý** (không có trạng thái đặt chỗ hay giá; chúng thuộc về từng suất chiếu). 
+
+**Tạo / sửa rạp (v1.20):** `POST /admin/cinemas` → `201` + rạp (cùng dạng phần tử của `GET /admin/cinemas`, `rooms: []`). `PUT /admin/cinemas/:id` sửa một phần (phải có ít nhất một trường; không nhận trường lạ). `cityId` không tồn tại → `400 VALIDATION_ERROR` (`details.fields.cityId`); rạp không tồn tại → `404 NOT_FOUND`. **Tắt rạp** (`isActive: false`) khi rạp còn suất chiếu **chưa chiếu** đã có người mua/giữ vé → `409 RESOURCE_IN_USE` (hủy / hoàn tiền các đơn đó trước). Rạp tắt biến khỏi `GET /cinemas` và lịch chiếu của khách; suất / đơn cũ giữ nguyên để tra cứu. Chưa có thao tác xóa rạp (dùng "tắt"). Số điện thoại: `0` + 9 chữ số, hoặc `null` (không có).
 
 **Phim (v1.14):** `POST /admin/movies` nhận `title`, `description`, `durationMin` (1–600), `ageRating`, `releaseDate` (`YYYY-MM-DD`) và tùy chọn `status` (mặc định `COMING_SOON`), `director`, `actors`, `language`, `posterUrl`, `trailerUrl`, `genreIds[]`; trả `MovieDetail` (mục 3.0). `slug` do server sinh từ tên (trùng thì thêm `-2`, `-3`...) và **không đổi** khi sửa tên; client gửi `slug` hoặc trường lạ → `400`. `posterUrl`/`trailerUrl` chỉ nhận `http(s)://` (chặn `javascript:`, `data:`). `PUT` sửa từng phần (không nhận `status`; có `genreIds` thì thay cả danh sách thể loại). `GET /admin/movies` thấy mọi trạng thái kể cả `ENDED`. Ràng buộc với lịch chiếu → `409 RESOURCE_IN_USE`: không đổi `durationMin` và không chuyển `ENDED` khi phim còn suất `OPEN` sắp tới; không xóa phim đã từng có suất (kể cả đã qua / đã hủy). `DELETE` thành công trả `204`.
 
@@ -248,6 +250,25 @@ Mọi endpoint danh sách admin trả `meta` phân trang; tạo mới trả `201
       }
     ]
   }
+}
+```
+
+### 3.2b `GET /cinemas/:cinemaId/showtimes?date=2026-10-02`
+
+Chỉ suất `OPEN` của rạp đang hoạt động trong ngày (giờ VN), xếp theo giờ. Rạp không tồn tại hoặc đã tắt → `404 NOT_FOUND`.
+
+```json
+{
+  "date": "2026-10-02",
+  "cinema": { "id": "…", "name": "Cinemind Cầu Giấy", "address": "…" },
+  "movies": [
+    {
+      "movie": { "id": "…", "title": "…", "slug": "…", "ageRating": "T13", "posterUrl": "…", "durationMin": 120 },
+      "groups": [
+        { "format": "F2D", "audio": "SUBTITLE", "showtimes": [{ "id": "…", "startTime": "2026-10-02T11:30:00.000Z", "isOpenForSale": true }] }
+      ]
+    }
+  ]
 }
 ```
 
@@ -578,3 +599,4 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 01/10/2026 | 1.17 | Mục 2.7: quy tắc bảng giá (đủ ô, phạm vi ảnh hưởng) và banner (URL an toàn) — bổ sung | Người A |
 | 02/10/2026 | 1.18 | Mục 1.2, 2.5: giới hạn tốc độ, 413, header bảo mật, cổng giả lập cần ENABLE_DEV_ROUTES; sửa dòng lịch sử 1.9 bị lặp (rà soát bảo mật) | Người A |
 | 02/10/2026 | 1.19 | Mục 2.7: định nghĩa GET /admin/cinemas và GET /admin/rooms/:id/seats (chỉ đọc) — bổ sung | Người A |
+| 02/10/2026 | 1.20 | Mục 2.2, 2.7, 3.2b: GET /cinemas/:id/showtimes; POST/PUT /admin/cinemas (quy tắc tắt rạp) — bổ sung | Người A |
