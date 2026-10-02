@@ -10,3 +10,10 @@ export const getMovie = (slug) => unwrap(api.get(`/movies/${encodeURIComponent(s
 export const listGenres = () => unwrap(api.get('/genres'));
 export const listCities = () => unwrap(api.get('/cities'));
 export const listBanners = () => unwrap(api.get('/banners'));
+
+/**
+ * Lịch chiếu một phim trong một ngày, nhóm theo rạp → (định dạng, phụ đề/lồng tiếng) — mẫu 3.2 của hợp đồng.
+ * @param {{ movieId: string, date: string, cityId: string }} params date: YYYY-MM-DD theo giờ Việt Nam
+ */
+export const listShowtimes = ({ movieId, date, cityId }) =>
+  unwrap(api.get(`/movies/${movieId}/showtimes`, { params: { date, cityId } }));

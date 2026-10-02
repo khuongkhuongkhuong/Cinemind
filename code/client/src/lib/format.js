@@ -44,3 +44,9 @@ export function nextDays(count = 7, from = new Date()) {
 }
 
 export const formatDuration = (minutes) => `${minutes} phút`;
+
+/** Ngày thuần "2026-09-12" (kiểu @db.Date của server) -> "12/09/2026". Tách chuỗi thay vì dùng Date để không bị lệch múi giờ. */
+export function formatDateOnly(value) {
+  const [y, m, d] = String(value).split('-');
+  return y && m && d ? `${d}/${m}/${y}` : String(value ?? '');
+}

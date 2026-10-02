@@ -1,6 +1,8 @@
 import { createBrowserRouter } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
 import HomePage from '@/pages/home/HomePage';
+import MoviesPage from '@/pages/movies/MoviesPage';
+import MovieDetailPage from '@/pages/movies/MovieDetailPage';
 import LoginPage from '@/pages/auth/LoginPage';
 import RegisterPage from '@/pages/auth/RegisterPage';
 import { ForbiddenPage, NotFoundPage } from '@/pages/common/StatusPages';
@@ -11,6 +13,8 @@ export const routes = [
     element: <MainLayout />,
     children: [
       { index: true, element: <HomePage /> },
+      { path: 'movies', element: <MoviesPage /> },
+      { path: 'movies/:slug', element: <MovieDetailPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
       { path: '403', element: <ForbiddenPage /> },
