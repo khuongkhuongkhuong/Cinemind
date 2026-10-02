@@ -17,7 +17,7 @@ const METHODS = 'GET|POST|PUT|PATCH|DELETE';
 // khi ai đó làm xong thì phải xóa khỏi danh sách này — để lệch docs/code luôn hiển thị, không bị lãng quên.
 const NOT_IMPLEMENTED = new Set([
   'GET /cinemas/:cinemaId/showtimes', // 2.2 — (S) lịch chiếu theo rạp
-  'GET /admin/cinemas', 'POST /admin/cinemas', 'PUT /admin/cinemas/:id', 'GET /admin/rooms/:id/seats', // 2.7 — "Rạp, phòng": dữ liệu nạp bằng seed, màn hình quản trị là (S)
+  'POST /admin/cinemas', 'PUT /admin/cinemas/:id', // 2.7 — "Rạp, phòng": dữ liệu nạp bằng seed, màn hình quản trị là (S)
 ]);
 
 // ---- đọc bảng endpoint từ docs ----
