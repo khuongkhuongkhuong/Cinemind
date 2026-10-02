@@ -2,11 +2,16 @@ import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 
 const NAV = [
+  { to: '/admin', label: 'Tổng quan', icon: '📊', end: true },
   { to: '/admin/movies', label: 'Phim', icon: '🎬' },
   { to: '/admin/showtimes', label: 'Suất chiếu', icon: '🕒' },
   { to: '/admin/cinemas', label: 'Rạp & phòng', icon: '🏛️' },
   { to: '/admin/pricing', label: 'Bảng giá', icon: '💰' },
   { to: '/admin/orders', label: 'Đơn hàng', icon: '🧾' },
+  { to: '/admin/combos', label: 'Combo', icon: '🍿' },
+  { to: '/admin/promotions', label: 'Khuyến mãi', icon: '🎟️' },
+  { to: '/admin/banners', label: 'Banner', icon: '🖼️' },
+  { to: '/admin/users', label: 'Người dùng', icon: '👥' },
 ];
 
 const link = ({ isActive }) =>
@@ -27,7 +32,7 @@ export default function AdminLayout() {
         </div>
         <nav aria-label="Quản trị" className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-col lg:px-3 lg:pb-0">
           {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} className={link}><span aria-hidden="true">{n.icon}</span>{n.label}</NavLink>
+            <NavLink key={n.to} to={n.to} end={n.end} className={link}><span aria-hidden="true">{n.icon}</span>{n.label}</NavLink>
           ))}
         </nav>
         <div className="hidden border-t border-ink-700 p-4 text-sm lg:absolute lg:inset-x-0 lg:bottom-0 lg:block">
