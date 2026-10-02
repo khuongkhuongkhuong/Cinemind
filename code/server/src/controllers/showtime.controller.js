@@ -12,3 +12,7 @@ export async function detail(req, res) {
 export async function seats(req, res) {
   ok(res, await showtimeService.getSeatMap({ showtimeId: req.params.id }));
 }
+
+export async function listByCinema(req, res) {
+  ok(res, await showtimeService.listShowtimesByCinema({ cinemaId: req.params.cinemaId, ...req.query }));
+}
