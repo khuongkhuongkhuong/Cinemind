@@ -129,6 +129,7 @@ Quy tắc kiến trúc và các bất biến cốt lõi (chống trùng ghế b�
 | `npm test` | Chạy toàn bộ test (cần đã `db:seed`) |
 | `npm run db:migrate` | Tạo/áp migration sau khi sửa schema (**sửa `docs/schema.prisma` trước!**) |
 | `npm run db:seed` | Xóa và nạp lại dữ liệu mẫu |
+| `npm run db:demo` | Thêm khách hàng + 45 đơn đã bán (doanh thu 14 ngày) để demo; `-- --only-live` tạo suất soát vé sau ~25 phút (xem docs/09) |
 | `npm run db:studio` | Xem dữ liệu bằng giao diện web |
 | `npm run db:clean-test` | Dọn dữ liệu rác nếu test bị ngắt giữa chừng |
 | `npm run spike:seatlock` | Thí nghiệm chống trùng ghế bằng khóa chính |

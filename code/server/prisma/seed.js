@@ -14,7 +14,7 @@ const VN_OFFSET_H = 7; // giờ Việt Nam = UTC+7; DB lưu UTC
 async function wipe() {
   const order = [
     'seatLock', 'payment', 'orderCombo', 'orderSeat', 'order', 'chatMessage', 'chatSession',
-    'refreshToken', 'showtime', 'seat', 'room', 'cinema', 'city', 'movieGenre', 'movie', 'genre',
+    'refreshToken', 'auditLog', 'showtime', 'seat', 'room', 'cinema', 'city', 'movieGenre', 'movie', 'genre',
     'combo', 'promotion', 'banner', 'priceRule', 'seatTypeSurcharge', 'user',
   ];
   for (const model of order) await prisma[model].deleteMany();

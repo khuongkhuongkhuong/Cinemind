@@ -12,6 +12,7 @@
     "db:studio": "prisma studio",
     "db:clean-test": "node --env-file=.env scripts/clean-test-data.js",
     "db:seed": "node --env-file=.env prisma/seed.js",
+    "db:demo": "node --env-file=.env scripts/seed-demo-orders.js",
     "spike:seatlock": "node --env-file=.env scripts/spike-seatlock.js"
   },
   "dependencies": {

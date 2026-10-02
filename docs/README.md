@@ -9,13 +9,14 @@
 |---|---|---|
 | [01-requirements.md](./01-requirements.md) | Tác nhân, luồng nghiệp vụ, 30 yêu cầu chức năng (MoSCoW), 20 yêu cầu phi chức năng, phạm vi MVP, nhật ký quyết định | SRS |
 | [02-usecases.md](./02-usecases.md) | 24 use case + sơ đồ, 30 luật nghiệp vụ, đặc tả "Đặt vé", vòng đời đơn hàng, sơ đồ tuần tự | Use case, sơ đồ tuần tự |
-| [03-database.md](./03-database.md) | 22 bảng, ERD, **cơ chế giữ ghế & chống trùng ghế**, index | ERD, thiết kế CSDL |
+| [03-database.md](./03-database.md) | 23 bảng, ERD, **cơ chế giữ ghế & chống trùng ghế**, index | ERD, thiết kế CSDL |
 | [schema.prisma](./schema.prisma) | Schema Prisma đầy đủ | — |
 | [04-api-contract.md](./04-api-contract.md) | Quy ước, mã lỗi, ~50 endpoint, mẫu JSON, kiến trúc & cấu trúc thư mục | Thiết kế API |
 | [05-ui-pages.md](./05-ui-pages.md) | 24 trang, luồng điều hướng, wireframe | Thiết kế giao diện |
 | [06-project-plan.md](./06-project-plan.md) | 4 sprint, Definition of Done, quy trình Git & review | Kế hoạch dự án |
 | [07-ai-hooks.md](./07-ai-hooks.md) | 14 tool cho AI Agent, lưu ngữ cảnh hội thoại, nguyên tắc an toàn | Thiết kế mở rộng |
 | [08-security-review.md](./08-security-review.md) | Rà soát bảo mật backend: lỗi đã sửa (kèm số liệu trước/sau), hạn chế đã biết, danh sách kiểm tra trước khi triển khai | Chương Bảo mật |
+| [09-demo-script.md](./09-demo-script.md) | Chuẩn bị dữ liệu, kịch bản demo ~12 phút, câu hỏi hội đồng hay hỏi (⭐) kèm trả lời, kế hoạch dự phòng | Kịch bản bảo vệ |
 | [../CLAUDE.md](../CLAUDE.md) | Tóm tắt bối cảnh + quy tắc cho Claude Code ở bước lập trình | — |
 
 **Còn phải viết trong lúc làm (Sprint 1–4):** test case, hướng dẫn sử dụng, README cài đặt.

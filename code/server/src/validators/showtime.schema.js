@@ -12,3 +12,5 @@ export const movieShowtimesQuery = z.object({
 
 export const idParam = z.object({ id: z.uuid('id không hợp lệ') });
 export const movieIdParam = z.object({ movieId: z.uuid('movieId không hợp lệ') });
+export const cinemaIdParam = z.object({ cinemaId: z.uuid('cinemaId không hợp lệ') });
+export const cinemaShowtimesQuery = z.object({ date: dateOnly });
