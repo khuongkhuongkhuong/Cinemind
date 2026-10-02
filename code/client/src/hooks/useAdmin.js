@@ -37,3 +37,29 @@ export const useSetPricing = () => useInvalidatingMutation(adminApi.setPricing, 
 export const useAdminOrders = (params) => useListQuery('adminOrders', adminApi.listAdminOrders, params);
 export const useAdminOrder = (id) => useQuery({ queryKey: ['adminOrder', id], queryFn: () => adminApi.getAdminOrder(id), enabled: Boolean(id), staleTime: 0 });
 export const useRefundOrder = () => useInvalidatingMutation(adminApi.refundOrder, ['adminOrders', 'adminOrder']);
+
+// Báo cáo doanh thu
+export const useRevenue = (params) => useQuery({ queryKey: ['revenue', params], queryFn: () => adminApi.getRevenue(params), placeholderData: keepPreviousData });
+
+// Combo
+export const useAdminCombos = () => useQuery({ queryKey: ['adminCombos'], queryFn: adminApi.listAdminCombos });
+export const useCreateCombo = () => useInvalidatingMutation(adminApi.createCombo, ['adminCombos', 'combos']);
+export const useUpdateCombo = () => useInvalidatingMutation(({ id, body }) => adminApi.updateCombo(id, body), ['adminCombos', 'combos']);
+export const useDeleteCombo = () => useInvalidatingMutation(adminApi.deleteCombo, ['adminCombos', 'combos']);
+
+// Khuyến mãi
+export const useAdminPromotions = () => useQuery({ queryKey: ['adminPromotions'], queryFn: adminApi.listAdminPromotions });
+export const useCreatePromotion = () => useInvalidatingMutation(adminApi.createPromotion, ['adminPromotions']);
+export const useUpdatePromotion = () => useInvalidatingMutation(({ id, body }) => adminApi.updatePromotion(id, body), ['adminPromotions']);
+export const useDeletePromotion = () => useInvalidatingMutation(adminApi.deletePromotion, ['adminPromotions']);
+
+// Banner
+export const useAdminBanners = () => useQuery({ queryKey: ['adminBanners'], queryFn: adminApi.listAdminBanners });
+export const useCreateBanner = () => useInvalidatingMutation(adminApi.createBanner, ['adminBanners', 'banners']);
+export const useUpdateBanner = () => useInvalidatingMutation(({ id, body }) => adminApi.updateBanner(id, body), ['adminBanners', 'banners']);
+export const useDeleteBanner = () => useInvalidatingMutation(adminApi.deleteBanner, ['adminBanners', 'banners']);
+
+// Người dùng
+export const useAdminUsers = (params) => useListQuery('adminUsers', adminApi.listAdminUsers, params);
+export const useCreateStaff = () => useInvalidatingMutation(adminApi.createStaff, ['adminUsers']);
+export const useUpdateUser = () => useInvalidatingMutation(({ id, body }) => adminApi.updateUser(id, body), ['adminUsers']);

@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
 import HomePage from '@/pages/home/HomePage';
 import MoviesPage from '@/pages/movies/MoviesPage';
@@ -11,6 +11,11 @@ import TicketDetailPage from '@/pages/account/TicketDetailPage';
 import ProfilePage from '@/pages/account/ProfilePage';
 import StaffCheckInPage from '@/pages/staff/StaffCheckInPage';
 import AdminLayout from '@/components/admin/AdminLayout';
+import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
+import AdminCombosPage from '@/pages/admin/AdminCombosPage';
+import AdminPromotionsPage from '@/pages/admin/AdminPromotionsPage';
+import AdminBannersPage from '@/pages/admin/AdminBannersPage';
+import AdminUsersPage from '@/pages/admin/AdminUsersPage';
 import AdminMoviesPage from '@/pages/admin/AdminMoviesPage';
 import AdminShowtimesPage from '@/pages/admin/AdminShowtimesPage';
 import AdminCinemasPage from '@/pages/admin/AdminCinemasPage';
@@ -63,7 +68,11 @@ export const adminRoutes = [
         path: 'admin',
         element: <AdminLayout />,
         children: [
-          { index: true, element: <Navigate to='movies' replace /> },
+          { index: true, element: <AdminDashboardPage /> },
+          { path: 'combos', element: <AdminCombosPage /> },
+          { path: 'promotions', element: <AdminPromotionsPage /> },
+          { path: 'banners', element: <AdminBannersPage /> },
+          { path: 'users', element: <AdminUsersPage /> },
           { path: 'movies', element: <AdminMoviesPage /> },
           { path: 'showtimes', element: <AdminShowtimesPage /> },
           { path: 'cinemas', element: <AdminCinemasPage /> },
