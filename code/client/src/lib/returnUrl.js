@@ -15,5 +15,5 @@ export function safeReturnUrl(raw, fallback = '/') {
   return url;
 }
 
-/** Đường dẫn trang đăng nhập kèm nơi sẽ quay lại. */
-export const loginUrl = (returnTo) => `/login?returnUrl=${encodeURIComponent(returnTo)}`;
+/** Đường dẫn trang đăng nhập kèm nơi sẽ quay lại. Đang ở /login hay /register thì không lồng returnUrl vào chính nó. */
+export const loginUrl = (returnTo) => (safeReturnUrl(returnTo, null) ? `/login?returnUrl=${encodeURIComponent(returnTo)}` : '/login');

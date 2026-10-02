@@ -57,3 +57,10 @@ export const listAdminUsers = (params) => paged(api.get('/admin/users', { params
 export const createStaff = (body) => unwrap(api.post('/admin/users', body));
 /** @param {{ role?: 'USER'|'STAFF'|'ADMIN', isActive?: boolean }} body */
 export const updateUser = (id, body) => unwrap(api.patch(`/admin/users/${id}`, body));
+
+// ---- Tạo / sửa rạp (v1.20) ----
+export const createCinema = (body) => unwrap(api.post('/admin/cinemas', body));
+export const updateCinema = (id, body) => unwrap(api.put(`/admin/cinemas/${id}`, body));
+
+// ---- Nhật ký thao tác (v1.21) ----
+export const listAuditLogs = (params) => paged(api.get('/admin/audit-logs', { params }));

@@ -33,6 +33,10 @@ describe('safeReturnUrl — chống open redirect sau khi đăng nhập', () => 
 
   it('có thể đổi nơi quay về mặc định', () => expect(safeReturnUrl('//x', '/me/tickets')).toBe('/me/tickets'));
 
+  it('loginUrl: đang ở /login hoặc /register thì không lồng returnUrl vào chính trang đăng nhập', () => {
+    expect(loginUrl('/login?returnUrl=%2Fadmin')).toBe('/login');
+    expect(loginUrl('/register')).toBe('/login');
+  });
   it('loginUrl mã hóa nơi quay lại', () => {
     expect(loginUrl('/booking/orders/1?a=b')).toBe('/login?returnUrl=%2Fbooking%2Forders%2F1%3Fa%3Db');
   });

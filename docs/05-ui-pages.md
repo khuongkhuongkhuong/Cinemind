@@ -43,6 +43,7 @@
 | A08 | Khuyến mãi | `/admin/promotions` | S |
 | A09 | Tài khoản & phân quyền | `/admin/users` | S |
 | A10 | Banner | `/admin/banners` | C |
+| A11 | Nhật ký thao tác (ai làm gì, lúc nào) | `/admin/audit` | S |
 
 > **Mẹo tiết kiệm công:** A02, A07, A08, A09, A10 dùng chung một khuôn "bảng danh sách + bộ lọc + form trong modal". Làm kỹ một lần (A02), các trang còn lại sao chép và đổi cột.
 

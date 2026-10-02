@@ -101,3 +101,45 @@ export function barHeights(rows) {
   return rows.map((r) => (max === 0 || r.revenue === 0 ? 0 : Math.max(2, Math.round((r.revenue / max) * 100))));
 }
 export const sumRevenue = (rows) => rows.reduce((a, r) => ({ revenue: a.revenue + r.revenue, ticketCount: a.ticketCount + r.ticketCount, orderCount: a.orderCount + r.orderCount }), { revenue: 0, ticketCount: 0, orderCount: 0 });
+
+// ---- Rạp ----
+export const EMPTY_CINEMA = { cityId: '', name: '', address: '', phone: '', isActive: true };
+export const cinemaToForm = (c) => ({ cityId: c.city.id, name: c.name, address: c.address, phone: c.phone ?? '', isActive: c.isActive });
+export function validateCinema(f) {
+  const e = {};
+  if (!f.cityId) e.cityId = 'Vui lòng chọn thành phố';
+  if (!f.name.trim()) e.name = 'Vui lòng nhập tên rạp';
+  if (!f.address.trim()) e.address = 'Vui lòng nhập địa chỉ';
+  if (f.phone.trim() && !/^0\d{9}$/.test(f.phone.trim())) e.phone = 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 0';
+  return e;
+}
+export const cinemaToBody = (f) => ({ cityId: f.cityId, name: f.name.trim(), address: f.address.trim(), phone: orNull(f.phone), isActive: f.isActive });
+
+// ---- Nhật ký thao tác ----
+// Nhãn tiếng Việt cho `action` (mẫu route do server ghi). Mẫu lạ -> hiện nguyên văn để không bao giờ "mất" thông tin.
+const ACTION_LABELS = {
+  'POST /admin/movies': 'Thêm phim', 'PUT /admin/movies/:id': 'Sửa phim', 'PATCH /admin/movies/:id/status': 'Đổi trạng thái phim', 'DELETE /admin/movies/:id': 'Xóa phim',
+  'POST /admin/showtimes': 'Thêm suất chiếu', 'PUT /admin/showtimes/:id': 'Sửa suất chiếu', 'PATCH /admin/showtimes/:id/cancel': 'Hủy suất chiếu',
+  'POST /admin/cinemas': 'Thêm rạp', 'PUT /admin/cinemas/:id': 'Sửa rạp',
+  'PUT /admin/pricing': 'Cập nhật bảng giá', 'PATCH /admin/orders/:id/refund': 'Ghi nhận hoàn tiền',
+  'POST /admin/combos': 'Thêm combo', 'PUT /admin/combos/:id': 'Sửa combo', 'DELETE /admin/combos/:id': 'Xóa combo',
+  'POST /admin/promotions': 'Thêm khuyến mãi', 'PUT /admin/promotions/:id': 'Sửa khuyến mãi', 'DELETE /admin/promotions/:id': 'Xóa khuyến mãi',
+  'POST /admin/banners': 'Thêm banner', 'PUT /admin/banners/:id': 'Sửa banner', 'DELETE /admin/banners/:id': 'Xóa banner',
+  'POST /admin/genres': 'Thêm thể loại', 'PUT /admin/genres/:id': 'Sửa thể loại', 'DELETE /admin/genres/:id': 'Xóa thể loại',
+  'POST /admin/users': 'Tạo tài khoản nhân viên', 'PATCH /admin/users/:id': 'Sửa tài khoản',
+  'POST /staff/tickets/:code/check-in': 'Soát vé',
+};
+export const actionLabel = (action) => ACTION_LABELS[action] ?? action;
+
+export const AUDIT_ENTITY_TYPES = {
+  movies: 'Phim', showtimes: 'Suất chiếu', cinemas: 'Rạp', pricing: 'Bảng giá', orders: 'Đơn hàng', combos: 'Combo',
+  promotions: 'Khuyến mãi', banners: 'Banner', genres: 'Thể loại', users: 'Người dùng', tickets: 'Soát vé',
+};
+
+/** Mô tả ngắn phần `details` của một dòng nhật ký: "role = ADMIN" hoặc "đã gửi: name, address". */
+export function describeDetails(details) {
+  if (!details) return '';
+  const parts = Object.entries(details.values ?? {}).map(([k, v]) => `${k} = ${v}`);
+  if (parts.length) return parts.join(', ');
+  return details.fields?.length ? `trường: ${details.fields.join(', ')}` : '';
+}
