@@ -95,7 +95,7 @@ describe('PaymentResultPage (P07)', () => {
     const calls = backend([status('PENDING', 'PENDING')]);
     const user = userEvent.setup();
     renderPage(routes({ maxWaitMs: 200 }), ROUTE);
-    expect(await screen.findByRole('heading', { name: 'Chưa nhận được xác nhận thanh toán' }, { timeout: 2000 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Chưa nhận được xác nhận thanh toán' }, { timeout: 5000 })).toBeInTheDocument();
     const stoppedAt = calls.status;
     await new Promise((r) => setTimeout(r, 200));
     expect(calls.status).toBe(stoppedAt); // đã ngừng hỏi

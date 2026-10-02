@@ -16,6 +16,9 @@ import AdminCombosPage from '@/pages/admin/AdminCombosPage';
 import AdminPromotionsPage from '@/pages/admin/AdminPromotionsPage';
 import AdminBannersPage from '@/pages/admin/AdminBannersPage';
 import AdminUsersPage from '@/pages/admin/AdminUsersPage';
+import AdminAuditPage from '@/pages/admin/AdminAuditPage';
+import CinemasPage from '@/pages/cinemas/CinemasPage';
+import CinemaDetailPage from '@/pages/cinemas/CinemaDetailPage';
 import AdminMoviesPage from '@/pages/admin/AdminMoviesPage';
 import AdminShowtimesPage from '@/pages/admin/AdminShowtimesPage';
 import AdminCinemasPage from '@/pages/admin/AdminCinemasPage';
@@ -35,6 +38,8 @@ export const routes = [
       { index: true, element: <HomePage /> },
       { path: 'movies', element: <MoviesPage /> },
       { path: 'movies/:slug', element: <MovieDetailPage /> },
+      { path: 'cinemas', element: <CinemasPage /> },
+      { path: 'cinemas/:id', element: <CinemaDetailPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
       {
@@ -73,6 +78,7 @@ export const adminRoutes = [
           { path: 'promotions', element: <AdminPromotionsPage /> },
           { path: 'banners', element: <AdminBannersPage /> },
           { path: 'users', element: <AdminUsersPage /> },
+          { path: 'audit', element: <AdminAuditPage /> },
           { path: 'movies', element: <AdminMoviesPage /> },
           { path: 'showtimes', element: <AdminShowtimesPage /> },
           { path: 'cinemas', element: <AdminCinemasPage /> },

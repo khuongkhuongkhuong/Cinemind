@@ -4,7 +4,7 @@ import { isAdmin, isStaff, useAuth } from '@/hooks/useAuth';
 import { loginUrl } from '@/lib/returnUrl';
 import Button from '@/components/ui/Button';
 
-const NAV = [{ to: '/movies', label: 'Phim' }];
+const NAV = [{ to: '/movies', label: 'Phim' }, { to: '/cinemas', label: 'Rạp' }];
 const navClass = ({ isActive }) =>
   `rounded-md px-3 py-2 text-sm font-medium transition-colors ${isActive ? 'text-white' : 'text-ink-300 hover:text-white'}`;
 

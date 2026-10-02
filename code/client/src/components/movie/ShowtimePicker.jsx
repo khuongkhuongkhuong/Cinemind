@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useCities, useShowtimes } from '@/hooks/useMovies';
-import { formatTime, nextDays } from '@/lib/format';
+import { nextDays } from '@/lib/format';
 import { countOpenShowtimes, countShowtimes, showGroupLabel } from '@/lib/movies';
+import TimeChip from '@/components/movie/TimeChip';
 import EmptyState from '@/components/ui/EmptyState';
 import ErrorState from '@/components/ui/ErrorState';
 import SelectField from '@/components/ui/SelectField';
@@ -11,25 +11,6 @@ import Skeleton from '@/components/ui/Skeleton';
 const CITY_KEY = 'cinemind:city';
 const readCity = () => { try { return localStorage.getItem(CITY_KEY); } catch { return null; } };
 const saveCity = (id) => { try { localStorage.setItem(CITY_KEY, id); } catch { /* chỉ là tiện ích nhớ lựa chọn */ } };
-
-/** Một giờ chiếu. Suất đã đóng bán (BR-04: còn < 15 phút hoặc đã chiếu) bị làm mờ và không bấm được. */
-function TimeChip({ showtime }) {
-  const time = formatTime(showtime.startTime);
-  if (!showtime.isOpenForSale) {
-    return (
-      <span title="Đã đóng bán (còn dưới 15 phút hoặc đã chiếu)" aria-label={`${time}, đã đóng bán`}
-        className="inline-flex h-10 min-w-16 cursor-not-allowed items-center justify-center rounded-lg border border-ink-700 px-3 text-sm text-ink-500 line-through">
-        {time}
-      </span>
-    );
-  }
-  return (
-    <Link to={`/booking/showtimes/${showtime.id}`} aria-label={`Chọn suất ${time}`}
-      className="inline-flex h-10 min-w-16 items-center justify-center rounded-lg border border-ink-500 bg-ink-800 px-3 text-sm font-semibold text-ink-100 hover:border-brand-500 hover:bg-brand-600 hover:text-white">
-      {time}
-    </Link>
-  );
-}
 
 /**
  * Chọn suất chiếu: thành phố → ngày (7 ngày) → rạp → định dạng → giờ (05-ui-pages P03).

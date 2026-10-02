@@ -12,6 +12,7 @@ const NAV = [
   { to: '/admin/promotions', label: 'Khuyến mãi', icon: '🎟️' },
   { to: '/admin/banners', label: 'Banner', icon: '🖼️' },
   { to: '/admin/users', label: 'Người dùng', icon: '👥' },
+  { to: '/admin/audit', label: 'Nhật ký', icon: '📜' },
 ];
 
 const link = ({ isActive }) =>

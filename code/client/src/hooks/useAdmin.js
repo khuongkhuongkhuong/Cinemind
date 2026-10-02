@@ -63,3 +63,10 @@ export const useDeleteBanner = () => useInvalidatingMutation(adminApi.deleteBann
 export const useAdminUsers = (params) => useListQuery('adminUsers', adminApi.listAdminUsers, params);
 export const useCreateStaff = () => useInvalidatingMutation(adminApi.createStaff, ['adminUsers']);
 export const useUpdateUser = () => useInvalidatingMutation(({ id, body }) => adminApi.updateUser(id, body), ['adminUsers']);
+
+// Rạp (tạo / sửa)
+export const useCreateCinema = () => useInvalidatingMutation(adminApi.createCinema, ['adminCinemas', 'cinemas']);
+export const useUpdateCinema = () => useInvalidatingMutation(({ id, body }) => adminApi.updateCinema(id, body), ['adminCinemas', 'cinemas', 'cinemaShowtimes']);
+
+// Nhật ký thao tác
+export const useAuditLogs = (params) => useListQuery('auditLogs', adminApi.listAuditLogs, params);
