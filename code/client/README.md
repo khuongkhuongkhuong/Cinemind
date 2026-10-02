@@ -47,7 +47,7 @@ src/
   context/       AuthContext (trạng thái đăng nhập toàn ứng dụng)
   hooks/         TanStack Query: useMovies, ... và useAuth
   routes/        router.jsx (khai báo toàn bộ route), RequireAuth, RequireRole
-  pages/         mỗi trang một thư mục: home/, auth/, movies/, booking/ (chọn ghế, thanh toán, kết quả)
+  pages/         mỗi trang một thư mục: home/, auth/, movies/, booking/ (chọn ghế, thanh toán, kết quả), account/ (vé, hồ sơ), staff/ (soát vé)
   components/    ui/ (Button, Modal, Toast...), layout/ (Header, Footer), movie/ ...
   lib/           hàm thuần: format.js (tiền, giờ VN), returnUrl.js
   mocks/         MSW: data.js, handlers.js, browser.js
@@ -70,6 +70,7 @@ src/
   (server xoay vòng refresh token, gọi hai lần song song làm người dùng bị đăng xuất oan) — có test.
 - **Đồng hồ đếm ngược** giữ ghế dùng giờ SERVER (suy ra từ header `Date` của mỗi response, `lib/clock.js`), không dùng đồng hồ máy người dùng — máy lệch vài phút vẫn đếm đúng.
 - **Trang kết quả thanh toán chỉ ĐỌC trạng thái** từ server (hỏi mỗi 2 giây, tối đa 30 giây) và không tin tham số trên URL; chỉ IPN mới đổi đơn sang đã thanh toán.
+- **Mã QR** vẽ ngay trên trình duyệt (thư viện `qrcode`), luôn đen trên nền trắng để đầu đọc quét được. Nội dung QR (`CINEMIND:<mã>`) do server cấp; trang soát vé nhận cả mã trần lẫn nội dung QR (viết hoa/thường, có hoặc không có dấu gạch đều được).
 - Mở / tải lại trang: nếu trình duyệt có "dấu hiệu từng đăng nhập" (một cờ `true`, không chứa token) thì khôi phục phiên bằng cookie.
 - `returnUrl` sau đăng nhập chỉ nhận đường dẫn nội bộ (`lib/returnUrl.js`) — chống chuyển hướng sang trang giả mạo.
 
