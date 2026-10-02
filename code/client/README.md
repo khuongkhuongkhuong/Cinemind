@@ -27,6 +27,10 @@ VITE_ENABLE_MOCK=true npm run dev
 MSW chặn request trong trình duyệt và trả JSON đúng mẫu `docs/04` (hiện có: danh mục phim, thể loại, thành phố, đăng nhập).
 Tài khoản giả: `user@cinemind.vn` / `mock-12345`.
 
+### Thử luồng đặt vé khi chưa có tài khoản VNPay
+
+Tạo file `code/client/.env` (không commit) với `VITE_PAYMENT_SIMULATOR=true`, và bật `ENABLE_DEV_ROUTES=true` ở backend (có sẵn trong `.env.example` của backend). Khi đó nút **Thanh toán** gọi cổng giả lập của backend rồi sang trang kết quả, thay vì chuyển sang VNPay. Cờ này chỉ có tác dụng ở chế độ dev (`npm run dev`), bản build không bao giờ dùng.
+
 ## 2. Lệnh
 
 | Lệnh | Việc |
@@ -43,7 +47,7 @@ src/
   context/       AuthContext (trạng thái đăng nhập toàn ứng dụng)
   hooks/         TanStack Query: useMovies, ... và useAuth
   routes/        router.jsx (khai báo toàn bộ route), RequireAuth, RequireRole
-  pages/         mỗi trang một thư mục: home/, auth/, ...
+  pages/         mỗi trang một thư mục: home/, auth/, movies/, booking/ (chọn ghế, thanh toán, kết quả)
   components/    ui/ (Button, Modal, Toast...), layout/ (Header, Footer), movie/ ...
   lib/           hàm thuần: format.js (tiền, giờ VN), returnUrl.js
   mocks/         MSW: data.js, handlers.js, browser.js
@@ -64,6 +68,8 @@ src/
 - **Refresh token** nằm trong cookie `httpOnly` do server đặt.
 - Gặp `401 TOKEN_EXPIRED` → Axios tự gọi `/auth/refresh` rồi gửi lại request. **Nhiều request hết hạn cùng lúc chỉ gọi refresh một lần**
   (server xoay vòng refresh token, gọi hai lần song song làm người dùng bị đăng xuất oan) — có test.
+- **Đồng hồ đếm ngược** giữ ghế dùng giờ SERVER (suy ra từ header `Date` của mỗi response, `lib/clock.js`), không dùng đồng hồ máy người dùng — máy lệch vài phút vẫn đếm đúng.
+- **Trang kết quả thanh toán chỉ ĐỌC trạng thái** từ server (hỏi mỗi 2 giây, tối đa 30 giây) và không tin tham số trên URL; chỉ IPN mới đổi đơn sang đã thanh toán.
 - Mở / tải lại trang: nếu trình duyệt có "dấu hiệu từng đăng nhập" (một cờ `true`, không chứa token) thì khôi phục phiên bằng cookie.
 - `returnUrl` sau đăng nhập chỉ nhận đường dẫn nội bộ (`lib/returnUrl.js`) — chống chuyển hướng sang trang giả mạo.
 
