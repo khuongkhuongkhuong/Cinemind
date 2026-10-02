@@ -41,12 +41,13 @@ Suy ra trạng thái ghế của một suất:
 | `Showtime.basePrice` | Giá gốc chốt khi tạo suất (tra từ `PriceRule`); admin có thể điều chỉnh riêng một suất |
 | `Promotion.usedCount` | Kiểm tra "còn lượt" nhanh, cập nhật nguyên tử khi thanh toán thành công |
 
-## 2. Danh sách bảng (22 bảng)
+## 2. Danh sách bảng (23 bảng)
 
 | Nhóm | Bảng | Mô tả | Ưu tiên |
 |---|---|---|---|
 | Tài khoản | `User` | Tài khoản, vai trò USER / STAFF / ADMIN, điểm | M |
 | | `RefreshToken` | Refresh token (lưu dạng băm) để đăng xuất / thu hồi | M |
+| | `AuditLog` | Nhật ký thao tác quản trị / soát vé: ai làm gì, lúc nào (FR-39) | S |
 | Phim | `Movie` | Thông tin phim, trạng thái chiếu, phân loại độ tuổi | M |
 | | `Genre` | Thể loại | M |
 | | `MovieGenre` | Bảng trung gian N–N phim ↔ thể loại | M |
@@ -75,6 +76,7 @@ Suy ra trạng thái ghế của một suất:
 ```mermaid
 erDiagram
     User ||--o{ RefreshToken : "có"
+    User ||--o{ AuditLog : "thực hiện"
     User ||--o{ Order : "đặt"
     Movie ||--o{ MovieGenre : ""
     Genre ||--o{ MovieGenre : ""
@@ -181,6 +183,7 @@ erDiagram
 |---|---|---|
 | `User` | `passwordHash` (bcrypt), `role`, `points` | UNIQUE `email` |
 | `RefreshToken` | `tokenHash`, `expiresAt`, `revokedAt` | index `userId` |
+| `AuditLog` | `actorId`, `action` (mẫu route), `entityType`, `entityId`, `details` (JSON an toàn) | index `createdAt`, `actorId`, (`entityType`,`entityId`). **Chỉ thêm, không sửa / xóa** |
 | `Movie` | `slug` (dùng cho URL đẹp), `ageRating`, `status`, `posterUrl`, `trailerUrl` | UNIQUE `slug`; index `status` |
 | `MovieGenre` | `movieId`, `genreId` | PK kép (movieId, genreId) |
 | `Cinema` | `cityId`, `address` | index `cityId` |
@@ -312,6 +315,7 @@ File đầy đủ: [`schema.prisma`](./schema.prisma) — 22 model, 16 enum. Khi
 |---|---|---|
 | `OrderSeat`, `OrderCombo`, `SeatLock` → `Order` | Cascade | Là "con" của đơn; không tồn tại độc lập |
 | `RefreshToken` → `User`, `MovieGenre` → `Movie`/`Genre` | Cascade | Dữ liệu phụ trợ |
+| `AuditLog` → `User` | SetNull | Giữ nhật ký ngay cả khi tài khoản người thực hiện bị xóa |
 | Các quan hệ còn lại (Movie, Showtime, Seat, User → Order…) | Restrict (mặc định) | **Không cho xóa** dữ liệu đã có lịch sử giao dịch → admin dùng `isActive` / `status` để ẩn thay vì xóa |
 
 ### 6.3 Những gì Prisma không biểu diễn được (làm ở service hoặc migration SQL)

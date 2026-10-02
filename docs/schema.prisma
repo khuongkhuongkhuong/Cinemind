@@ -125,6 +125,7 @@ model User {
   orders          Order[]        @relation("OrderUser")
   checkedInOrders Order[]        @relation("OrderCheckedInBy")
   chatSessions    ChatSession[]
+  auditLogs       AuditLog[]
 }
 
 model RefreshToken {
@@ -138,6 +139,22 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @db.Uuid // người thực hiện (từ token); SetNull để giữ nhật ký nếu tài khoản bị xóa
+  action     String // mẫu route đã thực hiện, vd "PATCH /admin/orders/:id/refund"
+  entityType String // nhóm đối tượng, vd "orders", "users"
+  entityId   String? // id đối tượng bị tác động (nếu có)
+  details    Json? // tên các trường đã gửi + vài giá trị an toàn (role, isActive, status); KHÔNG bao giờ lưu mật khẩu / nội dung body
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([actorId])
+  @@index([entityType, entityId])
 }
 
 // ----------------------------- PHIM -----------------------------

@@ -93,6 +93,7 @@ flowchart LR
 | FR-36 | Quản lý tài khoản, phân quyền (gồm nhân viên) | S |
 | FR-37 | Báo cáo doanh thu theo ngày / phim / rạp | S |
 | FR-38 | Quản lý banner | C |
+| FR-39 | Nhật ký thao tác quản trị (audit log): ai làm gì, lúc nào; chỉ ADMIN xem | S |
 
 ### 4.5 Hệ thống
 | Mã | Tính năng | Ưu tiên |

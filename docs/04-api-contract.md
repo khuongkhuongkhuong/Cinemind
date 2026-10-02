@@ -167,6 +167,7 @@
 | Phim | `GET /admin/movies?q&status&page` · `POST /admin/movies` · `PUT /admin/movies/:id` · `PATCH /admin/movies/:id/status` `{ status }` · `DELETE /admin/movies/:id` | Xóa phim đã có suất → `RESOURCE_IN_USE`; dùng "Ngừng chiếu" (`ENDED`). Ảnh nhập dạng URL (upload file: C) |
 | Thể loại | `GET/POST /admin/genres` · `PUT/DELETE /admin/genres/:id` | |
 | Rạp, phòng | `GET /admin/cinemas` · `POST /admin/cinemas` `{ cityId, name, address, phone?, isActive? }` · `PUT /admin/cinemas/:id` (sửa một phần, cùng các trường) · `GET /admin/rooms/:id/seats` | Tạo / sửa **rạp** (v1.20). Phòng + sơ đồ ghế vẫn nạp bằng seed (S) |
+| Nhật ký | `GET /admin/audit-logs?actorId&entityType&page&pageSize` | v1.21 (FR-39). Xem mục "Nhật ký thao tác" bên dưới |
 | Suất chiếu | `GET /admin/showtimes?cinemaId&roomId&date&page` · `POST /admin/showtimes` `{ movieId, roomId, startTime, format, audio, basePrice? }` · `PUT /admin/showtimes/:id` · `PATCH /admin/showtimes/:id/cancel` | Server tự tính `endTime` (thời lượng + 15 phút dọn phòng) và `basePrice` từ bảng giá nếu không gửi. Trùng giờ → `SHOWTIME_OVERLAP`. Sửa / hủy suất đã bán vé → `RESOURCE_IN_USE` |
 | Bảng giá | `GET /admin/pricing` → `{ priceRules[], surcharges[] }` · `PUT /admin/pricing` (cùng cấu trúc) | Không ảnh hưởng đơn / suất đã tạo (BR-14) |
 | Đơn hàng | `GET /admin/orders?status&from&to&q&page` · `GET /admin/orders/:id` (kèm `payments[]`) · `PATCH /admin/orders/:id/refund` | `refund`: chỉ từ `REFUND_PENDING` → `REFUNDED` (ghi nhận hoàn tiền thủ công) |
@@ -179,6 +180,11 @@
 Mọi endpoint danh sách admin trả `meta` phân trang; tạo mới trả `201`; xóa thành công trả `204`.
 
 **Rạp & phòng (v1.19, chỉ đọc):** `GET /admin/cinemas` trả `[{ id, name, address, phone, isActive, city: { id, name }, rooms: [{ id, name, isActive, seatCount }] }]` (gồm cả rạp / phòng đã tắt) để chọn phòng khi tạo suất chiếu. `GET /admin/rooms/:id/seats` trả `{ room: { id, name, cinema: { id, name } }, rows[], seats: [{ id, row, number, label, type, pairCode, isActive }] }` — sơ đồ ghế **vật lý** (không có trạng thái đặt chỗ hay giá; chúng thuộc về từng suất chiếu). 
+
+**Nhật ký thao tác (v1.21, FR-39):** mọi yêu cầu **ghi** (POST / PUT / PATCH / DELETE) dưới `/admin` **thành công** (mã 2xx), cùng `POST /staff/tickets/:code/check-in`, được ghi vào bảng `AuditLog`. `GET /admin/audit-logs` trả (mới nhất trước, có phân trang) `[{ id, createdAt, action, entityType, entityId, actor: { id, fullName, email } | null, details }]`; lọc theo `actorId`, `entityType`.
+- `action` là **mẫu route**, vd `PATCH /admin/orders/:id/refund`; `entityType` là nhóm (`orders`, `users`, `movies`…); `entityId` lấy từ `:id` trên đường dẫn (hoặc `id` của đối tượng vừa tạo).
+- `details` = `{ fields: [tên các trường body], values?: { role, isActive, status } }` — chỉ **tên** trường và ba giá trị không nhạy cảm; **không bao giờ** lưu giá trị mật khẩu hay nội dung body.
+- Chỉ ghi yêu cầu **thành công**. Ghi nhật ký là "best-effort" **sau khi** trả phản hồi: nếu ghi lỗi thì chỉ log lỗi ở server, không làm hỏng thao tác của admin (đánh đổi đã chấp nhận). Nhật ký **chỉ thêm**, không có API sửa / xóa.
 
 **Tạo / sửa rạp (v1.20):** `POST /admin/cinemas` → `201` + rạp (cùng dạng phần tử của `GET /admin/cinemas`, `rooms: []`). `PUT /admin/cinemas/:id` sửa một phần (phải có ít nhất một trường; không nhận trường lạ). `cityId` không tồn tại → `400 VALIDATION_ERROR` (`details.fields.cityId`); rạp không tồn tại → `404 NOT_FOUND`. **Tắt rạp** (`isActive: false`) khi rạp còn suất chiếu **chưa chiếu** đã có người mua/giữ vé → `409 RESOURCE_IN_USE` (hủy / hoàn tiền các đơn đó trước). Rạp tắt biến khỏi `GET /cinemas` và lịch chiếu của khách; suất / đơn cũ giữ nguyên để tra cứu. Chưa có thao tác xóa rạp (dùng "tắt"). Số điện thoại: `0` + 9 chữ số, hoặc `null` (không có).
 
@@ -600,3 +606,4 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 02/10/2026 | 1.18 | Mục 1.2, 2.5: giới hạn tốc độ, 413, header bảo mật, cổng giả lập cần ENABLE_DEV_ROUTES; sửa dòng lịch sử 1.9 bị lặp (rà soát bảo mật) | Người A |
 | 02/10/2026 | 1.19 | Mục 2.7: định nghĩa GET /admin/cinemas và GET /admin/rooms/:id/seats (chỉ đọc) — bổ sung | Người A |
 | 02/10/2026 | 1.20 | Mục 2.2, 2.7, 3.2b: GET /cinemas/:id/showtimes; POST/PUT /admin/cinemas (quy tắc tắt rạp) — bổ sung | Người A |
+| 02/10/2026 | 1.21 | Mục 2.7: nhật ký thao tác quản trị `GET /admin/audit-logs` (FR-39; bảng `AuditLog`, docs/03) — bổ sung | Người A |
