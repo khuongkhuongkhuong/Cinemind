@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { noteServerDate } from '@/lib/clock';
 import { emitSessionExpired, getAccessToken, setAccessToken } from './tokenStore';
 
 const baseURL = import.meta.env.VITE_API_URL || '/api/v1';
@@ -35,7 +36,10 @@ export function refreshAccessToken() {
 }
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    noteServerDate(response.headers?.date); // đồng bộ độ lệch đồng hồ với server (đếm ngược giữ ghế)
+    return response;
+  },
   async (error) => {
     const { config, response } = error;
     const expired = response?.status === 401 && response.data?.error?.code === 'TOKEN_EXPIRED';
