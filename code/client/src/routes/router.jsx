@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
 import HomePage from '@/pages/home/HomePage';
 import MoviesPage from '@/pages/movies/MoviesPage';
@@ -10,6 +10,12 @@ import TicketsPage from '@/pages/account/TicketsPage';
 import TicketDetailPage from '@/pages/account/TicketDetailPage';
 import ProfilePage from '@/pages/account/ProfilePage';
 import StaffCheckInPage from '@/pages/staff/StaffCheckInPage';
+import AdminLayout from '@/components/admin/AdminLayout';
+import AdminMoviesPage from '@/pages/admin/AdminMoviesPage';
+import AdminShowtimesPage from '@/pages/admin/AdminShowtimesPage';
+import AdminCinemasPage from '@/pages/admin/AdminCinemasPage';
+import AdminPricingPage from '@/pages/admin/AdminPricingPage';
+import AdminOrdersPage from '@/pages/admin/AdminOrdersPage';
 import RequireAuth from './RequireAuth';
 import RequireRole from './RequireRole';
 import LoginPage from '@/pages/auth/LoginPage';
@@ -47,4 +53,26 @@ export const routes = [
   },
 ];
 
-export const router = createBrowserRouter(routes);
+// Khu quản trị: khung riêng (không dùng MainLayout). Quyền thật do server kiểm tra ở mỗi request /admin/*.
+export const adminRoutes = [
+  {
+    element: <RequireAuth />,
+    children: [{
+      element: <RequireRole roles={['ADMIN']} />,
+      children: [{
+        path: 'admin',
+        element: <AdminLayout />,
+        children: [
+          { index: true, element: <Navigate to='movies' replace /> },
+          { path: 'movies', element: <AdminMoviesPage /> },
+          { path: 'showtimes', element: <AdminShowtimesPage /> },
+          { path: 'cinemas', element: <AdminCinemasPage /> },
+          { path: 'pricing', element: <AdminPricingPage /> },
+          { path: 'orders', element: <AdminOrdersPage /> },
+        ],
+      }],
+    }],
+  },
+];
+
+export const router = createBrowserRouter([...routes, ...adminRoutes]);

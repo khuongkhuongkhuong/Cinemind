@@ -22,7 +22,7 @@ function seatStyle(seat, selected) {
 
 const symbol = (seat, selected) => (selected ? '✔' : seat.status === 'SOLD' ? '■' : seat.status === 'HELD' ? '▒' : seat.status === 'UNAVAILABLE' ? '–' : null);
 
-function SeatButton({ seat, pair, selected, disabled, onToggle }) {
+function SeatButton({ seat, pair, selected, disabled, showPrice, onToggle }) {
   const sym = symbol(seat, selected);
   const label = pair ? pair.map((s) => s.label).join(' và ') : seat.label;
   const status = selected ? 'đang chọn' : STATUS_LABEL[seat.status];
@@ -33,8 +33,8 @@ function SeatButton({ seat, pair, selected, disabled, onToggle }) {
       onClick={() => onToggle(seat)}
       disabled={!interactive}
       aria-pressed={selected}
-      aria-label={`Ghế ${label}, ${TYPE_LABEL[seat.type]}, ${formatMoney(seat.price)}${pair ? ' cả cặp' : ''}, ${status}`}
-      title={`${label} · ${TYPE_LABEL[seat.type]} · ${formatMoney(seat.price)}${pair ? ' (cả cặp)' : ''}`}
+      aria-label={`Ghế ${label}, ${TYPE_LABEL[seat.type]}${showPrice ? `, ${formatMoney(seat.price)}` : ''}${pair ? ' cả cặp' : ''}, ${status}`}
+      title={`${label} · ${TYPE_LABEL[seat.type]}${showPrice ? ` · ${formatMoney(seat.price)}` : ''}${pair ? ' (cả cặp)' : ''}`}
       className={`flex h-9 shrink-0 flex-col items-center justify-center rounded-md border text-[10px] font-bold leading-none transition-colors ${pair ? 'w-[4.6rem]' : 'w-9'} ${seatStyle(seat, selected)}`}
     >
       <span>{pair ? pair.map((s) => s.number).join('-') : seat.number}</span>
@@ -76,9 +76,10 @@ export function SeatLegend() {
 
 /**
  * Sơ đồ ghế. Cuộn ngang được trên điện thoại (NFR-16). Bấm một ghế của ghế đôi sẽ chọn cả cặp (xử lý ở `onToggle`).
- * @param {{ seats: object[], rows: string[], selected: Set<string>, onToggle: (seat: object) => void, disabled?: boolean }} props
+ * @param {{ seats: object[], rows: string[], selected: Set<string>, onToggle: (seat: object) => void, disabled?: boolean, showPrice?: boolean }} props
+ * `showPrice={false}` cho trang quản trị: sơ đồ vật lý của phòng không có giá (giá thuộc về từng suất).
  */
-export default function SeatMap({ seats, rows, selected, onToggle, disabled = false }) {
+export default function SeatMap({ seats, rows, selected, onToggle, disabled = false, showPrice = true }) {
   return (
     <div className="overflow-x-auto pb-2" tabIndex={0} role="group" aria-label="Sơ đồ ghế">
       <div className="mx-auto w-max min-w-full px-2">
@@ -91,7 +92,7 @@ export default function SeatMap({ seats, rows, selected, onToggle, disabled = fa
               <div key={row} role="row" className="flex items-center justify-center gap-1.5">
                 <span aria-hidden="true" className="w-5 shrink-0 text-center text-xs font-bold text-ink-300">{row}</span>
                 {layoutRow(rowSeats).map(({ key, seat, pair }) => (
-                  <SeatButton key={key} seat={seat} pair={pair} disabled={disabled} onToggle={onToggle}
+                  <SeatButton key={key} seat={seat} pair={pair} disabled={disabled} showPrice={showPrice} onToggle={onToggle}
                     selected={pair ? pair.every((s) => selected.has(s.id)) : selected.has(seat.id)} />
                 ))}
                 <span aria-hidden="true" className="w-5 shrink-0 text-center text-xs font-bold text-ink-300">{row}</span>

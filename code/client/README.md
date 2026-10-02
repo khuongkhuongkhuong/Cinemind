@@ -47,7 +47,7 @@ src/
   context/       AuthContext (trạng thái đăng nhập toàn ứng dụng)
   hooks/         TanStack Query: useMovies, ... và useAuth
   routes/        router.jsx (khai báo toàn bộ route), RequireAuth, RequireRole
-  pages/         mỗi trang một thư mục: home/, auth/, movies/, booking/ (chọn ghế, thanh toán, kết quả), account/ (vé, hồ sơ), staff/ (soát vé)
+  pages/         mỗi trang một thư mục: home/, auth/, movies/, booking/ (chọn ghế, thanh toán, kết quả), account/ (vé, hồ sơ), staff/ (soát vé), admin/ (quản trị: phim, suất chiếu, rạp, bảng giá, đơn hàng)
   components/    ui/ (Button, Modal, Toast...), layout/ (Header, Footer), movie/ ...
   lib/           hàm thuần: format.js (tiền, giờ VN), returnUrl.js
   mocks/         MSW: data.js, handlers.js, browser.js
@@ -61,6 +61,12 @@ src/
 - **Thời gian** server trả UTC; luôn hiển thị qua `lib/format.js` (giờ Việt Nam).
 - Mỗi trang có đủ **3 trạng thái**: đang tải (Skeleton / Spinner), rỗng (`EmptyState`), lỗi (`ErrorState` có nút thử lại).
 - `RequireRole` chỉ để ẩn trang cho tiện; **quyền thật do server kiểm tra** (`403`).
+
+### Khu quản trị (`/admin/*`)
+- Khung `AdminLayout` + bảng dùng chung `DataTable` (tự lo đang tải / rỗng / lỗi / phân trang) + `FormModal` / `ConfirmDialog`. Chỉ ADMIN vào được (`RequireRole`); quyền thật do server kiểm tra ở mỗi request.
+- Admin nhập **giờ Việt Nam**, trình duyệt đổi sang UTC trước khi gửi (`lib/datetime.js`). Để trống giá gốc suất = server tự tra bảng giá.
+- Logic biểu mẫu (kiểm tra + đổi dữ liệu ↔ body API) nằm ở `lib/adminForms.js` để test bằng Vitest thuần.
+- Form chỉ khởi tạo một lần từ dữ liệu server (không dựng lại khi refetch) để không xóa chữ đang gõ dở.
 
 ## 5. Đăng nhập hoạt động thế nào
 
