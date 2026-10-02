@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMovies } from '@/hooks/useMovies';
 import MovieCard, { MovieCardSkeleton } from '@/components/movie/MovieCard';
+import BannerSlider from '@/components/movie/BannerSlider';
 import EmptyState from '@/components/ui/EmptyState';
 import ErrorState from '@/components/ui/ErrorState';
 
@@ -16,6 +17,8 @@ export default function HomePage() {
 
   return (
     <div className="space-y-10">
+      <BannerSlider />
+
       <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-brand-700 via-ink-800 to-ink-900 px-6 py-12 sm:px-12">
         <h1 className="max-w-xl text-3xl font-black leading-tight sm:text-5xl">Chọn phim. Chọn ghế. <span className="text-gold-400">Vào rạp.</span></h1>
         <p className="mt-3 max-w-lg text-ink-100/80">Đặt vé xem phim trong vài bước: ghế được giữ cho bạn 10 phút, thanh toán an toàn qua VNPay.</p>

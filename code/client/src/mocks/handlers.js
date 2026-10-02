@@ -1,5 +1,5 @@
 import { HttpResponse, http } from 'msw';
-import { cities, genres, movies, user } from './data';
+import { cities, genres, movieDetail, movies, schedule, user } from './data';
 
 const BASE = '/api/v1';
 const ok = (data, meta) => HttpResponse.json({ success: true, data, ...(meta && { meta }) });
@@ -14,6 +14,11 @@ export const handlers = [
     const items = movies.filter((m) => (!status || m.status === status) && m.title.toLowerCase().includes(q));
     return ok(items, { page: 1, pageSize: 20, total: items.length, totalPages: 1 });
   }),
+  http.get(`${BASE}/movies/:slug`, ({ params }) => {
+    const m = movies.find((x) => x.slug === params.slug);
+    return m ? ok(movieDetail(m)) : fail(404, 'NOT_FOUND', 'Không tìm thấy phim.');
+  }),
+  http.get(`${BASE}/movies/:movieId/showtimes`, ({ request }) => ok(schedule(new URL(request.url).searchParams.get('date')))),
   http.get(`${BASE}/genres`, () => ok(genres)),
   http.get(`${BASE}/cities`, () => ok(cities)),
   http.get(`${BASE}/banners`, () => ok([])),
