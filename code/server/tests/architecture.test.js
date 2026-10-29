@@ -2,7 +2,7 @@
 // Không cần database. Nếu ai đó import Prisma vào controller (hoặc để service đụng req/res), test này đỏ ngay.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const SRC = new URL('../src/', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
@@ -46,6 +46,15 @@ test('⭐ services KHÔNG đụng req / res / express (để AI Agent gọi serv
 
 test('controller chỉ gọi service, không chứa truy vấn (không prisma., không $transaction)', () => {
   const offenders = files(join(SRC, 'controllers')).filter((f) => /\bprisma\b|\$transaction/.test(code(f))).map(rel);
+  assert.deepEqual(offenders, []);
+});
+
+test('⭐ ai/ (kênh trợ lý AI, docs/07 mục 9) KHÔNG import Prisma và không đụng req/res: chỉ gọi services', () => {
+  const dir = join(SRC, 'ai');
+  if (!existsSync(dir)) return; // thư mục được tạo ở bước 3 của giai đoạn AI; có rồi thì quy tắc tự áp dụng
+  const offenders = files(dir)
+    .filter((f) => /config\/prisma|@prisma\/client|from 'express'|\breq\.|\bres\./.test(code(f)))
+    .map(rel);
   assert.deepEqual(offenders, []);
 });
 

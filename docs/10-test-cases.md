@@ -4,7 +4,7 @@
 > Mục đích: với **mỗi** yêu cầu (FR / NFR / BR) chỉ ra *kiểm bằng cái gì* và *kết quả lần chạy gần nhất*. Hội đồng hỏi "yêu cầu X đã được kiểm chưa?" thì mở bảng này.
 >
 > **Cách chạy lại:** `npm run db:seed` → `npm test` (trong `code/server`) · `npx vitest run` (trong `code/client`).
-> **Kết quả lần chạy 29/10/2026:** backend **197/197** · frontend **328/328** · build production thành công.
+> **Kết quả lần chạy 29/10/2026:** backend **215/215** · frontend **328/328** · build production thành công.
 > Lưu ý: test backend cần dữ liệu mẫu còn suất chiếu sắp tới (seed chỉ tạo 7 ngày). Hết hạn thì chạy lại `db:seed`.
 
 Quy ước cột "Cách kiểm": **A** = test tự động (tên file trong `code/server/tests/` hoặc `code/client/src/`), **T** = thử tay trên trình duyệt (kịch bản ở `docs/09`), **Đo** = có số liệu đo, **—** = chưa làm (đúng phạm vi: mức Could).
