@@ -34,7 +34,7 @@ function UserMenu({ user, onLogout }) {
         aria-expanded={open}
         className="flex h-10 items-center gap-2 rounded-lg border border-ink-600 bg-ink-800 px-3 text-sm hover:border-ink-300"
       >
-        <span aria-hidden="true" className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-xs font-bold">
+        <span aria-hidden="true" className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">
           {user.fullName.trim().charAt(0).toUpperCase()}
         </span>
         <span className="hidden max-w-32 truncate sm:inline">{user.fullName}</span>

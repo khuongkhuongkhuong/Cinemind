@@ -21,14 +21,14 @@
 
   --color-brand-400: #cf150b;
   --color-brand-500: #ee3a30;
-  --color-brand-600: #e71a0f;
+  --color-brand-600: #d9190d;
   --color-brand-700: #b3120a;
 
   --color-gold-400: #a16207;
   --color-gold-500: #ca8a04;
 
-  --color-ok: #16a34a;
-  --color-warn: #d97706;
+  --color-ok: #15803d;
+  --color-warn: #b45309;
   --color-bad: #dc2626;
 
   /* Chữ màu nhạt (từng dùng trên nền tối) đổi sang tông đậm để đọc được trên nền sáng. */
