@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { getPaymentStatus } from '@/api/booking.api';
 import { hasCode } from '@/api/errors';
-import { useOrder } from '@/hooks/useBooking';
+import { useOrder, usePaymentStatus } from '@/hooks/useBooking';
 import Button from '@/components/ui/Button';
 import ErrorState from '@/components/ui/ErrorState';
 import Spinner from '@/components/ui/Spinner';
@@ -46,13 +44,10 @@ export default function PaymentResultPage({ pollMs = POLL_MS, maxWaitMs = MAX_WA
     return () => clearTimeout(timer);
   }, [attempt, maxWaitMs]);
 
-  const status = useQuery({
-    queryKey: ['paymentStatus', txnRef, attempt],
-    queryFn: () => getPaymentStatus(txnRef),
-    enabled: Boolean(txnRef) && !timedOut, // hết giờ thì dừng hẳn việc hỏi (xóa luôn nhịp hỏi đã hẹn)
-    staleTime: 0,
-    gcTime: 0,
-    retry: false,
+  const status = usePaymentStatus({
+    txnRef,
+    attempt,
+    enabled: !timedOut, // hết giờ thì dừng hẳn việc hỏi (xóa luôn nhịp hỏi đã hẹn)
     refetchInterval: (query) => (isFinal(query.state.data) ? false : pollMs),
   });
   const data = status.data;

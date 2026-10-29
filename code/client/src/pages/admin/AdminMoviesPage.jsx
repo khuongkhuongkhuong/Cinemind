@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { errorMessage, fieldErrors, hasCode } from '@/api/errors';
-import { getMovie } from '@/api/catalog.api';
-import { useAdminMovies, useCreateMovie, useDeleteMovie, useSetMovieStatus, useUpdateMovie } from '@/hooks/useAdmin';
+import { useAdminMovies, useCreateMovie, useDeleteMovie, useLoadMovie, useSetMovieStatus, useUpdateMovie } from '@/hooks/useAdmin';
 import { useGenres } from '@/hooks/useMovies';
 import { useDebounce } from '@/hooks/useDebounce';
 import { EMPTY_MOVIE, movieToBody, movieToForm, validateMovie } from '@/lib/adminForms';
@@ -96,6 +95,7 @@ export default function AdminMoviesPage() {
   const list = useAdminMovies({ page, pageSize: 10, ...(debouncedQ && { q: debouncedQ }), ...(status && { status }) });
   const setMovieStatus = useSetMovieStatus();
   const remove = useDeleteMovie();
+  const loadMovie = useLoadMovie();
   const [editing, setEditing] = useState(null); // null = đóng · 'new' = thêm · object phim = sửa
   const [deleting, setDeleting] = useState(null);
   const [opening, setOpening] = useState(false);
@@ -103,7 +103,7 @@ export default function AdminMoviesPage() {
   // Danh sách chỉ có bản tóm tắt; mở form sửa thì lấy bản đầy đủ (mô tả, đạo diễn, trailer...).
   const openEdit = async (m) => {
     setOpening(true);
-    try { setEditing(await getMovie(m.slug)); } catch (err) { toast.error(errorMessage(err)); } finally { setOpening(false); }
+    try { setEditing(await loadMovie.mutateAsync({ slug: m.slug })); } catch (err) { toast.error(errorMessage(err)); } finally { setOpening(false); }
   };
   const changeStatus = async (m, next) => {
     try { await setMovieStatus.mutateAsync({ id: m.id, status: next }); toast.success('Đã đổi trạng thái'); } catch (err) { toast.error(errorMessage(err)); }
