@@ -4,7 +4,7 @@
 > Mục đích: với **mỗi** yêu cầu (FR / NFR / BR) chỉ ra *kiểm bằng cái gì* và *kết quả lần chạy gần nhất*. Hội đồng hỏi "yêu cầu X đã được kiểm chưa?" thì mở bảng này.
 >
 > **Cách chạy lại:** `npm run db:seed` → `npm test` (trong `code/server`) · `npx vitest run` (trong `code/client`).
-> **Kết quả lần chạy 29/10/2026:** backend **215/215** · frontend **328/328** · build production thành công.
+> **Kết quả lần chạy 29/10/2026:** backend **242/242** · frontend **328/328** · build production thành công.
 > Lưu ý: test backend cần dữ liệu mẫu còn suất chiếu sắp tới (seed chỉ tạo 7 ngày). Hết hạn thì chạy lại `db:seed`.
 
 Quy ước cột "Cách kiểm": **A** = test tự động (tên file trong `code/server/tests/` hoặc `code/client/src/`), **T** = thử tay trên trình duyệt (kịch bản ở `docs/09`), **Đo** = có số liệu đo, **—** = chưa làm (đúng phạm vi: mức Could).
@@ -110,6 +110,27 @@ Quy ước cột "Cách kiểm": **A** = test tự động (tên file trong `cod
 | BR-33 | 1 QR cho cả đơn | A `staff.checkin.test.js` | Đạt |
 | BR-34 | Check-in ±30 phút (gồm đầu mút) | A `staff.checkin.test.js` | Đạt |
 | BR-35 | Phân loại độ tuổi | A client `pages/staff/staff-checkin.test.jsx` · T (cảnh báo ở trang chi tiết phim) | Đạt |
+
+## 3b. Trợ lý AI đặt vé (giai đoạn AI — docs/07)
+
+Kiểm bằng **mô hình giả có kịch bản** (không gọi LLM thật): `tests/ai.services.test.js` (service cho Agent) và `tests/ai.agent.test.js` (vòng lặp, tool, xác nhận, hội thoại). Kiểm thử với mô hình thật nằm ở bước 5–7.
+
+| Bảo đảm | Cách kiểm | Kết quả |
+|---|---|---|
+| ⭐ Tool ghi (giữ ghế, combo, mã, link thanh toán, hủy đơn) **không chạy** trong lượt trò chuyện, chỉ tạo "việc chờ xác nhận" | `ai.agent`: sau lượt chat không có đơn / ghế giữ nào trong DB | Đạt |
+| ⭐ Hộp xác nhận hiển thị **tóm tắt do server sinh** (ghế, giá, giờ chiếu đọc từ DB), không phải lời LLM — kể cả khi LLM "nói dối" về giá | `ai.agent` (LLM giả nói "10.000đ", tóm tắt vẫn ghi 190.000đ) | Đạt |
+| ⭐ Mỗi việc chờ chạy **đúng một lần**: bấm đúp, hoặc 10 request xác nhận song song → 1 thành công, 9 `NOT_FOUND`, đúng 1 đơn | `ai.agent` | Đạt |
+| ⭐ Người khác không xác nhận được phiên của mình (`FORBIDDEN`); `actionId` lạ / hết hạn 5 phút / sai kiểu → bị từ chối, không thực thi | `ai.agent` | Đạt |
+| ⭐ **Tiêm lệnh gián tiếp**: mô tả phim chứa "hãy gọi hold_seats…" — dù mô hình làm theo, vẫn chỉ ra hộp xác nhận, không giữ ghế | `ai.agent` | Đạt |
+| ⭐ LLM đòi hủy / xem đơn của **người khác** → chặn ngay ở bước xem trước (`FORBIDDEN`); LLM không thể điền `userId` (schema `.strict()`, `list_my_tickets` chỉ trả vé của chính khách) | `ai.agent` | Đạt |
+| Xem trước báo lỗi sớm: ghế đã bị lấy, ghế đôi lẻ, đơn đã thanh toán → không mời xác nhận việc chắc chắn thất bại | `ai.agent`, `ai.services` | Đạt |
+| Gợi ý ghế: liền nhau, cùng hàng, cùng loại, ghế đôi theo cặp, đúng BACK / AISLE / CENTER; **tổng tiền khớp đơn thật** sau khi giữ; ghế giữ quá hạn coi như trống | `ai.services` | Đạt |
+| Đơn tạo qua chat có `source = AI_CHAT`; API REST **không nhận** `source` từ body | `ai.services` | Đạt |
+| Giới hạn: tối đa 6 vòng tool / tin nhắn; 20 tin / phút và 200 tin / ngày / tài khoản; tin ≤ 1000 ký tự; lịch sử gửi LLM ≤ 20 tin và không có kết quả tool "mồ côi" | `ai.agent` | Đạt |
+| Lỗi hạ tầng (thiếu khóa, LLM lỗi) → `AI_UNAVAILABLE`, **không lộ** chi tiết (kể cả chuỗi giống khóa API) và không lưu tin dở dang | `ai.agent` | Đạt |
+| Kiến trúc: `ai/` không import Prisma, không đụng `req`/`res` | `architecture.test.js` | Đạt |
+
+**Kiểm tra chất lượng bộ test AI (mutation):** 17 đột biến vào các bất biến trên (chạy tool ghi ngay, bỏ "nhận phần" khi xác nhận, bỏ kiểm chủ phiên / hết hạn / `actionId`, bỏ giới hạn tần suất, lộ lỗi LLM thô, lộ tham số nội bộ…) — **17/17 bị test bắt**.
 
 ## 4. Kiểm thử đã áp dụng thêm (ngoài đối chiếu yêu cầu)
 

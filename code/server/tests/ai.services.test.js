@@ -24,7 +24,8 @@ let seatsByLabel; const orderIds = [];
  *  A: 1-10 thường · B: 1-10 VIP · C: 1-5 thường + 6-10 VIP (hàng LẪN loại) · D: 4 ghế đôi (D1-2, D3-4).
  */
 async function buildRoom() {
-  const cinema = await prisma.cinema.findFirst({ where: { isActive: true } });
+  // Rạp DỮ LIỆU MẪU, không phải rạp tạm do test khác (admin.cinema.crud) tạo ra song song rồi xóa.
+  const cinema = await prisma.cinema.findFirst({ where: { name: { startsWith: 'Cinemind' }, isActive: true }, orderBy: { name: 'asc' } });
   room = await prisma.room.create({ data: { cinemaId: cinema.id, name: `TestRoom-${RUN}-ai` } });
   const data = [];
   for (let n = 1; n <= 10; n++) data.push({ roomId: room.id, row: 'A', number: n, type: 'STANDARD' });
