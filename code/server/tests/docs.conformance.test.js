@@ -15,10 +15,7 @@ const METHODS = 'GET|POST|PUT|PATCH|DELETE';
 
 // Endpoint ĐÃ GHI trong docs nhưng CHƯA làm (mức ưu tiên Should/Could theo docs). Test khẳng định chúng thật sự chưa có:
 // khi ai đó làm xong thì phải xóa khỏi danh sách này — để lệch docs/code luôn hiển thị, không bị lãng quên.
-const NOT_IMPLEMENTED = new Set([
-  // 2.8 — trợ lý AI: thiết kế đã chốt (docs/07 v2.0), đang làm theo từng bước; xóa dòng khi route tồn tại.
-  'POST /ai/chat', 'POST /ai/confirm', 'GET /ai/sessions/:id', 'DELETE /ai/sessions/:id',
-]);
+const NOT_IMPLEMENTED = new Set([]);
 
 // ---- đọc bảng endpoint từ docs ----
 function section(startPattern) {

@@ -4,7 +4,7 @@
 > Mục đích: với **mỗi** yêu cầu (FR / NFR / BR) chỉ ra *kiểm bằng cái gì* và *kết quả lần chạy gần nhất*. Hội đồng hỏi "yêu cầu X đã được kiểm chưa?" thì mở bảng này.
 >
 > **Cách chạy lại:** `npm run db:seed` → `npm test` (trong `code/server`) · `npx vitest run` (trong `code/client`).
-> **Kết quả lần chạy 29/10/2026:** backend **242/242** · frontend **328/328** · build production thành công.
+> **Kết quả lần chạy 29/10/2026:** backend **255/255** · frontend **328/328** · build production thành công.
 > Lưu ý: test backend cần dữ liệu mẫu còn suất chiếu sắp tới (seed chỉ tạo 7 ngày). Hết hạn thì chạy lại `db:seed`.
 
 Quy ước cột "Cách kiểm": **A** = test tự động (tên file trong `code/server/tests/` hoặc `code/client/src/`), **T** = thử tay trên trình duyệt (kịch bản ở `docs/09`), **Đo** = có số liệu đo, **—** = chưa làm (đúng phạm vi: mức Could).
@@ -128,9 +128,11 @@ Kiểm bằng **mô hình giả có kịch bản** (không gọi LLM thật): `t
 | Đơn tạo qua chat có `source = AI_CHAT`; API REST **không nhận** `source` từ body | `ai.services` | Đạt |
 | Giới hạn: tối đa 6 vòng tool / tin nhắn; 20 tin / phút và 200 tin / ngày / tài khoản; tin ≤ 1000 ký tự; lịch sử gửi LLM ≤ 20 tin và không có kết quả tool "mồ côi" | `ai.agent` | Đạt |
 | Lỗi hạ tầng (thiếu khóa, LLM lỗi) → `AI_UNAVAILABLE`, **không lộ** chi tiết (kể cả chuỗi giống khóa API) và không lưu tin dở dang | `ai.agent` | Đạt |
+| ⭐ **HTTP**: không token / token hỏng → 401 ở cả 4 endpoint; tài khoản bị khóa không chat được ngay (đọc lại DB mỗi request); phiên người khác → 403 ở mọi thao tác; body có `userId` / `role` / `source` → 400 (danh tính chỉ từ token); body quá lớn → 413; tin thứ 21/phút → 429; LLM lỗi / chưa cấu hình → 503 không lộ chi tiết | `ai.http` | Đạt |
+| Luồng đặt vé trọn vẹn qua HTTP: chat → hộp xác nhận → xác nhận → đơn `AI_CHAT` thật → nạp lại phiên → đóng phiên | `ai.http` | Đạt |
 | Kiến trúc: `ai/` không import Prisma, không đụng `req`/`res` | `architecture.test.js` | Đạt |
 
-**Kiểm tra chất lượng bộ test AI (mutation):** 17 đột biến vào các bất biến trên (chạy tool ghi ngay, bỏ "nhận phần" khi xác nhận, bỏ kiểm chủ phiên / hết hạn / `actionId`, bỏ giới hạn tần suất, lộ lỗi LLM thô, lộ tham số nội bộ…) — **17/17 bị test bắt**.
+**Kiểm tra chất lượng bộ test AI (mutation):** 17 đột biến vào các bất biến trên (chạy tool ghi ngay, bỏ "nhận phần" khi xác nhận, bỏ kiểm chủ phiên / hết hạn / `actionId`, bỏ giới hạn tần suất, lộ lỗi LLM thô, lộ tham số nội bộ…) — **17/17 bị test bắt**; thêm 8 đột biến cho lớp HTTP (bỏ đăng nhập, bỏ đọc lại trạng thái tài khoản, bỏ `.strict()`, lấy `userId` từ body, bỏ kiểm id…) — **8/8 bị bắt**.
 
 ## 4. Kiểm thử đã áp dụng thêm (ngoài đối chiếu yêu cầu)
 
