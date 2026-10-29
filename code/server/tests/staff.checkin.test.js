@@ -22,14 +22,14 @@ const failErr = (p) => p.then(() => null, (e) => e);
 // Tạo thẳng đơn trong DB (không qua giữ ghế) để khỏi tranh ghế; chỉ cần đủ cho luồng soát vé.
 const makeOrder = (data = {}, st = showtime) => prisma.order.create({
   data: {
-    code: `T${RUN}${n++}`.slice(-10).toUpperCase(), userId: customer.id, showtimeId: st.id, status: 'PAID', paidAt: new Date(),
+    code: `T${RUN}${process.pid}${n++}`.slice(-10).toUpperCase(), userId: customer.id, showtimeId: st.id, status: 'PAID', paidAt: new Date(),
     expiresAt: new Date(Date.now() + 10 * minute), seatTotal: 0, total: 0, ...data,
   },
 });
 const at = (offsetMin) => new Date(showtime.startTime.getTime() + offsetMin * minute);
 
 before(async () => {
-  [showtime] = await prisma.showtime.findMany({ where: { status: 'OPEN', startTime: { lt: new Date(Date.now() + 30 * 86_400_000) } }, orderBy: { startTime: 'desc' }, skip: 5, take: 1 });
+  [showtime] = await prisma.showtime.findMany({ where: { status: 'OPEN', startTime: { lt: new Date(Date.now() + 30 * 86_400_000) }, room: { name: { startsWith: 'Phòng ' }, seats: { some: {} } } }, orderBy: { startTime: 'desc' }, skip: 5, take: 1 });
   nearShowtime = await prisma.showtime.create({
     data: {
       ...Object.fromEntries(['movieId', 'roomId', 'format', 'audio', 'basePrice'].map((k) => [k, showtime[k]])),

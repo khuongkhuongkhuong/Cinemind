@@ -28,7 +28,7 @@ const promoBody = (extra = {}) => ({
 before(async () => {
   roles = await createRoleUsers(prisma, `cat${RUN}`);
   customer = await prisma.user.create({ data: { email: `test-acat-${RUN}@example.com`, passwordHash: 'x', fullName: 'Test' } });
-  showtime = await prisma.showtime.findFirst();
+  showtime = await prisma.showtime.findFirst({ where: { room: { name: { startsWith: 'Phòng ' }, seats: { some: {} } } } });
   server = app.listen(0);
   base = `http://localhost:${server.address().port}/api/v1`;
 });

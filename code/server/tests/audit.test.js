@@ -34,7 +34,7 @@ before(async () => {
   roles = await createRoleUsers(prisma, `aud${RUN}`);
   city = await prisma.city.findFirst();
   customer = await prisma.user.create({ data: { email: `test-aud-${RUN}@example.com`, passwordHash: 'x', fullName: 'Test' } });
-  const source = (await prisma.showtime.findMany({ where: { status: 'OPEN' }, take: 1 }))[0];
+  const source = (await prisma.showtime.findMany({ where: { status: 'OPEN', room: { name: { startsWith: 'Phòng ' }, seats: { some: {} } } }, take: 1 }))[0];
   nearShowtime = await prisma.showtime.create({
     data: {
       ...Object.fromEntries(['movieId', 'roomId', 'format', 'audio', 'basePrice'].map((k) => [k, source[k]])),
@@ -42,7 +42,7 @@ before(async () => {
     },
   });
   order = await prisma.order.create({
-    data: { code: `U${RUN}`.slice(-10).toUpperCase(), userId: customer.id, showtimeId: nearShowtime.id, status: 'PAID', paidAt: new Date(), expiresAt: new Date(Date.now() + 10 * minute), seatTotal: 0, total: 0 },
+    data: { code: `U${RUN}${process.pid}`.slice(-10).toUpperCase(), userId: customer.id, showtimeId: nearShowtime.id, status: 'PAID', paidAt: new Date(), expiresAt: new Date(Date.now() + 10 * minute), seatTotal: 0, total: 0 },
   });
   server = app.listen(0);
   base = `http://localhost:${server.address().port}/api/v1`;
