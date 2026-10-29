@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as adminApi from '@/api/admin.api';
+import * as catalogApi from '@/api/catalog.api';
 
 // Danh sách luôn được làm mới sau khi tạo / sửa / xóa: invalidate theo "họ" khóa truy vấn.
 const useListQuery = (key, fn, params) => useQuery({ queryKey: [key, params], queryFn: () => fn(params), placeholderData: keepPreviousData });
@@ -70,3 +71,6 @@ export const useUpdateCinema = () => useInvalidatingMutation(({ id, body }) => a
 
 // Nhật ký thao tác
 export const useAuditLogs = (params) => useListQuery('auditLogs', adminApi.listAuditLogs, params);
+
+// Lấy bản đầy đủ của một phim (danh sách chỉ có bản tóm tắt) trước khi mở form sửa.
+export const useLoadMovie = () => useMutation({ mutationFn: ({ slug }) => catalogApi.getMovie(slug) });
