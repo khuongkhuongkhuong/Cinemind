@@ -113,3 +113,79 @@ export function listBanners() {
     orderBy: { sortOrder: 'asc' },
   });
 }
+
+// =============================================================================================
+// DÀNH CHO TRỢ LÝ AI (docs/07): tìm theo TÊN (không dấu), trả dữ liệu phẳng, dễ đọc cho LLM.
+// =============================================================================================
+
+const norm = (s) => removeAccents(String(s ?? '').trim()).toLowerCase();
+
+/**
+ * Tìm các thành phố có tên khớp (không dấu, không phân biệt hoa thường, chứa chuỗi con). "ha noi" -> Hà Nội.
+ * @param {string} cityName
+ * @returns {Promise<Array<{ id: string, name: string }>>}
+ */
+export async function findCitiesByName(cityName) {
+  const key = norm(cityName);
+  if (!key) return [];
+  const cities = await prisma.city.findMany({ select: { id: true, name: true } });
+  return cities.filter((c) => norm(c.name).includes(key));
+}
+
+/**
+ * Tìm phim theo tên / thể loại / trạng thái, kết quả phẳng cho LLM.
+ * @param {{ query?: string, status?: 'NOW_SHOWING'|'COMING_SOON'|'ENDED', genre?: string, limit?: number }} params
+ *   `genre` là TÊN thể loại (không dấu cũng được); `limit` mặc định 10, tối đa 20.
+ * @returns {Promise<Array<{ id: string, title: string, slug: string, ageRating: string, durationMin: number, status: string, releaseDate: string, genres: string[] }>>}
+ */
+export async function searchMovies({ query, status, genre, limit = 10 } = {}) {
+  let genreIds;
+  if (genre) {
+    const genres = await prisma.genre.findMany({ select: { id: true, name: true } });
+    genreIds = genres.filter((g) => norm(g.name).includes(norm(genre))).map((g) => g.id);
+    if (genreIds.length === 0) return [];
+  }
+  const rows = await prisma.movie.findMany({
+    where: {
+      ...(status && { status }),
+      ...(genreIds && { genres: { some: { genreId: { in: genreIds } } } }),
+      ...(query && { searchKey: { contains: removeAccents(query.trim()) } }),
+    },
+    orderBy: [{ releaseDate: 'desc' }, { title: 'asc' }],
+    take: Math.min(Math.max(1, limit), 20),
+    include: genreSelect,
+  });
+  return rows.map((m) => {
+    const s = toSummary(m);
+    return { id: s.id, title: s.title, slug: s.slug, ageRating: s.ageRating, durationMin: s.durationMin, status: s.status, releaseDate: s.releaseDate, genres: s.genres.map((g) => g.name) };
+  });
+}
+
+/**
+ * Chi tiết phim theo id (cho trợ lý AI; web dùng slug).
+ * @param {{ movieId: string }} params
+ * @returns {Promise<object>} MovieDetail
+ * @throws {AppError} NOT_FOUND
+ */
+export async function getMovieById({ movieId }) {
+  const m = await prisma.movie.findUnique({ where: { id: movieId }, include: genreSelect });
+  if (!m) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phim.' });
+  return toDetail(m);
+}
+
+/**
+ * Rạp đang hoạt động theo TÊN thành phố (không dấu cũng được). Không có thành phố nào khớp -> [].
+ * @param {{ cityName: string }} params
+ * @returns {Promise<Array<{ id: string, name: string, address: string, cityId: string, cityName: string }>>}
+ */
+export async function listCinemasByCityName({ cityName }) {
+  const cities = await findCitiesByName(cityName);
+  if (cities.length === 0) return [];
+  const rows = await prisma.cinema.findMany({
+    where: { isActive: true, cityId: { in: cities.map((c) => c.id) } },
+    select: { id: true, name: true, address: true, cityId: true },
+    orderBy: { name: 'asc' },
+  });
+  const cityOf = new Map(cities.map((c) => [c.id, c.name]));
+  return rows.map((r) => ({ ...r, cityName: cityOf.get(r.cityId) }));
+}

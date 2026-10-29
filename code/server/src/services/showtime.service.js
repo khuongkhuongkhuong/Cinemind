@@ -1,8 +1,9 @@
 import { prisma } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
-import { VN_OFFSET_MS } from '../lib/time.js';
+import { VN_OFFSET_MS, toVnClock } from '../lib/time.js';
 import { calcSeatPrices, getBasePrice, getSurcharges } from './pricing.service.js';
 import { buildMeta, toSkipTake } from '../utils/pagination.js';
+import { findCitiesByName } from './catalog.service.js';
 
 const SALE_CUTOFF_MS = 15 * 60_000; // BR-04: ngừng bán online 15 phút trước giờ chiếu
 
@@ -340,4 +341,175 @@ export async function listShowtimesByCinema({ cinemaId, date }) {
     cinema,
     movies: [...byMovie.values()].map(({ movie, groups }) => ({ movie, groups: [...groups.values()] })),
   };
+}
+
+// =============================================================================================
+// DÀNH CHO TRỢ LÝ AI (docs/07 mục 2, 10): tìm suất chiếu dạng danh sách phẳng + gợi ý ghế liền nhau.
+// =============================================================================================
+
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const minutesOf = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
+
+/**
+ * Tìm các suất chiếu CÒN MỞ BÁN trong một ngày, kết quả phẳng (dễ đọc cho LLM), kèm số ghế còn trống.
+ * @param {{ date: string, movieId?: string, cinemaId?: string, cityId?: string, cityName?: string,
+ *   timeFrom?: string, timeTo?: string, format?: 'F2D'|'F3D'|'IMAX', limit?: number }} params
+ *   `date`: YYYY-MM-DD (giờ VN, bắt buộc) · `timeFrom`/`timeTo`: HH:mm giờ VN · `cityName`: tên thành phố, không dấu cũng được.
+ * @returns {Promise<Array<{ showtimeId: string, movieId: string, movieTitle: string, cinemaId: string, cinemaName: string,
+ *   startTime: Date, startTimeLocal: string, dateLocal: string, format: string, audio: string, basePrice: number, availableSeatCount: number }>>}
+ *   Sắp theo giờ chiếu; suất đã đóng bán (BR-04) và suất đã hủy không có trong kết quả.
+ * @throws {AppError} VALIDATION_ERROR
+ */
+export async function findShowtimes({ date, movieId, cinemaId, cityId, cityName, timeFrom, timeTo, format, limit = 20 } = {}) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date ?? '') || Number.isNaN(Date.parse(date))) throw fieldError('date', 'Ngày phải có dạng YYYY-MM-DD.');
+  if (timeFrom && !HHMM.test(timeFrom)) throw fieldError('timeFrom', 'Giờ phải có dạng HH:mm.');
+  if (timeTo && !HHMM.test(timeTo)) throw fieldError('timeTo', 'Giờ phải có dạng HH:mm.');
+
+  let cityIds = cityId ? [cityId] : undefined;
+  if (cityName) {
+    cityIds = (await findCitiesByName(cityName)).map((c) => c.id);
+    if (cityIds.length === 0) return [];
+  }
+
+  const { from, to } = vnDayRange(date);
+  const now = new Date();
+  const rows = await prisma.showtime.findMany({
+    where: {
+      status: 'OPEN',
+      startTime: { gte: from, lt: to },
+      ...(movieId && { movieId }),
+      ...(format && { format }),
+      room: { isActive: true, cinema: { isActive: true, ...(cinemaId && { id: cinemaId }), ...(cityIds && { cityId: { in: cityIds } }) } },
+    },
+    orderBy: { startTime: 'asc' },
+    select: {
+      id: true, startTime: true, format: true, audio: true, basePrice: true, status: true, roomId: true,
+      movie: { select: { id: true, title: true } },
+      room: { select: { cinema: { select: { id: true, name: true } } } },
+    },
+  });
+
+  const open = rows.filter((s) => {
+    if (!isOpenForSale(s, now)) return false;
+    const local = toVnClock(s.startTime);
+    const minutes = local.getUTCHours() * 60 + local.getUTCMinutes();
+    return (!timeFrom || minutes >= minutesOf(timeFrom)) && (!timeTo || minutes <= minutesOf(timeTo));
+  }).slice(0, Math.min(Math.max(1, limit), 50));
+  if (open.length === 0) return [];
+
+  // Số ghế còn trống = ghế dùng được của phòng − ghế đã bán hoặc đang được giữ còn hạn (giữ quá hạn coi như trống: dọn lười).
+  const [seatCounts, lockCounts] = await Promise.all([
+    prisma.seat.groupBy({ by: ['roomId'], where: { roomId: { in: [...new Set(open.map((s) => s.roomId))] }, isActive: true }, _count: { _all: true } }),
+    prisma.seatLock.groupBy({
+      by: ['showtimeId'],
+      where: { showtimeId: { in: open.map((s) => s.id) }, OR: [{ status: 'SOLD' }, { expiresAt: { gt: now } }] },
+      _count: { _all: true },
+    }),
+  ]);
+  const seatsOfRoom = new Map(seatCounts.map((c) => [c.roomId, c._count._all]));
+  const takenOf = new Map(lockCounts.map((c) => [c.showtimeId, c._count._all]));
+
+  return open.map((s) => {
+    const local = toVnClock(s.startTime).toISOString();
+    return {
+      showtimeId: s.id,
+      movieId: s.movie.id,
+      movieTitle: s.movie.title,
+      cinemaId: s.room.cinema.id,
+      cinemaName: s.room.cinema.name,
+      startTime: s.startTime,
+      startTimeLocal: local.slice(11, 16),
+      dateLocal: local.slice(0, 10),
+      format: s.format,
+      audio: s.audio,
+      basePrice: s.basePrice,
+      availableSeatCount: Math.max(0, (seatsOfRoom.get(s.roomId) ?? 0) - (takenOf.get(s.id) ?? 0)),
+    };
+  });
+}
+
+/**
+ * Gợi ý tối đa `limit` (mặc định 3) phương án ghế LIỀN NHAU, cùng hàng, cùng loại, đang trống.
+ * - Ghế đôi (`seatType = 'COUPLE'`): `quantity` phải chẵn; các CẶP đứng liền nhau. Không chọn ghế đôi nếu không yêu cầu.
+ * - `preference`: `CENTER` (giữa phòng, hơi lùi về sau — mặc định) · `BACK` (hàng sau) · `AISLE` (sát lối đi, đầu / cuối hàng).
+ * - `totalPrice` do server tính bằng ĐÚNG hàm tính giá của đặt vé (BR-11, BR-13) nên khớp tổng tiền đơn sau khi giữ ghế.
+ * Chỉ là GỢI Ý: ghế vẫn có thể bị người khác lấy trước khi giữ; `holdSeats` mới là trọng tài.
+ * @param {{ showtimeId: string, quantity: number, preference?: 'CENTER'|'BACK'|'AISLE', seatType?: 'STANDARD'|'VIP'|'COUPLE', limit?: number }} params
+ * @returns {Promise<Array<{ seatIds: string[], labels: string[], row: string, seatType: string, totalPrice: number }>>} [] nếu không có phương án nào
+ * @throws {AppError} NOT_FOUND | SHOWTIME_CLOSED | SEAT_LIMIT_EXCEEDED | VALIDATION_ERROR
+ */
+export async function suggestSeats({ showtimeId, quantity, preference = 'CENTER', seatType, limit = 3 }) {
+  if (!Number.isInteger(quantity) || quantity < 1) throw fieldError('quantity', 'Số ghế phải là số nguyên từ 1.');
+  if (quantity > 8) throw new AppError('SEAT_LIMIT_EXCEEDED'); // BR-02
+  if (!['CENTER', 'BACK', 'AISLE'].includes(preference)) throw fieldError('preference', 'preference phải là CENTER, BACK hoặc AISLE.');
+  if (seatType && !['STANDARD', 'VIP', 'COUPLE'].includes(seatType)) throw fieldError('seatType', 'Loại ghế không hợp lệ.');
+  const wantCouple = seatType === 'COUPLE';
+  if (wantCouple && quantity % 2 !== 0) throw fieldError('quantity', 'Ghế đôi phải chọn theo cặp (số ghế chẵn).'); // BR-05
+
+  const map = await getSeatMap({ showtimeId });
+  if (!map.showtime.isOpenForSale) throw new AppError('SHOWTIME_CLOSED'); // BR-04
+
+  // Mỗi "đơn vị" là một ghế lẻ, hoặc một CẶP ghế đôi (hai ghế cùng pairCode liền nhau, đều trống).
+  const rowsOf = new Map();
+  for (const s of map.seats) {
+    if (s.status !== 'AVAILABLE') continue;
+    if (wantCouple ? s.type !== 'COUPLE' : s.type === 'COUPLE' || (seatType && s.type !== seatType)) continue;
+    if (!rowsOf.has(s.row)) rowsOf.set(s.row, []);
+    rowsOf.get(s.row).push(s);
+  }
+  const units = (seats) => {
+    const sorted = [...seats].sort((a, b) => a.number - b.number);
+    if (!wantCouple) return sorted.map((s) => ({ seats: [s], number: s.number, type: s.type }));
+    const pairs = [];
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i].pairCode && sorted[i].pairCode === sorted[i + 1].pairCode && sorted[i + 1].number === sorted[i].number + 1) {
+        pairs.push({ seats: [sorted[i], sorted[i + 1]], number: sorted[i].number, type: 'COUPLE' });
+        i++;
+      }
+    }
+    return pairs;
+  };
+
+  const allRows = map.rows;
+  const maxNumber = Math.max(...map.seats.map((s) => s.number));
+  const need = wantCouple ? quantity / 2 : quantity;
+  const candidates = [];
+  for (const row of allRows) {
+    const list = units(rowsOf.get(row) ?? []);
+    for (let i = 0; i + need <= list.length; i++) {
+      const window = list.slice(i, i + need);
+      const contiguous = window.every((u, k) => k === 0 || u.number === window[k - 1].number + (wantCouple ? 2 : 1));
+      const sameType = window.every((u) => u.type === window[0].type);
+      if (!contiguous || !sameType) continue;
+      const seats = window.flatMap((u) => u.seats);
+      const first = seats[0].number; const last = seats[seats.length - 1].number;
+      const rowIndex = allRows.indexOf(row);
+      const colDist = Math.abs((first + last) / 2 - (maxNumber + 1) / 2);
+      const idealRow = 0.6 * (allRows.length - 1);
+      const score = preference === 'BACK' ? (allRows.length - 1 - rowIndex) * 3 + colDist
+        : preference === 'AISLE' ? (first === 1 || last === maxNumber ? 0 : 1 + Math.min(first - 1, maxNumber - last)) * 3 + Math.abs(rowIndex - idealRow)
+          : colDist + 1.5 * Math.abs(rowIndex - idealRow);
+      candidates.push({ row, seats, score });
+    }
+  }
+  candidates.sort((a, b) => a.score - b.score || a.row.localeCompare(b.row));
+
+  // Ưu tiên các hàng KHÁC NHAU để khách có lựa chọn thật sự; còn thiếu thì lấy thêm phương án cùng hàng.
+  const picked = [];
+  const usedRows = new Set();
+  const max = Math.min(Math.max(1, limit), 10); // trần 10 phương án để không tràn ngữ cảnh của LLM
+  for (const c of candidates) if (!usedRows.has(c.row) && picked.length < max) { picked.push(c); usedRows.add(c.row); }
+  for (const c of candidates) if (picked.length < max && !picked.includes(c)) picked.push(c);
+
+  const [{ basePrice }, surcharges] = await Promise.all([
+    prisma.showtime.findUnique({ where: { id: showtimeId }, select: { basePrice: true } }),
+    getSurcharges(),
+  ]);
+  return picked.map((c) => ({
+    seatIds: c.seats.map((s) => s.id),
+    labels: c.seats.map((s) => s.label),
+    row: c.row,
+    seatType: c.seats[0].type,
+    totalPrice: calcSeatPrices({ basePrice, surcharges, seats: c.seats.map((s) => ({ id: s.id, type: s.type, pairCode: s.pairCode })) }).total,
+  }));
 }

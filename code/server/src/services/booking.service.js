@@ -92,7 +92,7 @@ async function validateRequest({ showtimeId, seatIds }) {
 }
 
 /** Một lần thử giữ ghế — toàn bộ nằm trong MỘT transaction: hoặc tất cả thành công, hoặc không thay đổi gì. */
-function runHoldTransaction({ userId, showtime, seats, priced }) {
+function runHoldTransaction({ userId, showtime, seats, priced, source }) {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + HOLD_MINUTES * 60_000);
   const seatIds = seats.map((s) => s.id);
@@ -123,6 +123,7 @@ function runHoldTransaction({ userId, showtime, seats, priced }) {
         code: generateOrderCode(),
         userId,
         showtimeId: showtime.id,
+        source,
         expiresAt,
         seatTotal: priced.total,
         total: priced.total,
@@ -161,16 +162,18 @@ async function findConflicts({ showtimeId, seatIds }) {
 
 /**
  * Giữ ghế và tạo đơn PENDING (hạn 10 phút). ⭐ Chống trùng ghế bằng khóa chính của SeatLock.
- * @param {{ userId: string, showtimeId: string, seatIds: string[] }} params userId lấy từ token, không từ body
+ * @param {{ userId: string, showtimeId: string, seatIds: string[], source?: 'WEB' | 'AI_CHAT' }} params
+ *   userId lấy từ token, không từ body. `source` mặc định WEB; chỉ kênh trợ lý AI (server) truyền AI_CHAT — API REST không nhận trường này.
  * @returns {Promise<object>} `Order` (04-api-contract mục 3.4)
  * @throws {AppError} NOT_FOUND | SHOWTIME_CLOSED | SEAT_LIMIT_EXCEEDED | COUPLE_SEAT_INCOMPLETE | SEAT_UNAVAILABLE
  */
-export async function holdSeats({ userId, showtimeId, seatIds }) {
+export async function holdSeats({ userId, showtimeId, seatIds, source = 'WEB' }) {
+  if (!['WEB', 'AI_CHAT'].includes(source)) throw new AppError('VALIDATION_ERROR', { details: { fields: { source: 'Nguồn đơn không hợp lệ.' } } });
   const request = await validateRequest({ showtimeId, seatIds });
 
   for (let attempt = 1; ; attempt++) {
     try {
-      return toOrderDto(await runHoldTransaction({ userId, ...request }));
+      return toOrderDto(await runHoldTransaction({ userId, source, ...request }));
     } catch (err) {
       if (err.code !== 'P2002') throw err; // lỗi khác (mất kết nối...) thì để errorHandler lo
       const conflicts = await findConflicts({ showtimeId, seatIds });
