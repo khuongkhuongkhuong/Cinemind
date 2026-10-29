@@ -17,11 +17,12 @@ export default function HomePage() {
 
   return (
     <div className="space-y-10">
+      <h1 className="sr-only">Cinemind — Đặt vé xem phim trực tuyến</h1>
       <BannerSlider />
 
       <section aria-labelledby="home-movies">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 id="home-movies" className="sr-only">Phim</h2>
+          <h2 id="home-movies" className="sr-only">Danh sách phim</h2>
           <div role="tablist" aria-label="Loại phim" className="flex gap-2">
             {TABS.map((t) => (
               <button

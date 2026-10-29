@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { changePassword, updateProfile } from '@/api/me.api';
+import { useChangePassword, useUpdateProfile } from '@/hooks/useProfile';
 import { errorMessage, fieldErrors, hasCode } from '@/api/errors';
 import Button from '@/components/ui/Button';
 import TextField from '@/components/ui/TextField';
@@ -27,6 +27,7 @@ export const validatePassword = ({ current, next, confirm }) => {
 
 function ProfileForm({ user, onSaved }) {
   const toast = useToast();
+  const updateProfile = useUpdateProfile();
   const [form, setForm] = useState({ fullName: user.fullName, phone: user.phone ?? '' });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -40,7 +41,7 @@ function ProfileForm({ user, onSaved }) {
     setSaving(true);
     try {
       // Chỉ gửi đúng hai trường được phép (server từ chối trường lạ); số điện thoại rỗng = xóa số (null).
-      onSaved(await updateProfile({ fullName: form.fullName.trim(), phone: form.phone.trim() || null }));
+      onSaved(await updateProfile.mutateAsync({ fullName: form.fullName.trim(), phone: form.phone.trim() || null }));
       toast.success('Đã lưu hồ sơ.');
     } catch (err) {
       if (hasCode(err, 'VALIDATION_ERROR')) setErrors(fieldErrors(err));
@@ -62,6 +63,7 @@ function ProfileForm({ user, onSaved }) {
 
 function PasswordForm() {
   const toast = useToast();
+  const changePassword = useChangePassword();
   const empty = { current: '', next: '', confirm: '' };
   const [form, setForm] = useState(empty);
   const [errors, setErrors] = useState({});
@@ -75,7 +77,7 @@ function PasswordForm() {
     if (Object.keys(local).length) return;
     setSaving(true);
     try {
-      await changePassword({ currentPassword: form.current, newPassword: form.next });
+      await changePassword.mutateAsync({ currentPassword: form.current, newPassword: form.next });
       setForm(empty);
       toast.success('Đã đổi mật khẩu. Các thiết bị khác đã bị đăng xuất.');
     } catch (err) {

@@ -35,4 +35,19 @@ export const useApplyPromotion = () => useOrderMutation(({ orderId, code }) => b
 export const useRemovePromotion = () => useOrderMutation(({ orderId }) => bookingApi.removePromotion(orderId));
 export const useCancelOrder = () => useOrderMutation(({ orderId }) => bookingApi.cancelOrder(orderId));
 
+/** Trạng thái giao dịch thanh toán (chỉ đọc). `refetchInterval` do trang quyết định (nhịp hỏi, dừng khi có kết quả cuối). */
+export const usePaymentStatus = ({ txnRef, attempt = 0, enabled = true, refetchInterval }) =>
+  useQuery({
+    queryKey: ['paymentStatus', txnRef, attempt],
+    queryFn: () => bookingApi.getPaymentStatus(txnRef),
+    enabled: Boolean(txnRef) && enabled,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+    refetchInterval,
+  });
+
+/** Giả lập VNPay gọi IPN (cổng /dev, chỉ khi phát triển). */
+export const useSimulatePayment = () => useMutation({ mutationFn: ({ txnRef, result }) => bookingApi.simulatePayment(txnRef, result) });
+
 export const useCreatePayment = () => useMutation({ mutationFn: ({ orderId }) => bookingApi.createPayment(orderId) });

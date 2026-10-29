@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
-  useApplyPromotion, useCancelOrder, useCreatePayment, useOrder, useRemovePromotion, useSetCombos,
+  useApplyPromotion, useCancelOrder, useCreatePayment, useOrder, useRemovePromotion, useSetCombos, useSimulatePayment,
 } from '@/hooks/useBooking';
 import { useCountdown } from '@/hooks/useCountdown';
 import { useDebounce } from '@/hooks/useDebounce';
-import { simulatePayment } from '@/api/booking.api';
 import { errorMessage, hasCode } from '@/api/errors';
 import { formatCountdown } from '@/lib/clock';
 import { goToGateway, paymentSimulatorEnabled } from '@/lib/navigation';
@@ -60,6 +59,7 @@ export default function CheckoutPage() {
   const removePromo = useRemovePromotion();
   const cancel = useCancelOrder();
   const pay = useCreatePayment();
+  const simulate = useSimulatePayment();
 
   const [quantities, setQuantities] = useState(null); // null: chưa nạp từ đơn
   const [expired, setExpired] = useState(false);
@@ -116,7 +116,7 @@ export default function CheckoutPage() {
       onSuccess: async (payment) => {
         if (paymentSimulatorEnabled()) {
           try {
-            await simulatePayment(payment.txnRef, 'SUCCESS'); // giả lập VNPay gọi IPN (chỉ dev)
+            await simulate.mutateAsync({ txnRef: payment.txnRef, result: 'SUCCESS' }); // giả lập VNPay gọi IPN (chỉ dev)
             navigate(`/payment/result?txnRef=${encodeURIComponent(payment.txnRef)}`);
           } catch (err) {
             setPaying(false);
