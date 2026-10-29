@@ -17,6 +17,8 @@
 | [07-ai-hooks.md](./07-ai-hooks.md) | 14 tool cho AI Agent, lưu ngữ cảnh hội thoại, nguyên tắc an toàn | Thiết kế mở rộng |
 | [08-security-review.md](./08-security-review.md) | Rà soát bảo mật backend: lỗi đã sửa (kèm số liệu trước/sau), hạn chế đã biết, danh sách kiểm tra trước khi triển khai | Chương Bảo mật |
 | [09-demo-script.md](./09-demo-script.md) | Chuẩn bị dữ liệu, kịch bản demo ~12 phút, câu hỏi hội đồng hay hỏi (⭐) kèm trả lời, kế hoạch dự phòng | Kịch bản bảo vệ |
+| [10-test-cases.md](./10-test-cases.md) | Bảng test case: mỗi FR / NFR / BR được kiểm bằng gì, kết quả, số đo hiệu năng và responsive | Test case |
+| [11-user-guide.md](./11-user-guide.md) | Hướng dẫn sử dụng cho khách hàng, nhân viên, quản trị viên (có ảnh chụp) | Hướng dẫn sử dụng |
 | [../CLAUDE.md](../CLAUDE.md) | Tóm tắt bối cảnh + quy tắc cho Claude Code ở bước lập trình | — |
 
 **Còn phải viết trong lúc làm (Sprint 1–4):** test case, hướng dẫn sử dụng, README cài đặt.
