@@ -1,9 +1,9 @@
 // Phân loại độ tuổi (BR-35). Dùng chữ + màu (không chỉ màu) để người mù màu vẫn phân biệt được.
 const STYLES = {
-  P: ['P', 'border-green-700 bg-green-600 text-white', 'Phù hợp mọi lứa tuổi'],
-  K: ['K', 'border-sky-700 bg-sky-600 text-white', 'Trẻ em xem cùng người lớn'],
-  T13: ['T13', 'border-amber-600 bg-amber-500 text-white', 'Từ 13 tuổi'],
-  T16: ['T16', 'border-orange-700 bg-orange-600 text-white', 'Từ 16 tuổi'],
+  P: ['P', 'border-green-800 bg-green-700 text-white', 'Phù hợp mọi lứa tuổi'],
+  K: ['K', 'border-sky-800 bg-sky-700 text-white', 'Trẻ em xem cùng người lớn'],
+  T13: ['T13', 'border-amber-800 bg-amber-700 text-white', 'Từ 13 tuổi'],
+  T16: ['T16', 'border-orange-800 bg-orange-700 text-white', 'Từ 16 tuổi'],
   T18: ['T18', 'border-red-800 bg-red-600 text-white', 'Từ 18 tuổi'],
 };
 
