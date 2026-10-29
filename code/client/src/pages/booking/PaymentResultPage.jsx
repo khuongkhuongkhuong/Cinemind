@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getPaymentStatus } from '@/api/booking.api';
@@ -36,23 +36,30 @@ const linkBtn2 = 'inline-flex h-11 items-center rounded-lg border border-ink-500
 export default function PaymentResultPage({ pollMs = POLL_MS, maxWaitMs = MAX_WAIT_MS }) {
   const [params] = useSearchParams();
   const txnRef = params.get('vnp_TxnRef') ?? params.get('txnRef'); // VNPay trả về vnp_TxnRef; luồng giả lập dùng txnRef
-  const startedAt = useRef(Date.now());
   const [attempt, setAttempt] = useState(0); // tăng khi người dùng bấm "Kiểm tra lại" để bắt đầu một đợt chờ mới
+  // Hết thời gian chờ được quyết định bằng MỘT bộ hẹn giờ riêng, không dựa vào nhịp hỏi server: nếu chỉ so giờ lúc vẽ lại
+  // thì khi nhịp hỏi cuối rơi sát mốc, trang có thể kẹt ở "Đang xác nhận" mãi vì không còn gì kích hoạt vẽ lại.
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    setTimedOut(false);
+    const timer = setTimeout(() => setTimedOut(true), maxWaitMs);
+    return () => clearTimeout(timer);
+  }, [attempt, maxWaitMs]);
 
   const status = useQuery({
     queryKey: ['paymentStatus', txnRef, attempt],
     queryFn: () => getPaymentStatus(txnRef),
-    enabled: Boolean(txnRef),
+    enabled: Boolean(txnRef) && !timedOut, // hết giờ thì dừng hẳn việc hỏi (xóa luôn nhịp hỏi đã hẹn)
     staleTime: 0,
     gcTime: 0,
     retry: false,
-    refetchInterval: (query) => (isFinal(query.state.data) || Date.now() - startedAt.current > maxWaitMs ? false : pollMs),
+    refetchInterval: (query) => (isFinal(query.state.data) ? false : pollMs),
   });
   const data = status.data;
   const paid = data?.orderStatus === 'PAID';
   const order = useOrder(paid ? data.orderId : null); // cần mã đơn để dẫn tới trang vé
 
-  const checkAgain = () => { startedAt.current = Date.now(); setAttempt((a) => a + 1); };
+  const checkAgain = () => setAttempt((a) => a + 1);
 
   if (!txnRef) {
     return <Panel icon="❓" title="Không tìm thấy giao dịch" tone="warn" actions={<Link to="/" className={linkBtn}>Về trang chủ</Link>}>Đường dẫn thiếu mã giao dịch.</Panel>;
@@ -95,7 +102,7 @@ export default function PaymentResultPage({ pollMs = POLL_MS, maxWaitMs = MAX_WA
   }
 
   // Còn đang chờ (hoặc đã chờ quá lâu)
-  const waitedTooLong = status.dataUpdatedAt > 0 && Date.now() - startedAt.current > maxWaitMs && !isFinal(data);
+  const waitedTooLong = timedOut && !isFinal(data) && status.dataUpdatedAt > 0;
   if (waitedTooLong) {
     return (
       <Panel icon="⏳" tone="warn" title="Chưa nhận được xác nhận thanh toán"
