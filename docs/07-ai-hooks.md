@@ -213,7 +213,13 @@ Một số tool trong mục 2 chưa có service tương ứng, hoặc tên khác
 | 6 | Giao diện chat (bong bóng nổi), thẻ đơn hàng, nút xác nhận | Không (dùng mô hình giả để làm UI) | Test component + chạy thật |
 | 7 | Rà bảo mật, số liệu cho báo cáo (tỉ lệ đặt vé qua AI, số lượt gọi tool, độ trễ), cập nhật docs/10 | Có | Bảng kết quả |
 
-**Tiến độ (29/10/2026):** bước 1 ✅ · bước 2 ✅ (`findShowtimes`, `suggestSeats`, `previewHold`, `holdSeats(source)`, tìm phim / rạp theo tên) · bước 3 ✅ (`ai/tools.js`, `ai/agent.js`, `ai/prompt.js`, `ai/llm/` kèm mô hình giả, `services/chat.service.js`) · bước 4 ⏳ (HTTP `/ai/*`) · bước 5–7 chưa làm.
+**Tiến độ (29/10/2026):** bước 1 ✅ · bước 2 ✅ (`findShowtimes`, `suggestSeats`, `previewHold`, `holdSeats(source)`, tìm phim / rạp theo tên) · bước 3 ✅ (`ai/tools.js`, `ai/agent.js`, `ai/prompt.js`, `ai/llm/` kèm mô hình giả, `services/chat.service.js`) · bước 4 ✅ (HTTP `/ai/chat`, `/ai/confirm`, `/ai/sessions/:id`) · bước 5–7 chưa làm (bước 5 cần khóa `ANTHROPIC_API_KEY`).
+
+**Ghi chú thực hiện bước 4 (HTTP):**
+- Cả 4 endpoint dùng `requireAuth` + `requireFreshRole('USER','STAFF','ADMIN')`: trợ lý tốn chi phí LLM nên **trạng thái tài khoản được đọc lại từ DB mỗi request** — khóa tài khoản có hiệu lực ngay, không chờ access token hết hạn 15 phút.
+- Hai lớp giới hạn: **theo tài khoản** trong `chat.service` (20 tin / phút, 200 tin / ngày → `RATE_LIMITED`) và **theo IP** ở route (60 yêu cầu / phút, tắt khi chạy test).
+- Body validate bằng zod `.strict()`: gửi thêm `userId`, `role`, `source` bị từ chối 400 — danh tính chỉ đến từ token.
+- Thất bại nghiệp vụ lúc xác nhận (ghế vừa bị lấy, mã sai…) trả **200 kèm lời giải thích trong `reply`**, không phải lỗi HTTP, vì khung chat cần hiển thị nó như một tin nhắn bình thường.
 
 **Ghi chú thực hiện bước 3 (khác / chi tiết hơn bản thiết kế):**
 - Giao diện LLM trung lập: `complete({ system, messages, tools, maxTokens }) → { text, toolCalls, usage }` (xem `ai/llm/index.js`). Adapter Anthropic (bước 5) chỉ cần đổi qua lại định dạng tin nhắn.

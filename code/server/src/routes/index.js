@@ -8,6 +8,7 @@ import meRoutes from './me.routes.js';
 import staffRoutes from './staff.routes.js';
 import adminRoutes from './admin/index.js';
 import paymentRoutes from './payment.routes.js';
+import chatRoutes from './chat.routes.js';
 import devRoutes from './dev.routes.js';
 import { env } from '../config/env.js';
 
@@ -22,6 +23,7 @@ router.use('/me', meRoutes);
 router.use('/staff', staffRoutes);
 router.use('/admin', adminRoutes);
 router.use('/payments', paymentRoutes);
+router.use('/ai', chatRoutes);
 // Cổng giả lập IPN: cần CẢ NODE_ENV=development LẪN ENABLE_DEV_ROUTES=true (xem config/env.js). Không bao giờ ở production.
 export const devRoutesEnabled = env.NODE_ENV === 'development' && env.ENABLE_DEV_ROUTES;
 if (devRoutesEnabled) router.use('/dev', devRoutes);
