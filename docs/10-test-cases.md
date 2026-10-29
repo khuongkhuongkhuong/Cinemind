@@ -76,7 +76,7 @@ Quy ước cột "Cách kiểm": **A** = test tự động (tên file trong `cod
 | NFR-08 | Access 15 phút / refresh 7 ngày; phân quyền ở server | A `auth.test.js`, `security.test.js`, `docs.conformance.test.js` (route ADMIN/STAFF đúng quyền) | Đạt |
 | NFR-09 | Validate đầu vào; giới hạn đăng nhập sai | A `security.test.js` (rate limit, mass assignment, body quá lớn), mọi `admin.*.test.js` (400) | Đạt |
 | NFR-10 | p95 lịch chiếu / sơ đồ ghế < 500 ms với 100 người dùng | **Đo** 29/10: 100 người dùng đồng thời × 3.000 request, 0 lỗi — p95 lịch chiếu **333 ms**, sơ đồ ghế **247 ms**, chi tiết suất **111 ms** (máy dev, 1 tiến trình) | Đạt |
-| NFR-11 | Trang chủ < 3 s trên 4G | T — chưa đo trên bản build đã triển khai (cần Lighthouse) | Chưa đo |
+| NFR-11 | Trang chủ < 3 s trên 4G | **Ước tính** từ bản build 29/10: gói tải ban đầu ≈ **154 KB nén gzip** (JS 143 KB + CSS 8 KB), tải một lần rồi chia theo trang. Trên mạng 4G chậm (1,6 Mbps, trễ 150 ms) ≈ 0,8 s truyền gói + vài lượt gọi API nhỏ → ước **~2 s**. **Chưa đo bằng Lighthouse** trên bản triển khai thật | Ước tính đạt, chưa đo |
 | NFR-12 | Sơ đồ ghế tự làm mới 10–15 s | T (2 tab: ghế giữ ở tab A hiện ở tab B) · client `lib/seats.test.js` (gỡ ghế vừa mất khỏi lựa chọn) | Đạt |
 | NFR-13 | Hết hạn không chặn dù cron chưa chạy | A `booking.concurrency.test.js` | Đạt |
 | NFR-14 | Đơn vẫn xác nhận khi đóng tab | A `payment.ipn.test.js` (IPN không cần phiên người dùng) | Đạt |
@@ -125,6 +125,6 @@ Quy ước cột "Cách kiểm": **A** = test tự động (tên file trong `cod
 ## 5. Hạn chế của việc kiểm thử (nói thẳng với hội đồng)
 
 1. **Chưa kiểm với VNPay sandbox thật** — toàn bộ luồng thanh toán dùng cổng giả lập, dù vẫn đi qua đúng hàm `confirmPayment` với chữ ký hợp lệ.
-2. **Chưa đo NFR-11** (tải trang < 3 s trên 4G) và chưa chạy Lighthouse; số đo NFR-10 là trên máy phát triển, một tiến trình, chưa phải môi trường triển khai.
+2. **NFR-11** (tải trang < 3 s trên 4G) mới ở mức ước tính theo dung lượng gói tải, chưa chạy Lighthouse; số đo NFR-10 là trên máy phát triển, một tiến trình, chưa phải môi trường triển khai.
 3. **Không có test giao diện đầu-cuối tự động** (Playwright/Cypress): luồng đặt vé trọn vẹn trên trình duyệt được kiểm tay theo kịch bản docs/09; phần giao diện còn lại được kiểm bằng test component (Testing Library + MSW).
 4. **Hai test phía client nhạy với tải máy** (đồng hồ đếm ngược, kết quả thanh toán): thỉnh thoảng đỏ khi máy đang bận, chạy lại thì xanh.
