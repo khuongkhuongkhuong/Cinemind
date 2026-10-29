@@ -1,6 +1,6 @@
 # 07 — Chuẩn bị tích hợp AI Agent
 
-> Phiên bản: 1.0 — chốt ngày 02/10/2026 · Hệ thống: **Cinemind**
+> Phiên bản: 2.0 — cập nhật 29/10/2026 (mục 7–11: quyết định và kế hoạch giai đoạn AI) · bản gốc 1.0 chốt 02/10/2026 · Hệ thống: **Cinemind**
 > Mục đích: thiết kế hệ thống đặt vé sao cho giai đoạn AI (tháng 11) chỉ cần **thêm** một lớp mới, không phải sửa lại lõi.
 
 ## 1. Ý tưởng chính
@@ -36,13 +36,13 @@ flowchart LR
 | `get_order` | `bookingService.getOrder` | `orderId` | `Order` (cấu trúc chung) |
 | `list_my_tickets` | `bookingService.listMyOrders` | `status?` | `OrderSummary[]` |
 
-### 2.2 Tool thay đổi dữ liệu (bắt buộc người dùng xác nhận trước)
+### 2.2 Tool thay đổi dữ liệu (bắt buộc người dùng xác nhận trước — **do server cưỡng chế**, xem mục 8)
 
 | Tool | Service | Tham số | Kết quả | Lỗi có thể gặp |
 |---|---|---|---|---|
 | `hold_seats` | `bookingService.holdSeats` | `showtimeId`, `seatIds` | `Order` PENDING + `expiresAt` | `SEAT_UNAVAILABLE`, `SEAT_LIMIT_EXCEEDED`, `COUPLE_SEAT_INCOMPLETE`, `SHOWTIME_CLOSED` |
 | `set_combos` | `bookingService.setCombos` | `orderId`, `items: [{ comboId, quantity }]` | `Order` | `ORDER_EXPIRED` |
-| `apply_promotion` | `promotionService.applyToOrder` | `orderId`, `code` | `Order` | `PROMO_INVALID` |
+| `apply_promotion` | `bookingService.applyPromotion` | `orderId`, `code` | `Order` | `PROMO_INVALID` |
 | `create_payment_link` | `paymentService.createPayment` | `orderId` | `{ paymentUrl, expiresAt }` | `ORDER_EXPIRED` |
 | `cancel_order` | `bookingService.cancelOrder` | `orderId` | `Order` CANCELLED | `ORDER_NOT_PENDING` |
 
@@ -114,9 +114,101 @@ sequenceDiagram
 
 Đã cập nhật `schema.prisma`: `Movie.searchKey`, `Order.source`, model `ChatSession`, `ChatMessage` (tạo bảng sẵn, chưa dùng ở 4 sprint đầu).
 
-## 7. Câu hỏi để mở ở giai đoạn AI (chưa quyết bây giờ)
+## 7. Quyết định đã chốt cho giai đoạn AI (29/10/2026)
 
-- Chọn nhà cung cấp LLM và cách gọi tool (function calling).
-- Khách chưa đăng nhập có được chat không (chỉ tool đọc?) và chuyển sang đăng nhập giữa hội thoại thế nào.
-- Hiển thị kết quả trong khung chat: chữ thuần hay nhúng component (`SeatMap`, `OrderSummary`) — đã chuẩn bị bằng component "thuần".
-- Có dùng Redis cho bộ nhớ phiên / giới hạn tần suất không.
+Các câu hỏi mở ở bản 1.0 nay đã có câu trả lời. Muốn đổi điều nào: thống nhất rồi sửa mục này **trước**, sau đó mới sửa code.
+
+| # | Câu hỏi | Quyết định | Lý do |
+|---|---|---|---|
+| D1 | Nhà cung cấp LLM, cách gọi tool | **Claude qua Anthropic API**, dùng *tool use* (function calling). Mô hình cấu hình bằng `AI_MODEL` (mặc định `claude-sonnet-5-5`); khóa `ANTHROPIC_API_KEY` chỉ nằm ở `.env` của **server** | Gọi tool ổn định; đổi mô hình chỉ cần đổi một biến. Khóa không bao giờ ra frontend |
+| D2 | Khách chưa đăng nhập có chat được không | **Phải đăng nhập** (USER trở lên). Chưa đăng nhập thì khung chat chỉ mời đăng nhập | Mọi thao tác đặt vé cần `userId`; tránh người lạ tiêu tốn chi phí LLM; đơn giản và an toàn hơn cho MVP |
+| D3 | Hiển thị kết quả trong chat | **Chữ + thẻ có cấu trúc**: phản hồi gồm `text` và (tùy lúc) `order`, `paymentUrl`, `pendingAction`. Frontend vẽ thẻ đơn hàng bằng component có sẵn (`OrderSummary`) và nút bấm | Khách thấy số tiền / ghế chính xác do **server** trả, không phải do LLM "viết lại" |
+| D4 | Redis | **Không dùng**. Giới hạn tần suất trong bộ nhớ (như rate limit hiện có); lịch sử lưu ở PostgreSQL (`ChatMessage`) | Đúng ràng buộc "chưa dùng Redis" của dự án |
+| D5 | Streaming | **Chưa** (trả lời nguyên khối). Có thể thêm sau nếu dư thời gian | Giảm độ phức tạp; vẫn đủ cho demo |
+| D6 | Kiểm thử khi chưa / không có khóa | Lớp gọi LLM tách riêng sau một giao diện `llm.complete(...)`; test dùng **mô hình giả** có kịch bản. Mô hình thật chỉ chạy khi có `ANTHROPIC_API_KEY` | Test nhanh, ổn định, miễn phí; vẫn kiểm được toàn bộ logic quanh LLM |
+
+## 8. ⭐ Xác nhận do SERVER cưỡng chế (không tin "khách đã đồng ý" do LLM tự nói)
+
+Bản 1.0 chỉ ghi "tool thay đổi dữ liệu chỉ gọi sau khi khách xác nhận trong hội thoại". Nếu để **LLM** quyết định lúc nào là "đã xác nhận" thì một tin nhắn độc hại (hoặc nội dung phim chứa lệnh chèn — *prompt injection*) có thể khiến nó tự giữ ghế, tự tạo link thanh toán. Vì vậy:
+
+```mermaid
+sequenceDiagram
+    actor U as Khách (giao diện chat)
+    participant A as Agent (LLM)
+    participant SV as Server
+    participant S as Services
+    U->>A: "Đặt giúp mình G7, G8 suất 19:45"
+    A->>SV: gọi tool hold_seats(showtimeId, seatIds)
+    Note over SV: KHÔNG chạy ngay. Kiểm tra tham số,<br/>tạo pendingAction + tóm tắt do SERVER viết<br/>từ dữ liệu thật (ghế, giá, giờ chiếu)
+    SV-->>A: { status: "AWAITING_USER_CONFIRMATION" }
+    A-->>U: "Mình chuẩn bị giữ ghế, bạn xác nhận nhé"
+    SV-->>U: pendingAction { actionId, summary, [Xác nhận] [Hủy] }
+    U->>SV: bấm [Xác nhận] → POST /ai/confirm { actionId, approve: true }
+    SV->>S: holdSeats({ userId từ token, ... })
+    S-->>SV: Order PENDING
+    SV-->>U: thẻ đơn hàng + câu trả lời tiếp theo
+```
+
+Quy tắc:
+
+1. Tool thuộc nhóm 2.2 (`hold_seats`, `set_combos`, `apply_promotion`, `create_payment_link`, `cancel_order`) **không bao giờ** được chạy từ vòng lặp LLM. Vòng lặp chỉ **đề xuất** (`pendingAction`); chỉ lời gọi `POST /ai/confirm` của chính người dùng (có JWT) mới thực thi.
+2. **Tóm tắt trong hộp xác nhận do server sinh từ dữ liệu thật** (đọc DB), không dùng chữ của LLM. Khách thấy đúng ghế / giờ / số tiền sẽ bị tác động.
+3. Mỗi phiên chỉ có **một** `pendingAction` tại một thời điểm; hết hạn sau **5 phút**; mỗi `actionId` chỉ dùng **một lần** (chống bấm đúp / phát lại).
+4. `userId` luôn lấy từ JWT; `orderId`, `showtimeId` do LLM đưa ra vẫn đi qua service nên vẫn bị kiểm quyền sở hữu và mọi luật nghiệp vụ như đặt vé trên web.
+5. Tool chỉ đọc (2.1) chạy tự do, nhưng kết quả được đóng gói như **dữ liệu** (không phải chỉ dẫn) khi đưa lại cho LLM.
+6. Không có tool nào cho LLM: xác nhận thanh toán, check-in, quản trị, đổi vai trò, xem đơn người khác (xem 2.3).
+
+## 9. Kiến trúc mã nguồn & quy tắc
+
+```
+server/src/
+├── ai/
+│   ├── llm/anthropic.js     # gọi Anthropic API (thật)
+│   ├── llm/fake.js          # mô hình giả có kịch bản, dùng trong test
+│   ├── tools.js             # khai báo tool (JSON schema) + ánh xạ sang service + phân loại đọc / ghi
+│   ├── agent.js             # vòng lặp: LLM → tool đọc → ... → câu trả lời / pendingAction
+│   └── prompt.js            # system prompt (vai trò, quy tắc, định dạng giờ / tiền)
+├── services/chat.service.js # phiên, lịch sử, pendingAction, xác nhận (chỗ DUY NHẤT đụng ChatSession / ChatMessage)
+├── controllers/chat.controller.js
+└── routes/chat.routes.js
+```
+
+- `ai/` **không import Prisma**, không đụng `req`/`res`: chỉ gọi `services/`. (Quy tắc kiến trúc NFR-18 được mở rộng để test kiểm cả thư mục `ai/`.)
+- Mỗi tin nhắn của khách: tối đa **6 vòng** gọi tool; lịch sử gửi cho LLM giới hạn **20 tin gần nhất**; `max_tokens` giới hạn câu trả lời.
+- Lỗi từ service (`AppError`) được trả cho LLM dạng `{ error: { code, message } }` để nó giải thích cho khách; lỗi hạ tầng (LLM sập, thiếu khóa) → `AI_UNAVAILABLE` (503), không lộ chi tiết kỹ thuật.
+- Giới hạn chi phí: **20 tin / phút** và **200 tin / ngày** cho mỗi tài khoản (`RATE_LIMITED`), độ dài tin nhắn ≤ 1000 ký tự.
+- Mọi lượt gọi tool (kể cả bị từ chối) được ghi vào `ChatMessage` (`toolName`, `toolInput`, `toolOutput`) để debug và làm số liệu báo cáo.
+- Đơn tạo qua chat có `Order.source = AI_CHAT` (đã có trong schema).
+
+## 10. Việc cần viết thêm ở tầng service (trước khi nối Agent)
+
+Một số tool trong mục 2 chưa có service tương ứng, hoặc tên khác với bản thiết kế 1.0. Bảng dưới là **ánh xạ thực tế**:
+
+| Tool | Service hiện có / cần viết | Việc cần làm |
+|---|---|---|
+| `search_movies` | `catalogService.listMovies` (đã tìm không dấu theo `searchKey`) | Bọc thành `searchMovies` nhận `genre` theo **tên** |
+| `get_movie_details` | `catalogService.getMovieBySlug` | Thêm tra theo `movieId` |
+| `list_cinemas` | `catalogService.listCinemas` | Cho phép lọc theo **tên** thành phố |
+| `find_showtimes` | **chưa có** | Viết `showtimeService.findShowtimes`: danh sách phẳng, `timeFrom/timeTo`, `availableSeatCount`, theo tên thành phố |
+| `get_seat_map` | `showtimeService.getSeatMap` | Thêm `summary { available, byType }` (hoặc tính ở tool) |
+| `suggest_seats` | **chưa có** | Viết `showtimeService.suggestSeats`: ghế **liền nhau**, tối đa 3 phương án, tôn trọng ghế đôi và giới hạn 8 ghế |
+| `list_combos` | `catalogService.listCombos` | — |
+| `get_order` | `bookingService.getOrder` | — |
+| `list_my_tickets` | `bookingService.listMyOrders` | — |
+| `hold_seats` | `bookingService.holdSeats` | Thêm tham số `source` (`WEB` mặc định, `AI_CHAT`) |
+| `set_combos` | `bookingService.setCombos` | — |
+| `apply_promotion` | `bookingService.applyPromotion` | — |
+| `create_payment_link` | `paymentService.createPayment` | — |
+| `cancel_order` | `bookingService.cancelOrder` | — |
+
+## 11. Kế hoạch triển khai giai đoạn AI
+
+| Bước | Nội dung | Cần khóa API? | Kết quả kiểm tra được |
+|---|---|---|---|
+| 1 | **Thiết kế** (mục 7–10, hợp đồng API 04 mục 2.8, mã lỗi `AI_UNAVAILABLE`) | Không | Tài liệu + test đối chiếu docs ↔ code |
+| 2 | Service còn thiếu: `findShowtimes`, `suggestSeats`, `source` cho `holdSeats`, các bộ bọc tìm kiếm | Không | Test từng service (đồng thời, ghế liền nhau, ghế đôi) |
+| 3 | `ai/tools.js`, `ai/agent.js`, `services/chat.service.js`, lưu hội thoại; mô hình giả | Không | Test vòng lặp: tool đọc chạy, tool ghi chỉ tạo `pendingAction` |
+| 4 | `POST /ai/chat`, `/ai/confirm`, `GET/DELETE /ai/sessions/:id` + cơ chế xác nhận, giới hạn tần suất | Không | Test HTTP + test tấn công (tự xác nhận, phát lại `actionId`, đơn người khác, tiêm lệnh) |
+| 5 | Nối **Anthropic thật** (`ai/llm/anthropic.js`), thử hội thoại thật, chỉnh prompt | **Có** | Hội thoại đặt vé trọn vẹn |
+| 6 | Giao diện chat (bong bóng nổi), thẻ đơn hàng, nút xác nhận | Không (dùng mô hình giả để làm UI) | Test component + chạy thật |
+| 7 | Rà bảo mật, số liệu cho báo cáo (tỉ lệ đặt vé qua AI, số lượt gọi tool, độ trễ), cập nhật docs/10 | Có | Bảng kết quả |

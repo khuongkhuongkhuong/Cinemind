@@ -21,5 +21,6 @@ export const ERROR_CODES = {
   TICKET_NOT_PAID: { status: 422, message: 'Đơn hàng chưa thanh toán.' },
   CHECKIN_NOT_ALLOWED: { status: 422, message: 'Chưa/đã quá giờ cho phép check-in.' },
   RATE_LIMITED: { status: 429, message: 'Bạn thao tác quá nhiều lần, vui lòng thử lại sau.' },
+  AI_UNAVAILABLE: { status: 503, message: 'Trợ lý AI tạm thời không dùng được, vui lòng thử lại sau.' },
   INTERNAL_ERROR: { status: 500, message: 'Có lỗi hệ thống, vui lòng thử lại sau.' },
 };

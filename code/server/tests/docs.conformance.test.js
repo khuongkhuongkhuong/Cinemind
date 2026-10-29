@@ -15,7 +15,10 @@ const METHODS = 'GET|POST|PUT|PATCH|DELETE';
 
 // Endpoint ĐÃ GHI trong docs nhưng CHƯA làm (mức ưu tiên Should/Could theo docs). Test khẳng định chúng thật sự chưa có:
 // khi ai đó làm xong thì phải xóa khỏi danh sách này — để lệch docs/code luôn hiển thị, không bị lãng quên.
-const NOT_IMPLEMENTED = new Set([]);
+const NOT_IMPLEMENTED = new Set([
+  // 2.8 — trợ lý AI: thiết kế đã chốt (docs/07 v2.0), đang làm theo từng bước; xóa dòng khi route tồn tại.
+  'POST /ai/chat', 'POST /ai/confirm', 'GET /ai/sessions/:id', 'DELETE /ai/sessions/:id',
+]);
 
 // ---- đọc bảng endpoint từ docs ----
 function section(startPattern) {
@@ -34,7 +37,7 @@ function parseSimpleTable(text) {
   return rows;
 }
 const endpoints = [];
-for (const [pattern, label] of [[/### 2\.1 /, '2.1'], [/### 2\.2 /, '2.2'], [/### 2\.3 /, '2.3'], [/### 2\.4 /, '2.4'], [/### 2\.5 /, '2.5'], [/### 2\.6 /, '2.6']]) {
+for (const [pattern, label] of [[/### 2\.1 /, '2.1'], [/### 2\.2 /, '2.2'], [/### 2\.3 /, '2.3'], [/### 2\.4 /, '2.4'], [/### 2\.5 /, '2.5'], [/### 2\.6 /, '2.6'], [/### 2\.8 /, '2.8']]) {
   for (const r of parseSimpleTable(section(pattern))) endpoints.push({ ...r, section: label });
 }
 // Mục 2.7: mỗi ô liệt kê nhiều endpoint ngăn bởi " · ", ví dụ "GET/POST /admin/genres" hoặc "PATCH /admin/orders/:id/refund".
