@@ -73,6 +73,7 @@
 | 422 | `TICKET_NOT_PAID` | Tra cứu vé của đơn chưa thanh toán |
 | 422 | `CHECKIN_NOT_ALLOWED` | Ngoài khung giờ check-in (BR-34). `details.reason`: `TOO_EARLY` \| `TOO_LATE` |
 | 429 | `RATE_LIMITED` | Gọi quá nhiều lần theo IP: đăng nhập 20 lần / 15 phút, đăng ký 20 lần / giờ, `/auth/refresh` 60 lần / 15 phút, đổi mật khẩu 10 lần / 15 phút |
+| 503 | `AI_UNAVAILABLE` | Trợ lý AI tạm thời không dùng được (chưa cấu hình khóa, hoặc dịch vụ LLM lỗi / quá tải). Không lộ chi tiết kỹ thuật |
 | 500 | `INTERNAL_ERROR` | Lỗi không mong đợi (không lộ chi tiết kỹ thuật ra ngoài) |
 
 **Quy tắc chung về an toàn (v1.18):** body JSON tối đa 100 KB (lớn hơn → `413` với `code = VALIDATION_ERROR`); chuỗi chứa ký tự NUL (`\u0000`, `%00`) hoặc `%xx` hỏng trong URL → `400 VALIDATION_ERROR`. Mọi phản hồi có `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` và CSP chặn nhúng; các route `/auth`, `/me`, `/orders`, `/payments`, `/staff`, `/admin` trả `Cache-Control: no-store` (production thêm HSTS). Access token chỉ nhận thuật toán HS256.
@@ -201,6 +202,19 @@ Mọi endpoint danh sách admin trả `meta` phân trang; tạo mới trả `201
 **Đơn hàng (v1.11):** `GET /admin/orders` trả mỗi đơn `{ id, code, status, total, createdAt, paidAt, checkedInAt, user: { id, email, fullName }, seatLabels, showtime: { startTime, movieTitle, cinemaName } }`, mới nhất trước; `q` tìm theo mã đơn / email / họ tên (không phân biệt hoa-thường); `from`/`to` là `YYYY-MM-DD` giờ VN, `to` gồm cả ngày đó. `GET /admin/orders/:id` trả `Order` + `user` + `payments[]` (không có dữ liệu thô của cổng thanh toán). `PATCH /admin/orders/:id/refund` chỉ nhận đơn `REFUND_PENDING`; đơn ở trạng thái khác (kể cả đã `REFUNDED`) → `409 ORDER_NOT_PENDING`. Hệ thống **không tự chuyển tiền**: admin hoàn qua VNPay rồi bấm ghi nhận.
 
 **Báo cáo doanh thu (v1.12):** `GET /admin/reports/revenue?from&to&groupBy` — `from`/`to` là `YYYY-MM-DD` giờ VN, gồm cả ngày `to`; mặc định là 30 ngày kết thúc hôm nay; tối đa 366 ngày (quá hoặc `from > to` → `400 VALIDATION_ERROR`); `groupBy` ∈ `day` (mặc định) | `movie` | `cinema`. Chỉ tính đơn `PAID`, ngày tính theo `paidAt` (lúc thu tiền) theo giờ VN. `revenue` = tổng tiền khách thực trả (sau giảm giá), `ticketCount` = số ghế (ghế đôi tính 2), `orderCount` = số đơn. `day` trả đủ mọi ngày trong khoảng, ngày không có doanh thu có `revenue = 0` (để vẽ biểu đồ liên tục); `movie`/`cinema` chỉ liệt kê nhóm có doanh thu, xếp theo doanh thu giảm dần. Đơn `REFUND_PENDING`, `REFUNDED` không tính.
+
+### 2.8 Trợ lý AI đặt vé (v1.22 — thiết kế, xem docs/07)
+
+Mọi endpoint cần đăng nhập (USER trở lên). `userId` lấy từ token; phiên chat chỉ chủ phiên mới đọc / ghi được (người khác → `403`, không tồn tại → `404`). Giới hạn: **20 tin / phút** và **200 tin / ngày** mỗi tài khoản (`RATE_LIMITED`); tin nhắn ≤ 1000 ký tự.
+
+| Method | Path | Quyền | Body / Query | Response `data` | Lỗi chính |
+|---|---|---|---|---|---|
+| POST | `/ai/chat` | USER | `{ sessionId?, text }` (không có `sessionId` = mở phiên mới) | `{ sessionId, reply }` — mẫu 3.9 | `VALIDATION_ERROR`, `RATE_LIMITED`, `AI_UNAVAILABLE`, `NOT_FOUND`, `FORBIDDEN` |
+| POST | `/ai/confirm` | USER | `{ sessionId, actionId, approve }` | `{ reply }` — mẫu 3.9 | `NOT_FOUND` (không có việc chờ / đã dùng / hết hạn), `FORBIDDEN`, `AI_UNAVAILABLE`, và mã lỗi nghiệp vụ của thao tác (`SEAT_UNAVAILABLE`, `PROMO_INVALID`…) được **diễn đạt trong `reply`**, không trả lỗi HTTP |
+| GET | `/ai/sessions/:id` | USER (chủ phiên) | — | `{ sessionId, status, messages[], pendingAction? }` (nạp lại khung chat sau khi tải lại trang) | `NOT_FOUND`, `FORBIDDEN` |
+| DELETE | `/ai/sessions/:id` | USER (chủ phiên) | — | `{ sessionId, status: "CLOSED" }` (bắt đầu cuộc trò chuyện mới) | `NOT_FOUND`, `FORBIDDEN` |
+
+**Quy tắc ⭐ (docs/07 mục 8):** tool thay đổi dữ liệu (`hold_seats`, `set_combos`, `apply_promotion`, `create_payment_link`, `cancel_order`) **không bao giờ** chạy từ lượt trò chuyện. LLM chỉ đề xuất → server tạo `pendingAction` với phần tóm tắt **do server sinh từ dữ liệu thật**; chỉ `POST /ai/confirm { approve: true }` của chính người dùng mới thực thi. Mỗi phiên tối đa một `pendingAction`, hết hạn sau 5 phút, mỗi `actionId` chỉ dùng một lần. Đơn tạo qua kênh này có `source = AI_CHAT`.
 
 ---
 
@@ -412,6 +426,22 @@ Frontend tự vẽ QR từ `qrContent` (thư viện QR phía client); nhân viê
 
 **Lỗi của `POST .../check-in`:** `TICKET_NOT_PAID` (422) · `TICKET_ALREADY_USED` (409, `details.checkedInAt`) · `CHECKIN_NOT_ALLOWED` (422, `details.reason` ∈ `TOO_EARLY` | `TOO_LATE` | `SHOWTIME_CANCELLED`). Hai nhân viên quét cùng một vé cùng lúc: đúng một người thành công.
 
+### 3.9 `POST /ai/chat` và `POST /ai/confirm` — `reply`
+
+```json
+{
+  "text": "Mình chuẩn bị giữ ghế G7, G8 cho suất 19:45. Bạn xác nhận nhé?",
+  "pendingAction": {
+    "actionId": "…uuid…",
+    "tool": "hold_seats",
+    "summary": "Giữ ghế G7, G8 (VIP) — Vùng Tối, Cinemind Cầu Giấy, Phòng 2, 19:45 T6 30/10/2026. Tổng: 210.000đ. Ghế được giữ 10 phút.",
+    "expiresAt": "2026-10-30T12:35:00.000Z"
+  }
+}
+```
+
+Các trường tùy lúc (đều do **server** điền từ dữ liệu thật, không phải do LLM viết): `order` (cấu trúc `Order` chung, mẫu 3.4) khi đã có đơn, `paymentUrl` khi đã tạo link thanh toán. Luôn có `text`.
+
 ---
 
 ## 4. Hướng dẫn làm song song
@@ -607,3 +637,4 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 02/10/2026 | 1.19 | Mục 2.7: định nghĩa GET /admin/cinemas và GET /admin/rooms/:id/seats (chỉ đọc) — bổ sung | Người A |
 | 02/10/2026 | 1.20 | Mục 2.2, 2.7, 3.2b: GET /cinemas/:id/showtimes; POST/PUT /admin/cinemas (quy tắc tắt rạp) — bổ sung | Người A |
 | 02/10/2026 | 1.21 | Mục 2.7: nhật ký thao tác quản trị `GET /admin/audit-logs` (FR-39; bảng `AuditLog`, docs/03) — bổ sung | Người A |
+| 29/10/2026 | 1.22 | Mục 1.2, 2.8, 3.9: kênh trợ lý AI (`/ai/chat`, `/ai/confirm`, `/ai/sessions/:id`), mã lỗi `AI_UNAVAILABLE` (503), xác nhận do server cưỡng chế (docs/07 v2.0) — bổ sung | Người A |
