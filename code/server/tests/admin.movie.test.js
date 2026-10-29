@@ -30,7 +30,8 @@ const addShowtime = (movieId, { startOffsetDays, status = 'OPEN' }) => prisma.sh
 });
 
 before(async () => {
-  const cinema = await prisma.cinema.findFirst();
+  // Rạp DỮ LIỆU MẪU, không phải rạp tạm do test khác (admin.cinema.crud) tạo ra song song rồi xóa.
+  const cinema = await prisma.cinema.findFirst({ where: { name: { startsWith: 'Cinemind' }, isActive: true }, orderBy: { name: 'asc' } });
   room = await prisma.room.create({ data: { cinemaId: cinema.id, name: `TestRoom-${RUN}-M` } });
   genres = await prisma.genre.findMany({ take: 3, orderBy: { name: 'asc' } });
   user = await prisma.user.create({ data: { email: `test-amov-${RUN}@example.com`, passwordHash: 'x', fullName: 'Test' } });

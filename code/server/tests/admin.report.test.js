@@ -22,7 +22,7 @@ const rows = (groupBy, from = '2025-03-10', to = '2025-03-12') => getRevenueRepo
 async function makeOrder({ showtime, status = 'PAID', paidAt, total, seats }) {
   const order = await prisma.order.create({
     data: {
-      code: `P${RUN}${n++}`.slice(-10).toUpperCase(), userId: user.id, showtimeId: showtime.id, status,
+      code: `P${RUN}${process.pid}${n++}`.slice(-10).toUpperCase(), userId: user.id, showtimeId: showtime.id, status,
       paidAt: new Date(paidAt), expiresAt: new Date('2025-03-01T00:00:00Z'), seatTotal: total, total,
     },
   });
@@ -36,7 +36,7 @@ async function makeOrder({ showtime, status = 'PAID', paidAt, total, seats }) {
 before(async () => {
   user = await prisma.user.create({ data: { email: `test-rep-${RUN}@example.com`, passwordHash: 'x', fullName: 'Test' } });
   roles = await createRoleUsers(prisma, `rep${RUN}`);
-  const all = await prisma.showtime.findMany({ include: { room: true } });
+  const all = await prisma.showtime.findMany({ where: { room: { name: { startsWith: 'Phòng ' }, seats: { some: {} } } }, include: { room: true } });
   st1 = all[0];
   st2 = all.find((s) => s.movieId !== st1.movieId && s.room.cinemaId !== st1.room.cinemaId); // khác phim VÀ khác rạp
 

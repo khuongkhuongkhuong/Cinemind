@@ -89,7 +89,7 @@ test('⭐ tắt rạp còn suất sắp chiếu đã có người mua -> 409 RES
   const T0 = new Date(Math.ceil((Date.now() + 70 * DAY) / (60 * minute)) * 60 * minute);
   const st = await showtimeSvc.createShowtime({ movieId: movie.id, roomId: room.id, startTime: T0, format: 'F2D', audio: 'SUBTITLE' });
   const order = await prisma.order.create({
-    data: { code: `C${RUN}`.slice(-10), userId: customer.id, showtimeId: st.id, status: 'PAID', paidAt: new Date(), expiresAt: new Date(Date.now() + 10 * minute), seatTotal: 0, total: 0 },
+    data: { code: `C${RUN}${process.pid}`.slice(-10), userId: customer.id, showtimeId: st.id, status: 'PAID', paidAt: new Date(), expiresAt: new Date(Date.now() + 10 * minute), seatTotal: 0, total: 0 },
   });
 
   const blocked = await call('PUT', `/admin/cinemas/${cinema.id}`, { body: { isActive: false } });
@@ -152,7 +152,7 @@ test('tắt rạp: suất ĐÃ HỦY hoặc ĐÃ CHIẾU xong (dù có đơn đ�
     data: { movieId: movie.id, roomId: room.id, startTime: start, endTime: new Date(start.getTime() + 2 * 60 * minute), format: 'F2D', audio: 'SUBTITLE', basePrice: 90000, status },
   });
   const paid = (showtimeId, n) => prisma.order.create({
-    data: { code: `D${RUN}${n}`.slice(-10), userId: customer.id, showtimeId, status: 'PAID', paidAt: new Date(), expiresAt: new Date(), seatTotal: 0, total: 0 },
+    data: { code: `D${RUN}${process.pid}${n}`.slice(-10), userId: customer.id, showtimeId, status: 'PAID', paidAt: new Date(), expiresAt: new Date(), seatTotal: 0, total: 0 },
   });
   const cancelled = await mkShowtime(new Date(Date.now() + 90 * DAY), 'CANCELLED');
   const past = await mkShowtime(new Date(Date.now() - 3 * DAY), 'OPEN');

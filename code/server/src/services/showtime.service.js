@@ -513,3 +513,52 @@ export async function suggestSeats({ showtimeId, quantity, preference = 'CENTER'
     totalPrice: calcSeatPrices({ basePrice, surcharges, seats: c.seats.map((s) => ({ id: s.id, type: s.type, pairCode: s.pairCode })) }).total,
   }));
 }
+
+/**
+ * Xem trước một yêu cầu giữ ghế (KHÔNG ghi gì vào database): ghế nào, giá bao nhiêu, suất nào — đọc từ DB.
+ * Trợ lý AI dùng để dựng phần tóm tắt trong hộp xác nhận bằng dữ liệu THẬT, và để báo lỗi sớm
+ * (ghế đã bị lấy, quá 8 ghế, ghế đôi lẻ, suất đóng bán) thay vì mời khách xác nhận một việc chắc chắn thất bại.
+ * Chỉ là xem trước: `holdSeats` vẫn kiểm tra lại và là trọng tài khi giữ thật.
+ * @param {{ showtimeId: string, seatIds: string[] }} params
+ * @returns {Promise<{ showtime: { id: string, movieTitle: string, cinemaName: string, roomName: string, startTime: Date,
+ *   startTimeLocal: string, dateLocal: string, format: string, audio: string }, seats: Array<{ id: string, label: string, type: string }>,
+ *   totalPrice: number }>}
+ * @throws {AppError} NOT_FOUND | SHOWTIME_CLOSED | SEAT_LIMIT_EXCEEDED | SEAT_UNAVAILABLE | COUPLE_SEAT_INCOMPLETE | VALIDATION_ERROR
+ */
+export async function previewHold({ showtimeId, seatIds }) {
+  if (!Array.isArray(seatIds) || seatIds.length === 0) throw fieldError('seatIds', 'Cần ít nhất một ghế.');
+  if (new Set(seatIds).size !== seatIds.length) throw fieldError('seatIds', 'Có ghế bị chọn trùng.');
+  if (seatIds.length > 8) throw new AppError('SEAT_LIMIT_EXCEEDED'); // BR-02
+
+  const map = await getSeatMap({ showtimeId });
+  if (!map.showtime.isOpenForSale) throw new AppError('SHOWTIME_CLOSED'); // BR-04
+  const byId = new Map(map.seats.map((s) => [s.id, s]));
+  if (seatIds.some((id) => !byId.has(id))) throw new AppError('NOT_FOUND', { message: 'Có ghế không thuộc phòng chiếu của suất này.' });
+  const chosen = seatIds.map((id) => byId.get(id));
+
+  const taken = chosen.filter((s) => s.status !== 'AVAILABLE');
+  if (taken.length) {
+    throw new AppError('SEAT_UNAVAILABLE', {
+      message: `Ghế ${taken.map((s) => s.label).join(', ')} không còn trống, vui lòng chọn ghế khác.`,
+      details: { seatIds: taken.map((s) => s.id), seatLabels: taken.map((s) => s.label) },
+    });
+  }
+  const perPair = {};
+  for (const s of chosen) if (s.type === 'COUPLE') perPair[s.pairCode] = (perPair[s.pairCode] ?? 0) + 1;
+  if (Object.values(perPair).some((n) => n !== 2)) throw new AppError('COUPLE_SEAT_INCOMPLETE'); // BR-05
+
+  const [{ basePrice }, surcharges] = await Promise.all([
+    prisma.showtime.findUnique({ where: { id: showtimeId }, select: { basePrice: true } }),
+    getSurcharges(),
+  ]);
+  const local = toVnClock(map.showtime.startTime).toISOString();
+  const d = map.showtime;
+  return {
+    showtime: {
+      id: d.id, movieTitle: d.movie.title, cinemaName: d.cinema.name, roomName: d.room.name, startTime: d.startTime,
+      startTimeLocal: local.slice(11, 16), dateLocal: local.slice(0, 10), format: d.format, audio: d.audio,
+    },
+    seats: chosen.map((s) => ({ id: s.id, label: s.label, type: s.type })),
+    totalPrice: calcSeatPrices({ basePrice, surcharges, seats: chosen.map((s) => ({ id: s.id, type: s.type, pairCode: s.pairCode })) }).total,
+  };
+}

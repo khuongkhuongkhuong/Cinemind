@@ -30,7 +30,8 @@ before(async () => {
   T0 = new Date(Math.ceil((Date.now() + 60 * DAY) / (60 * minute)) * 60 * minute);
   movie = await prisma.movie.findUnique({ where: { slug: 'nha-ba-tu' } }); // 102 phút
   // Phòng RIÊNG của test: không đụng suất chiếu seed, và nếu test bị ngắt giữa chừng thì không để lại xung đột.
-  const cinema = await prisma.cinema.findFirst();
+  // Rạp DỮ LIỆU MẪU, không phải rạp tạm do test khác (admin.cinema.crud) tạo ra song song rồi xóa.
+  const cinema = await prisma.cinema.findFirst({ where: { name: { startsWith: 'Cinemind' }, isActive: true }, orderBy: { name: 'asc' } });
   room = await prisma.room.create({ data: { cinemaId: cinema.id, name: `TestRoom-${RUN}-A` } });
   otherRoom = await prisma.room.create({ data: { cinemaId: cinema.id, name: `TestRoom-${RUN}-B` } });
   customer = await prisma.user.create({ data: { email: `test-ashow-${RUN}@example.com`, passwordHash: 'x', fullName: 'Test' } });

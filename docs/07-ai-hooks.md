@@ -212,3 +212,13 @@ Một số tool trong mục 2 chưa có service tương ứng, hoặc tên khác
 | 5 | Nối **Anthropic thật** (`ai/llm/anthropic.js`), thử hội thoại thật, chỉnh prompt | **Có** | Hội thoại đặt vé trọn vẹn |
 | 6 | Giao diện chat (bong bóng nổi), thẻ đơn hàng, nút xác nhận | Không (dùng mô hình giả để làm UI) | Test component + chạy thật |
 | 7 | Rà bảo mật, số liệu cho báo cáo (tỉ lệ đặt vé qua AI, số lượt gọi tool, độ trễ), cập nhật docs/10 | Có | Bảng kết quả |
+
+**Tiến độ (29/10/2026):** bước 1 ✅ · bước 2 ✅ (`findShowtimes`, `suggestSeats`, `previewHold`, `holdSeats(source)`, tìm phim / rạp theo tên) · bước 3 ✅ (`ai/tools.js`, `ai/agent.js`, `ai/prompt.js`, `ai/llm/` kèm mô hình giả, `services/chat.service.js`) · bước 4 ⏳ (HTTP `/ai/*`) · bước 5–7 chưa làm.
+
+**Ghi chú thực hiện bước 3 (khác / chi tiết hơn bản thiết kế):**
+- Giao diện LLM trung lập: `complete({ system, messages, tools, maxTokens }) → { text, toolCalls, usage }` (xem `ai/llm/index.js`). Adapter Anthropic (bước 5) chỉ cần đổi qua lại định dạng tin nhắn.
+- Mỗi tool ghi có **`preview`** (đọc DB, dựng tóm tắt bằng dữ liệu thật, báo lỗi sớm: ghế đã bị lấy, ghế đôi lẻ, quá 8 ghế, đơn không còn chờ thanh toán, đơn của người khác) và **`execute`** (chỉ chạy khi khách xác nhận). Nhờ `preview`, khách không bao giờ được mời xác nhận một việc chắc chắn thất bại.
+- "Mỗi việc chạy đúng một lần" được bảo đảm bằng **câu cập nhật có điều kiện** trên `ChatSession.lastActiveAt` (so sánh rồi ghi) trước khi thực thi — 10 request xác nhận song song chỉ một request thắng (có test).
+- Đơn đang giữ của phiên (`state.currentOrderId`) được **hệ thống đọc từ DB** rồi đưa vào system prompt ở lượt sau, để Agent biết `orderId` mà không phải tin vào ký ức của LLM.
+- Sau khi khách xác nhận, câu trả lời do **server tạo từ kết quả thật** (không gọi LLM thêm): rẻ, xác định, dễ kiểm thử; lượt chat kế tiếp LLM đã biết kết quả qua ngữ cảnh đơn.
+- Lịch sử gửi LLM: 20 tin gần nhất, cắt đến tin khách đầu tiên để không có kết quả tool "mồ côi" (LLM từ chối chuỗi tin không hợp lệ).

@@ -21,13 +21,13 @@ let n = 0;
 const failCode = (p) => p.then(() => null, (e) => e.code);
 const makeOrder = (user, data = {}) => prisma.order.create({
   data: {
-    code: `R${RUN}${n++}`.slice(-10).toUpperCase(), userId: user.id, showtimeId: showtime.id,
+    code: `R${RUN}${process.pid}${n++}`.slice(-10).toUpperCase(), userId: user.id, showtimeId: showtime.id,
     expiresAt: new Date(Date.now() + 10 * minute), seatTotal: 100_000, total: 100_000, ...data,
   },
 });
 
 before(async () => {
-  showtime = await prisma.showtime.findFirst({ orderBy: { startTime: 'asc' } });
+  showtime = await prisma.showtime.findFirst({ where: { room: { name: { startsWith: 'Phòng ' }, seats: { some: {} } } }, orderBy: { startTime: 'asc' } });
   alice = await prisma.user.create({ data: { email: `test-aord-${RUN}-alice@example.com`, passwordHash: 'x', fullName: `Alice Nguyen ${RUN}` } });
   roles = await createRoleUsers(prisma, `ord${RUN}`);
   bob = await prisma.user.create({ data: { email: `test-aord-${RUN}-bob@example.com`, passwordHash: 'x', fullName: `Bob Tran ${RUN}` } });

@@ -17,7 +17,7 @@ before(async () => {
   server = app.listen(0);
   base = `http://localhost:${server.address().port}/api/v1`;
   showtime = await prisma.showtime.findFirst({
-    where: { startTime: { gt: new Date(Date.now() + 60 * minute) }, status: 'OPEN' },
+    where: { startTime: { gt: new Date(Date.now() + 60 * minute) }, status: 'OPEN', room: { name: { startsWith: 'Phòng ' }, seats: { some: {} } } },
     orderBy: { startTime: 'asc' },
   });
   user = await prisma.user.create({
