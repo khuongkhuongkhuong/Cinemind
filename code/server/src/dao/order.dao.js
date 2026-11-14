@@ -37,6 +37,19 @@ export const getOrderById = (orderId, db = prisma) => db.order.findUnique({ wher
 export const getOrderDetail = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, include: ORDER_INCLUDE });
 
 /**
+ * Số đơn "đã chiếm chỗ" của suất: đã thanh toán, chờ hoàn tiền, hoặc đang chờ thanh toán còn hạn giữ ghế.
+ * Có thì suất không được sửa / hủy.
+ * @returns {Promise<number>}
+ */
+export const countActiveSalesOfShowtime = ({ showtimeId, now }, db = prisma) =>
+  db.order.count({
+    where: {
+      showtimeId,
+      OR: [{ status: { in: ['PAID', 'REFUND_PENDING'] } }, { status: 'PENDING', expiresAt: { gt: now } }],
+    },
+  });
+
+/**
  * ⭐ Đánh dấu đơn ĐÃ VÀO RẠP — MỘT câu cập nhật có điều kiện (`status = PAID` và `checkedInAt IS NULL`): hai nhân viên quét
  * cùng lúc thì chỉ một người có count = 1. Service quyết định nghĩa của count = 0 (có người quét trước).
  * @param {{ orderId: string, staffId: string, now: Date }} params
