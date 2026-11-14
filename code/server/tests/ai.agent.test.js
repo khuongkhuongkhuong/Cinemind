@@ -449,10 +449,28 @@ test('phiên: đóng phiên thì không chat / xác nhận tiếp được và g
   assert.equal((await failErr(chatSvc.closeSession({ userId: other.id, sessionId }))).code, 'FORBIDDEN');
   assert.equal((await failErr(say(other, 'chen vào phiên người khác', { sessionId }))).code, 'FORBIDDEN');
   assert.deepEqual(await chatSvc.closeSession({ userId: customer.id, sessionId }), { sessionId, status: 'CLOSED' });
+  assert.equal((await prisma.chatSession.findUnique({ where: { id: sessionId } })).state.pendingAction, null, 'đóng phiên phải gỡ việc chờ khỏi state');
   assert.equal((await failErr(say(customer, 'còn đó không', { sessionId }))).code, 'NOT_FOUND');
   assert.equal((await failErr(confirmAction(customer, sessionId, reply.pendingAction.actionId))).code, 'NOT_FOUND');
   assert.equal((await ordersOf(customer)).length, 0);
   assert.equal((await failErr(say(customer, 'hi', { sessionId: '00000000-0000-4000-8000-000000000000' }))).code, 'NOT_FOUND');
+});
+
+test('thứ tự tin: dù đồng hồ đứng yên, tin của lượt sau luôn SAU tin của lượt trước (createdAt tăng ngặt, không trùng)', async () => {
+  useLlm([{ toolCalls: [T('hold_seats', { showtimeId: showtime.id, seatIds: [seatId('B3')] })] }, { text: 'xác nhận nhé' }, { text: 'ok' }]);
+  const realNow = Date.now; const frozen = realNow();
+  Date.now = () => frozen;
+  let sessionId;
+  try {
+    ({ sessionId } = await say(customer, 'giữ B3'));
+    await say(customer, 'cảm ơn', { sessionId });
+  } finally { Date.now = realNow; }
+  const rows = await prisma.chatMessage.findMany({ where: { sessionId }, orderBy: { createdAt: 'asc' } });
+  const times = rows.map((r) => r.createdAt.getTime());
+  assert.ok(rows.length >= 5);
+  assert.equal(new Set(times).size, times.length, 'có hai tin trùng thời điểm');
+  assert.equal(rows.at(-2).content, 'cảm ơn');
+  assert.equal(rows.at(-1).content, 'ok');
 });
 
 test('getSession nạp lại khung chat: có việc chờ còn hạn thì trả, hết hạn thì ẩn', async () => {
