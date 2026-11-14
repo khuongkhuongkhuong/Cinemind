@@ -66,7 +66,7 @@ test('services có import Prisma là bình thường, nhưng KHÔNG import từ 
 // ------------------------------------------------------------------ Tầng DAO (docs/04 mục 5.2, v1.23) ------------------------------------------------------------------
 
 // Các service ĐÃ chuyển sang DAO. Danh sách này chỉ TĂNG khi chuyển thêm service (không bao giờ bớt đi).
-const DAO_SERVICES = ['pricing', 'auth', 'user'];
+const DAO_SERVICES = ['pricing', 'auth', 'user', 'ticket'];
 const DIRECT_QUERY = /\b(prisma|tx)\.[a-z]\w*\.(find|create|update|delete|upsert|count|group|aggregate)/;
 
 test('⭐ dao/ chỉ truy vấn: không ném AppError, không đụng req/res, không import service / controller', () => {

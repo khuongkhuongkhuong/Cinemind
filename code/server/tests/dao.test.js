@@ -114,3 +114,34 @@ test('user / priceRule / surcharge DAO: đọc đúng, trả null khi không có
   const surcharges = await getAllSurcharges();
   assert.deepEqual(surcharges.map((s) => s.seatType).sort(), ['COUPLE', 'STANDARD', 'VIP']);
 });
+
+// ------------------------------------------------------------------ order.dao (soát vé) ------------------------------------------------------------------
+
+test('⭐ order.dao: checkInIfNotUsed trả count — 10 lần SONG SONG chỉ 1 lần thành công; đơn chưa PAID / đã dùng -> 0; findOrderByCode kèm trạng thái suất', async () => {
+  const orderDao = await import('../src/dao/order.dao.js');
+  const showtime = await prisma.showtime.findFirst({ where: { status: 'OPEN', room: { name: { startsWith: 'Phòng ' }, seats: { some: {} } } } });
+  const mk = (tag, status) => prisma.order.create({
+    data: { code: `D${RUN}${process.pid}${tag}`.slice(-10), userId: user.id, showtimeId: showtime.id, status, paidAt: status === 'PAID' ? new Date() : null, expiresAt: new Date(), seatTotal: 1, total: 1 },
+  });
+  const paid = await mk('p', 'PAID');
+  const pending = await mk('n', 'PENDING');
+  try {
+    const found = await orderDao.findOrderByCode(paid.code);
+    assert.equal(found.id, paid.id);
+    assert.equal(found.showtime.status, 'OPEN'); // trạng thái suất cần cho luật check-in
+    assert.ok(found.showtime.movie.title && Array.isArray(found.seats));
+    assert.equal(await orderDao.findOrderByCode('KHONGCOMA'), null);
+    assert.equal((await orderDao.getOrderById(paid.id)).code, paid.code);
+    assert.equal((await orderDao.getOrderDetail(paid.id)).showtime.room.cinema.name.length > 0, true);
+
+    const now = new Date();
+    const counts = await Promise.all(Array.from({ length: 10 }, () => orderDao.checkInIfNotUsed({ orderId: paid.id, staffId: user.id, now })));
+    assert.equal(counts.filter((c) => c === 1).length, 1);
+    assert.equal(counts.filter((c) => c === 0).length, 9);
+    const after = await orderDao.getOrderById(paid.id);
+    assert.equal(after.checkedInById, user.id);
+    assert.equal(await orderDao.checkInIfNotUsed({ orderId: pending.id, staffId: user.id, now }), 0); // chưa thanh toán
+  } finally {
+    await prisma.order.deleteMany({ where: { id: { in: [paid.id, pending.id] } } });
+  }
+});

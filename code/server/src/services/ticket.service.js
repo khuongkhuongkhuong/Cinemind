@@ -1,18 +1,11 @@
-import { prisma } from '../config/prisma.js';
+import { checkInIfNotUsed, findOrderByCode, getOrderById, getOrderDetail } from '../dao/order.dao.js';
 import { AppError } from '../utils/AppError.js';
 import { normalizeTicketCode } from '../lib/code.js';
-import { orderInclude, toOrderDto } from './booking.service.js';
+import { toOrderDto } from './booking.service.js';
 
 const WINDOW_MS = 30 * 60_000; // BR-34: từ 30 phút trước đến 30 phút sau giờ bắt đầu
 
-// Cần thêm trạng thái suất để biết suất đã bị hủy hay chưa.
-const ticketInclude = {
-  ...orderInclude,
-  showtime: { select: { ...orderInclude.showtime.select, status: true } },
-};
-
-const findByCode = (code) =>
-  prisma.order.findUnique({ where: { code: normalizeTicketCode(code) }, include: ticketInclude });
+const findByCode = (code) => findOrderByCode(normalizeTicketCode(code));
 
 /**
  * Vé này có vào rạp được không, và nếu không thì vì sao? (hàm thuần — một chỗ duy nhất quyết định luật check-in)
@@ -58,15 +51,12 @@ export async function checkIn({ code, staffId, now = new Date() }) {
   const verdict = evaluateCheckIn(order, now);
   if (!verdict.canCheckIn) throw ticketError(verdict.reason, order);
 
-  const { count } = await prisma.order.updateMany({
-    where: { id: order.id, status: 'PAID', checkedInAt: null },
-    data: { checkedInAt: now, checkedInById: staffId },
-  });
+  const count = await checkInIfNotUsed({ orderId: order.id, staffId, now });
   if (count === 0) {
     // Có người vừa quét trước ta: đọc lại để báo họ quét lúc nào.
-    throw ticketError('ALREADY_USED', await prisma.order.findUnique({ where: { id: order.id } }));
+    throw ticketError('ALREADY_USED', await getOrderById(order.id));
   }
-  return toOrderDto(await prisma.order.findUnique({ where: { id: order.id }, include: orderInclude }));
+  return toOrderDto(await getOrderDetail(order.id));
 }
 
 function ticketError(reason, order) {
