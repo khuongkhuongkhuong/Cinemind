@@ -1,4 +1,9 @@
-import { prisma } from '../config/prisma.js';
+import { runInTransaction } from '../dao/transaction.js';
+import { countPaymentsOfOrder, claimPaymentSuccess, findPaymentByTxnRef, findPaymentWithOrder, insertPayment, markPaymentFailedIfPending } from '../dao/payment.dao.js';
+import { getOrderById, getOrderWithTickets, markOrderPaid, setOrderStatus } from '../dao/order.dao.js';
+import { deleteExpiredHeldLocks, deleteLocksOfOrder, insertSoldLock, markLockSold } from '../dao/seatLock.dao.js';
+import { incrementUsedCount } from '../dao/promotion.dao.js';
+import { addPoints } from '../dao/user.dao.js';
 import { env } from '../config/env.js';
 import { AppError } from '../utils/AppError.js';
 import { buildPaymentUrl, formatVnpDate, sign, verifySignature } from '../lib/vnpay.js';
@@ -20,7 +25,7 @@ const requireVnpConfig = () => {
  */
 export async function createPayment({ userId, orderId, bankCode, ipAddr = '127.0.0.1' }) {
   requireVnpConfig();
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  const order = await getOrderById(orderId);
   if (!order) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy đơn hàng.' });
   if (order.userId !== userId) throw new AppError('FORBIDDEN');
   if (order.status !== 'PENDING') throw new AppError('ORDER_NOT_PENDING');
@@ -29,11 +34,9 @@ export async function createPayment({ userId, orderId, bankCode, ipAddr = '127.0
   // Mỗi lần bấm "Thanh toán" là một giao dịch mới: txnRef = <mã đơn>-<lần thứ n>. UNIQUE chặn trùng.
   let payment;
   for (let attempt = 0; attempt < 3 && !payment; attempt++) {
-    const n = (await prisma.payment.count({ where: { orderId } })) + 1 + attempt;
+    const n = (await countPaymentsOfOrder(orderId)) + 1 + attempt;
     try {
-      payment = await prisma.payment.create({
-        data: { orderId, txnRef: `${order.code}-${n}`, amount: order.total, bankCode: bankCode ?? null },
-      });
+      payment = await insertPayment({ orderId, txnRef: `${order.code}-${n}`, amount: order.total, bankCode: bankCode ?? null });
     } catch (err) {
       if (err.code !== 'P2002') throw err;
     }
@@ -82,7 +85,7 @@ export async function confirmPayment({ query }) {
   if (!verifySignature(query, env.VNP_HASH_SECRET)) return RSP.badSignature;
 
   // 2. Giao dịch phải tồn tại và số tiền phải khớp CHÍNH XÁC với số server đã ghi (không tin con số nào từ ngoài).
-  const payment = await prisma.payment.findUnique({ where: { txnRef: query.vnp_TxnRef ?? '' } });
+  const payment = await findPaymentByTxnRef(query.vnp_TxnRef ?? '');
   if (!payment || query.vnp_TmnCode !== env.VNP_TMN_CODE) return RSP.notFound;
   if (Number(query.vnp_Amount) !== payment.amount * 100) return RSP.badAmount;
 
@@ -94,27 +97,24 @@ export async function confirmPayment({ query }) {
 
   // 4. Thất bại: ghi nhận, đơn giữ nguyên để người dùng thử lại trong thời hạn giữ ghế.
   if (!succeeded) {
-    const { count } = await prisma.payment.updateMany({
-      where: { id: payment.id, status: 'PENDING' },
-      data: { status: 'FAILED', responseCode: query.vnp_ResponseCode ?? null, providerTxnNo: query.vnp_TransactionNo ?? null, rawData },
+    const count = await markPaymentFailedIfPending({
+      id: payment.id,
+      fields: { responseCode: query.vnp_ResponseCode ?? null, providerTxnNo: query.vnp_TransactionNo ?? null, rawData },
     });
     return count === 1 ? RSP.ok : RSP.already;
   }
 
   // 5. Thành công: transaction xác nhận. P2002 (ghế đã bị người khác lấy) -> rollback rồi chuyển REFUND_PENDING.
   try {
-    const confirmed = await prisma.$transaction((tx) => markPaid(tx, payment, query), { maxWait: 10_000, timeout: 15_000 });
+    const confirmed = await runInTransaction((tx) => markPaid(tx, payment, query), { maxWait: 10_000, timeout: 15_000 });
     return confirmed ? RSP.ok : RSP.already;
   } catch (err) {
     if (err.code !== 'P2002') throw err;
     // 6. Ghế đã mất (chỉ xảy ra khi IPN đến muộn, BR-31): tiền đã thu nên ghi SUCCESS, đơn chờ hoàn tiền.
-    const marked = await prisma.$transaction(async (tx) => {
-      const claim = await tx.payment.updateMany({
-        where: { id: payment.id, status: 'PENDING' },
-        data: { status: 'SUCCESS', ...paymentFields(query), paidAt: new Date(), rawData },
-      });
-      if (claim.count === 1) await tx.order.update({ where: { id: payment.orderId }, data: { status: 'REFUND_PENDING' } });
-      return claim.count === 1;
+    const marked = await runInTransaction(async (tx) => {
+      const claimed = await claimPaymentSuccess({ id: payment.id, paidAt: new Date(), fields: { ...paymentFields(query), rawData } }, tx);
+      if (claimed === 1) await setOrderStatus(payment.orderId, 'REFUND_PENDING', tx);
+      return claimed === 1;
     });
     return marked ? RSP.ok : RSP.already;
   }
@@ -130,13 +130,10 @@ const paymentFields = (query) => ({
 async function markPaid(tx, payment, query) {
   // "Giành" giao dịch: PENDING -> SUCCESS trong MỘT câu lệnh có điều kiện. Hai IPN trùng nhau chạy cùng lúc:
   // cái thứ hai bị chặn chờ cái đầu commit rồi thấy status đã SUCCESS => count = 0 => dừng. Đây là idempotency.
-  const claim = await tx.payment.updateMany({
-    where: { id: payment.id, status: 'PENDING' },
-    data: { status: 'SUCCESS', ...paymentFields(query), paidAt: new Date(), rawData: query },
-  });
-  if (claim.count === 0) return false;
+  const claimed = await claimPaymentSuccess({ id: payment.id, paidAt: new Date(), fields: { ...paymentFields(query), rawData: query } }, tx);
+  if (claimed === 0) return false;
 
-  const order = await tx.order.findUnique({ where: { id: payment.orderId }, include: { seats: true } });
+  const order = await getOrderWithTickets(payment.orderId, tx);
   // Chỉ đơn PENDING/EXPIRED/CANCELLED mới đi tiếp. Đơn đã PAID/REFUND_*: giao dịch này là khoản thu thừa,
   // chỉ ghi nhận SUCCESS (đã làm ở trên), admin xử lý hoàn tiền thủ công.
   if (!['PENDING', 'EXPIRED', 'CANCELLED'].includes(order.status)) return true;
@@ -144,33 +141,28 @@ async function markPaid(tx, payment, query) {
   // Số tiền đã thu phải KHỚP tổng đơn hiện tại. Khách tạo link thanh toán rồi đổi combo/mã giảm giá thì tổng đổi;
   // trả theo link cũ sẽ thu sai số tiền => KHÔNG ghi PAID. Ghi nhận khoản thu, nhả ghế, chờ admin hoàn tiền.
   if (order.total !== payment.amount) {
-    await tx.seatLock.deleteMany({ where: { orderId: order.id } });
-    await tx.order.update({ where: { id: order.id }, data: { status: 'REFUND_PENDING' } });
+    await deleteLocksOfOrder(order.id, tx);
+    await setOrderStatus(order.id, 'REFUND_PENDING', tx);
     return true;
   }
 
   // Xóa lượt giữ HELD đã quá hạn của NGƯỜI KHÁC trên các ghế của đơn, để ta có thể chiếm chỗ.
   const seatIds = order.seats.map((s) => s.seatId);
-  await tx.seatLock.deleteMany({
-    where: { showtimeId: order.showtimeId, seatId: { in: seatIds }, status: 'HELD', expiresAt: { lte: new Date() }, orderId: { not: order.id } },
-  });
+  await deleteExpiredHeldLocks({ showtimeId: order.showtimeId, seatIds, now: new Date(), exceptOrderId: order.id }, tx);
 
   for (const s of order.seats) {
     // Lượt giữ của chính đơn còn -> chuyển SOLD. Mất rồi (cron đã dọn / đơn đã hết hạn) -> chèn mới;
     // nếu ghế đã thuộc người khác thì khóa chính báo P2002 và ta rollback (bước 6).
-    const own = await tx.seatLock.updateMany({
-      where: { showtimeId: order.showtimeId, seatId: s.seatId, orderId: order.id },
-      data: { status: 'SOLD', expiresAt: null },
-    });
-    if (own.count === 0) {
-      await tx.seatLock.create({ data: { showtimeId: order.showtimeId, seatId: s.seatId, orderId: order.id, status: 'SOLD' } });
+    const own = await markLockSold({ showtimeId: order.showtimeId, seatId: s.seatId, orderId: order.id }, tx);
+    if (own === 0) {
+      await insertSoldLock({ showtimeId: order.showtimeId, seatId: s.seatId, orderId: order.id }, tx);
     }
   }
 
-  await tx.order.update({ where: { id: order.id }, data: { status: 'PAID', paidAt: new Date() } });
-  if (order.promotionId) await tx.promotion.update({ where: { id: order.promotionId }, data: { usedCount: { increment: 1 } } }); // BR-24
+  await markOrderPaid(order.id, new Date(), tx);
+  if (order.promotionId) await incrementUsedCount(order.promotionId, tx); // BR-24
   const points = Math.floor(order.total / POINT_UNIT); // BR-25
-  if (points > 0) await tx.user.update({ where: { id: order.userId }, data: { points: { increment: points } } });
+  if (points > 0) await addPoints(order.userId, points, tx);
   return true;
 }
 
@@ -181,7 +173,7 @@ async function markPaid(tx, payment, query) {
  * @throws {AppError} NOT_FOUND (cả khi không phải chủ giao dịch, để không lộ sự tồn tại của mã)
  */
 export async function getPaymentStatus({ userId, txnRef }) {
-  const payment = await prisma.payment.findUnique({ where: { txnRef }, include: { order: { select: { userId: true, status: true } } } });
+  const payment = await findPaymentWithOrder(txnRef);
   if (!payment || payment.order.userId !== userId) throw new AppError('NOT_FOUND');
   return { orderId: payment.orderId, orderStatus: payment.order.status, paymentStatus: payment.status };
 }
@@ -193,7 +185,7 @@ export async function getPaymentStatus({ userId, txnRef }) {
  */
 export async function simulateIpn({ txnRef, result }) {
   requireVnpConfig();
-  const payment = await prisma.payment.findUnique({ where: { txnRef } });
+  const payment = await findPaymentByTxnRef(txnRef);
   if (!payment) throw new AppError('NOT_FOUND');
   const ok = result === 'SUCCESS';
   const query = {

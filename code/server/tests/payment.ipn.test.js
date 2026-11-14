@@ -217,3 +217,31 @@ test('HTTP: tạo thanh toán -> IPN qua query -> status; và cổng giả lập
     server.close();
   }
 });
+
+test('⭐ IPN đúng chữ ký nhưng sai mã website (vnp_TmnCode): bị từ chối 01 và đơn KHÔNG đổi (không tin IPN của merchant khác)', async () => {
+  const { order, payment } = await setup('A10');
+  const foreign = ipn(payment, { vnp_TmnCode: 'MERCHANTKHAC' }); // ký lại bằng đúng khóa bí mật: chữ ký hợp lệ nhưng tmnCode lạ
+  assert.equal(verifySignature(foreign, env.VNP_HASH_SECRET), true);
+  assert.equal(await rsp(foreign), '01');
+  assert.equal((await orderRow(order.id)).status, 'PENDING');
+  assert.equal((await prisma.payment.findUnique({ where: { id: payment.id } })).status, 'PENDING');
+});
+
+test('⭐ đơn ĐÃ PAID nhận thêm một IPN thành công của giao dịch KHÁC (khách bấm thanh toán hai lần): chỉ ghi nhận khoản thu thừa, KHÔNG cộng điểm / lượt dùng mã lần nữa, đơn giữ nguyên PAID', async () => {
+  const { user, order, payment } = await setup('A11', 'A12');
+  assert.equal(await rsp(ipn(payment)), '00');
+  const paidRow = await orderRow(order.id);
+  assert.equal(paidRow.status, 'PAID');
+  const pointsAfterFirst = (await prisma.user.findUnique({ where: { id: user.id } })).points;
+  assert.ok(pointsAfterFirst > 0);
+
+  // Giao dịch thứ hai (link thanh toán thứ hai) cho CÙNG đơn: đơn đã PAID thì createPayment từ chối, nên tạo thẳng bản ghi để mô phỏng
+  const second = await prisma.payment.create({ data: { orderId: order.id, txnRef: `${order.code}-2`, amount: payment.amount, bankCode: 'NCB' } });
+  assert.equal(await rsp(ipn(second, { vnp_TransactionNo: '14000002' })), '00');
+
+  assert.equal((await prisma.payment.findUnique({ where: { id: second.id } })).status, 'SUCCESS'); // khoản thu được ghi nhận (để admin hoàn tiền)
+  const after = await orderRow(order.id);
+  assert.equal(after.status, 'PAID');
+  assert.equal(after.paidAt.getTime(), paidRow.paidAt.getTime()); // không bị ghi đè
+  assert.equal((await prisma.user.findUnique({ where: { id: user.id } })).points, pointsAfterFirst); // điểm không cộng lần hai
+});

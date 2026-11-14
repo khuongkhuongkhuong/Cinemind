@@ -66,7 +66,7 @@ test('services có import Prisma là bình thường, nhưng KHÔNG import từ 
 // ------------------------------------------------------------------ Tầng DAO (docs/04 mục 5.2, v1.23) ------------------------------------------------------------------
 
 // Các service ĐÃ chuyển sang DAO. Danh sách này chỉ TĂNG khi chuyển thêm service (không bao giờ bớt đi).
-const DAO_SERVICES = ['pricing', 'auth', 'user', 'ticket', 'showtime', 'booking'];
+const DAO_SERVICES = ['pricing', 'auth', 'user', 'ticket', 'showtime', 'booking', 'payment'];
 const DIRECT_QUERY = /\b(prisma|tx)\.[a-z]\w*\.(find|create|update|delete|upsert|count|group|aggregate)/;
 
 test('⭐ dao/ chỉ truy vấn: không ném AppError, không đụng req/res, không import service / controller', () => {
@@ -113,6 +113,30 @@ test('⭐ bất biến giữ ghế: MỌI bước trong transaction giữ ghế 
   assert.ok(statements.length >= 7, `chỉ thấy ${statements.length} lệnh`);
   const missing = statements.filter((st) => !/\btx\b/.test(st)).map((st) => st.split('\n')[0].trim());
   assert.deepEqual(missing, []);
+});
+
+test('⭐ bất biến IPN: MỌI bước của markPaid (xác nhận thanh toán) và nhánh "ghế đã mất" dùng cùng `tx`; chỉ markOrderPaid mới đưa đơn sang PAID', () => {
+  const src = code(join(SRC, 'services', 'payment.service.js'));
+  const start = src.indexOf('async function markPaid(tx');
+  assert.ok(start >= 0, 'không thấy markPaid');
+  const body = src.slice(start, src.indexOf('\n}\n', start));
+  const statements = body.split(/\n\s*(?=await |return |const \w+ = await |if \(.*\) await )/).slice(1);
+  assert.ok(statements.length >= 12, `chỉ thấy ${statements.length} lệnh`);
+  // trừ các lệnh thuần tính toán / return không gọi DAO
+  const missing = statements
+    .filter((st) => /\b(claimPaymentSuccess|getOrderWithTickets|deleteLocksOfOrder|setOrderStatus|deleteExpiredHeldLocks|markLockSold|insertSoldLock|markOrderPaid|incrementUsedCount|addPoints)\(/.test(st))
+    .filter((st) => !/\btx\b/.test(st))
+    .map((st) => st.split('\n')[0].trim());
+  assert.deepEqual(missing, []);
+  // nhánh "ghế đã mất": transaction thứ hai trong confirmPayment cũng phải dùng tx
+  const branch = src.slice(src.indexOf('const marked = await runInTransaction'), src.indexOf('return marked ?'));
+  assert.ok(/claimPaymentSuccess\([^;]*\btx\)/.test(branch) && /setOrderStatus\([^;]*\btx\)/.test(branch), 'nhánh REFUND_PENDING phải dùng tx');
+  // Chỉ markPaid (trong luồng IPN) được gọi markOrderPaid: không service nào khác được đưa đơn sang PAID
+  const others = files(join(SRC, 'services')).filter((f) => !f.endsWith('payment.service.js') && /markOrderPaid/.test(code(f))).map(rel);
+  assert.deepEqual(others, []);
+  // Không nơi nào ngoài order.dao.js được GHI trạng thái PAID (đọc / lọc theo PAID ở report... thì bình thường).
+  const writers = files(SRC).filter((f) => !f.endsWith('order.dao.js') && /data:\s*\{[^}]*status:\s*'PAID'/.test(code(f))).map(rel);
+  assert.deepEqual(writers, []);
 });
 
 test('controllers / routes / validators / ai KHÔNG import dao/ (chỉ gọi service)', () => {
