@@ -1,3 +1,4 @@
+import { ORDER_INCLUDE } from '../dao/order.dao.js';
 import { prisma } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
 import { generateOrderCode } from '../lib/code.js';
@@ -12,18 +13,8 @@ const MAX_ATTEMPTS = 3;
 // Nhiều người giành ghế cùng lúc => transaction phải xếp hàng chờ nhau; nới thời gian chờ mặc định (2s/5s).
 const TX_OPTIONS = { maxWait: 10_000, timeout: 15_000 };
 
-export const orderInclude = {
-  showtime: {
-    select: {
-      id: true, startTime: true, format: true, audio: true,
-      movie: { select: { title: true, ageRating: true, posterUrl: true } },
-      room: { select: { name: true, cinema: { select: { name: true } } } },
-    },
-  },
-  seats: { orderBy: { seatLabel: 'asc' } },
-  combos: { include: { combo: { select: { name: true } } }, orderBy: { combo: { name: 'asc' } } },
-  promotion: { select: { code: true, name: true } },
-};
+// Hình dạng "đơn đầy đủ" nay nằm ở DAO; re-export để các nơi đang import từ đây (adminOrder...) không phải đổi.
+export const orderInclude = ORDER_INCLUDE;
 
 /** Dòng Order của Prisma -> cấu trúc `Order` dùng chung (04-api-contract mục 3.4). */
 export function toOrderDto(o) {
