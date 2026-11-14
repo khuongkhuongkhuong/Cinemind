@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { basename, join, relative } from 'node:path';
 
 const SRC = new URL('../src/', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 
@@ -67,6 +67,14 @@ test('services có import Prisma là bình thường, nhưng KHÔNG import từ 
 
 // Các service ĐÃ chuyển sang DAO. Danh sách này chỉ TĂNG khi chuyển thêm service (không bao giờ bớt đi).
 const DAO_SERVICES = ['pricing', 'auth', 'user', 'ticket', 'showtime', 'booking', 'payment', 'chat'];
+// Service CHƯA chuyển (docs/04 v1.23: admin*, report, catalog… chưa bắt buộc). Thêm service mới => phải chọn: chuyển sang DAO hoặc ghi vào đây.
+const LEGACY_SERVICES = ['adminBanner', 'adminCatalog', 'adminCinema', 'adminMovie', 'adminOrder', 'adminPricing', 'adminPromotion', 'adminUser', 'audit', 'catalog', 'promotion', 'report'];
+
+test('mọi service đều được phân loại: đã chuyển DAO hoặc nằm trong danh sách tồn đọng (không có service mới nào lọt qua mà chưa quyết định)', () => {
+  const all = files(join(SRC, 'services')).map((f) => basename(f).replace('.service.js', '')).sort();
+  assert.deepEqual(all, [...DAO_SERVICES, ...LEGACY_SERVICES].sort());
+});
+
 const DIRECT_QUERY = /\b(prisma|tx)\.[a-z]\w*\.(find|create|update|delete|upsert|count|group|aggregate)/;
 
 test('⭐ dao/ chỉ truy vấn: không ném AppError, không đụng req/res, không import service / controller', () => {
