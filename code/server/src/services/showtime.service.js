@@ -1,4 +1,15 @@
-import { prisma } from '../config/prisma.js';
+import { runInTransaction, lockRoom } from '../dao/transaction.js';
+import {
+  countAdminShowtimes, findAdminShowtimes, findOverlapInRoom, getAdminShowtime, getShowtimeBasePrice, getShowtimeDetail,
+  getShowtimeRoomAndStatus, getShowtimeWithMovie, insertShowtime, listOpenShowtimesOfCinema, listOpenShowtimesOfMovie,
+  searchOpenShowtimes, updateShowtimeById,
+} from '../dao/showtime.dao.js';
+import { countActiveSeatsByRoom, getSeatsOfRoom } from '../dao/seat.dao.js';
+import { countTakenLocksByShowtime, getLocksOfShowtime } from '../dao/seatLock.dao.js';
+import { getMovieById, getMovieIdById } from '../dao/movie.dao.js';
+import { getRoomById } from '../dao/room.dao.js';
+import { findActiveCinemaSummary } from '../dao/cinema.dao.js';
+import { countActiveSalesOfShowtime } from '../dao/order.dao.js';
 import { AppError } from '../utils/AppError.js';
 import { VN_OFFSET_MS, toVnClock } from '../lib/time.js';
 import { calcSeatPrices, getBasePrice, getSurcharges } from './pricing.service.js';
@@ -22,11 +33,6 @@ export function vnDayRange(dateStr) {
   return { from, to: new Date(from.getTime() + 24 * 3600_000) };
 }
 
-const showtimeInclude = {
-  movie: { select: { id: true, title: true, ageRating: true, posterUrl: true } },
-  room: { select: { id: true, name: true, cinema: { select: { id: true, name: true } } } },
-};
-
 /** Dòng Prisma -> ShowtimeDetail (04-api-contract mục 3.3). */
 const toDetail = (s, now) => ({
   id: s.id,
@@ -47,24 +53,12 @@ const toDetail = (s, now) => ({
  * @throws {AppError} NOT_FOUND
  */
 export async function listShowtimesByMovie({ movieId, date, cityId }) {
-  const movie = await prisma.movie.findUnique({ where: { id: movieId }, select: { id: true } });
+  const movie = await getMovieIdById(movieId);
   if (!movie) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phim.' });
 
   const { from, to } = vnDayRange(date);
   const now = new Date();
-  const rows = await prisma.showtime.findMany({
-    where: {
-      movieId,
-      status: 'OPEN',
-      startTime: { gte: from, lt: to },
-      room: { cinema: { cityId, isActive: true } },
-    },
-    orderBy: { startTime: 'asc' },
-    select: {
-      id: true, startTime: true, format: true, audio: true, status: true,
-      room: { select: { cinema: { select: { id: true, name: true, address: true } } } },
-    },
-  });
+  const rows = await listOpenShowtimesOfMovie({ movieId, from, to, cityId });
 
   // Gom nhóm trong bộ nhớ: dữ liệu một phim / một ngày / một thành phố rất nhỏ.
   const byCinema = new Map();
@@ -88,7 +82,7 @@ export async function listShowtimesByMovie({ movieId, date, cityId }) {
  * @throws {AppError} NOT_FOUND
  */
 export async function getShowtime({ showtimeId }) {
-  const s = await prisma.showtime.findUnique({ where: { id: showtimeId }, include: showtimeInclude });
+  const s = await getShowtimeDetail(showtimeId);
   if (!s) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy suất chiếu.' });
   return toDetail(s, new Date());
 }
@@ -101,13 +95,13 @@ export async function getShowtime({ showtimeId }) {
  * @throws {AppError} NOT_FOUND
  */
 export async function getSeatMap({ showtimeId }) {
-  const showtime = await prisma.showtime.findUnique({ where: { id: showtimeId }, include: showtimeInclude });
+  const showtime = await getShowtimeDetail(showtimeId);
   if (!showtime) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy suất chiếu.' });
 
   const now = new Date();
   const [seats, locks, surcharges] = await Promise.all([
-    prisma.seat.findMany({ where: { roomId: showtime.roomId }, orderBy: [{ row: 'asc' }, { number: 'asc' }] }),
-    prisma.seatLock.findMany({ where: { showtimeId }, select: { seatId: true, status: true, expiresAt: true } }),
+    getSeatsOfRoom(showtime.roomId),
+    getLocksOfShowtime(showtimeId),
     getSurcharges(),
   ]);
 
@@ -148,12 +142,6 @@ export async function getSeatMap({ showtimeId }) {
 
 const CLEANUP_MS = 15 * 60_000; // thời gian dọn phòng cộng vào endTime (04-api-contract mục 2.7)
 
-const adminSelect = {
-  id: true, startTime: true, endTime: true, format: true, audio: true, basePrice: true, status: true,
-  movie: { select: { id: true, title: true } },
-  room: { select: { id: true, name: true, cinema: { select: { id: true, name: true } } } },
-};
-
 const toAdminShowtime = (s) => ({
   id: s.id, startTime: s.startTime, endTime: s.endTime, format: s.format, audio: s.audio,
   basePrice: s.basePrice, status: s.status, movie: s.movie,
@@ -166,24 +154,11 @@ const computeEnd = (startTime, durationMin) => new Date(startTime.getTime() + du
  * Có suất khác (chưa hủy) trong CÙNG PHÒNG bị chồng lấn thời gian không? Hai khoảng [s1,e1) và [s2,e2) chồng nhau
  * khi s1 < e2 VÀ e1 > s2. Hai suất nối đuôi nhau (suất sau bắt đầu đúng lúc suất trước kết thúc) KHÔNG tính là trùng.
  */
-const findConflict = (tx, { roomId, startTime, endTime, excludeId }) =>
-  tx.showtime.findFirst({
-    where: {
-      roomId, status: 'OPEN', startTime: { lt: endTime }, endTime: { gt: startTime },
-      ...(excludeId && { id: { not: excludeId } }),
-    },
-    select: { id: true },
-  });
+const findConflict = (tx, { roomId, startTime, endTime, excludeId }) => findOverlapInRoom({ roomId, startTime, endTime, excludeId }, tx);
 
 /** Suất đã có người mua/giữ chưa? (đơn PAID, REFUND_PENDING, hoặc PENDING còn hạn). Có thì không được sửa/hủy. */
 async function hasSales(db, showtimeId) {
-  const n = await db.order.count({
-    where: {
-      showtimeId,
-      OR: [{ status: { in: ['PAID', 'REFUND_PENDING'] } }, { status: 'PENDING', expiresAt: { gt: new Date() } }],
-    },
-  });
-  return n > 0;
+  return (await countActiveSalesOfShowtime({ showtimeId, now: new Date() }, db)) > 0;
 }
 
 /**
@@ -192,8 +167,8 @@ async function hasSales(db, showtimeId) {
  * (tự nhả khi transaction kết thúc): người sau sẽ thấy suất của người trước và nhận SHOWTIME_OVERLAP.
  */
 const withRoomLock = (roomId, work) =>
-  prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${roomId}))`;
+  runInTransaction(async (tx) => {
+    await lockRoom(tx, roomId);
     return work(tx);
   }, { maxWait: 10_000, timeout: 15_000 });
 
@@ -205,14 +180,11 @@ const fieldError = (field, message) => new AppError('VALIDATION_ERROR', { detail
  * @param {{ cinemaId?: string, roomId?: string, date?: string, page: number, pageSize: number }} params date: YYYY-MM-DD (giờ VN)
  */
 export async function listAdminShowtimes({ cinemaId, roomId, date, page, pageSize }) {
-  const where = {
-    ...(roomId && { roomId }),
-    ...(cinemaId && { room: { cinemaId } }),
-    ...(date && { startTime: { gte: vnDayRange(date).from, lt: vnDayRange(date).to } }),
-  };
+  const range = date ? vnDayRange(date) : {};
+  const filter = { roomId, cinemaId, from: range.from, to: range.to };
   const [total, rows] = await Promise.all([
-    prisma.showtime.count({ where }),
-    prisma.showtime.findMany({ where, orderBy: { startTime: 'asc' }, ...toSkipTake({ page, pageSize }), select: adminSelect }),
+    countAdminShowtimes(filter),
+    findAdminShowtimes(filter, toSkipTake({ page, pageSize })),
   ]);
   return { items: rows.map(toAdminShowtime), meta: buildMeta({ page, pageSize }, total) };
 }
@@ -226,8 +198,8 @@ export async function listAdminShowtimes({ cinemaId, roomId, date, page, pageSiz
 export async function createShowtime({ movieId, roomId, startTime, format, audio, basePrice }) {
   if (startTime.getTime() <= Date.now()) throw fieldError('startTime', 'Giờ chiếu phải ở tương lai.');
   const [movie, room] = await Promise.all([
-    prisma.movie.findUnique({ where: { id: movieId } }),
-    prisma.room.findUnique({ where: { id: roomId } }),
+    getMovieById(movieId),
+    getRoomById(roomId),
   ]);
   if (!movie) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phim.' });
   if (!room || !room.isActive) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phòng chiếu.' });
@@ -238,10 +210,7 @@ export async function createShowtime({ movieId, roomId, startTime, format, audio
   const created = await withRoomLock(roomId, async (tx) => {
     const conflict = await findConflict(tx, { roomId, startTime, endTime });
     if (conflict) throw overlapError(conflict);
-    return tx.showtime.create({
-      data: { movieId, roomId, startTime, endTime, format, audio, basePrice: price },
-      select: adminSelect,
-    });
+    return insertShowtime({ movieId, roomId, startTime, endTime, format, audio, basePrice: price }, tx);
   });
   return toAdminShowtime(created);
 }
@@ -253,7 +222,7 @@ export async function createShowtime({ movieId, roomId, startTime, format, audio
  * @throws {AppError} NOT_FOUND | VALIDATION_ERROR | RESOURCE_IN_USE | SHOWTIME_OVERLAP
  */
 export async function updateShowtime({ showtimeId, ...changes }) {
-  const current = await prisma.showtime.findUnique({ where: { id: showtimeId }, include: { movie: true } });
+  const current = await getShowtimeWithMovie(showtimeId);
   if (!current) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy suất chiếu.' });
   if (current.status !== 'OPEN') throw new AppError('RESOURCE_IN_USE', { message: 'Suất đã hủy không sửa được.' });
 
@@ -265,10 +234,10 @@ export async function updateShowtime({ showtimeId, ...changes }) {
     audio: changes.audio ?? current.audio,
   };
   if (changes.startTime && next.startTime.getTime() <= Date.now()) throw fieldError('startTime', 'Giờ chiếu phải ở tương lai.');
-  const movie = next.movieId === current.movieId ? current.movie : await prisma.movie.findUnique({ where: { id: next.movieId } });
+  const movie = next.movieId === current.movieId ? current.movie : await getMovieById(next.movieId);
   if (!movie) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phim.' });
   if (next.roomId !== current.roomId) {
-    const room = await prisma.room.findUnique({ where: { id: next.roomId } });
+    const room = await getRoomById(next.roomId);
     if (!room || !room.isActive) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phòng chiếu.' });
   }
   const endTime = computeEnd(next.startTime, movie.durationMin);
@@ -282,7 +251,7 @@ export async function updateShowtime({ showtimeId, ...changes }) {
     }
     const conflict = await findConflict(tx, { roomId: next.roomId, startTime: next.startTime, endTime, excludeId: showtimeId });
     if (conflict) throw overlapError(conflict);
-    return tx.showtime.update({ where: { id: showtimeId }, data: { ...next, endTime, basePrice }, select: adminSelect });
+    return updateShowtimeById(showtimeId, { ...next, endTime, basePrice }, tx);
   });
   return toAdminShowtime(updated);
 }
@@ -294,14 +263,14 @@ export async function updateShowtime({ showtimeId, ...changes }) {
  * @throws {AppError} NOT_FOUND | RESOURCE_IN_USE
  */
 export async function cancelShowtime({ showtimeId }) {
-  const current = await prisma.showtime.findUnique({ where: { id: showtimeId }, select: { roomId: true, status: true } });
+  const current = await getShowtimeRoomAndStatus(showtimeId);
   if (!current) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy suất chiếu.' });
   const updated = await withRoomLock(current.roomId, async (tx) => {
-    if (current.status === 'CANCELLED') return tx.showtime.findUnique({ where: { id: showtimeId }, select: adminSelect });
+    if (current.status === 'CANCELLED') return getAdminShowtime(showtimeId, tx);
     if (await hasSales(tx, showtimeId)) {
       throw new AppError('RESOURCE_IN_USE', { message: 'Suất đã có người đặt vé; hãy xử lý các đơn trước khi hủy.' });
     }
-    return tx.showtime.update({ where: { id: showtimeId }, data: { status: 'CANCELLED' }, select: adminSelect });
+    return updateShowtimeById(showtimeId, { status: 'CANCELLED' }, tx);
   });
   return toAdminShowtime(updated);
 }
@@ -314,19 +283,12 @@ export async function cancelShowtime({ showtimeId }) {
  * @throws {AppError} NOT_FOUND
  */
 export async function listShowtimesByCinema({ cinemaId, date }) {
-  const cinema = await prisma.cinema.findFirst({ where: { id: cinemaId, isActive: true }, select: { id: true, name: true, address: true } });
+  const cinema = await findActiveCinemaSummary(cinemaId);
   if (!cinema) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy rạp.' });
 
   const { from, to } = vnDayRange(date);
   const now = new Date();
-  const rows = await prisma.showtime.findMany({
-    where: { status: 'OPEN', startTime: { gte: from, lt: to }, room: { cinemaId } },
-    orderBy: { startTime: 'asc' },
-    select: {
-      id: true, startTime: true, format: true, audio: true, status: true,
-      movie: { select: { id: true, title: true, slug: true, ageRating: true, posterUrl: true, durationMin: true } },
-    },
-  });
+  const rows = await listOpenShowtimesOfCinema({ cinemaId, from, to });
 
   const byMovie = new Map();
   for (const s of rows) {
@@ -373,21 +335,7 @@ export async function findShowtimes({ date, movieId, cinemaId, cityId, cityName,
 
   const { from, to } = vnDayRange(date);
   const now = new Date();
-  const rows = await prisma.showtime.findMany({
-    where: {
-      status: 'OPEN',
-      startTime: { gte: from, lt: to },
-      ...(movieId && { movieId }),
-      ...(format && { format }),
-      room: { isActive: true, cinema: { isActive: true, ...(cinemaId && { id: cinemaId }), ...(cityIds && { cityId: { in: cityIds } }) } },
-    },
-    orderBy: { startTime: 'asc' },
-    select: {
-      id: true, startTime: true, format: true, audio: true, basePrice: true, status: true, roomId: true,
-      movie: { select: { id: true, title: true } },
-      room: { select: { cinema: { select: { id: true, name: true } } } },
-    },
-  });
+  const rows = await searchOpenShowtimes({ from, to, movieId, format, cinemaId, cityIds });
 
   const open = rows.filter((s) => {
     if (!isOpenForSale(s, now)) return false;
@@ -399,12 +347,8 @@ export async function findShowtimes({ date, movieId, cinemaId, cityId, cityName,
 
   // Số ghế còn trống = ghế dùng được của phòng − ghế đã bán hoặc đang được giữ còn hạn (giữ quá hạn coi như trống: dọn lười).
   const [seatCounts, lockCounts] = await Promise.all([
-    prisma.seat.groupBy({ by: ['roomId'], where: { roomId: { in: [...new Set(open.map((s) => s.roomId))] }, isActive: true }, _count: { _all: true } }),
-    prisma.seatLock.groupBy({
-      by: ['showtimeId'],
-      where: { showtimeId: { in: open.map((s) => s.id) }, OR: [{ status: 'SOLD' }, { expiresAt: { gt: now } }] },
-      _count: { _all: true },
-    }),
+    countActiveSeatsByRoom([...new Set(open.map((s) => s.roomId))]),
+    countTakenLocksByShowtime({ showtimeIds: open.map((s) => s.id), now }),
   ]);
   const seatsOfRoom = new Map(seatCounts.map((c) => [c.roomId, c._count._all]));
   const takenOf = new Map(lockCounts.map((c) => [c.showtimeId, c._count._all]));
@@ -502,7 +446,7 @@ export async function suggestSeats({ showtimeId, quantity, preference = 'CENTER'
   for (const c of candidates) if (picked.length < max && !picked.includes(c)) picked.push(c);
 
   const [{ basePrice }, surcharges] = await Promise.all([
-    prisma.showtime.findUnique({ where: { id: showtimeId }, select: { basePrice: true } }),
+    getShowtimeBasePrice(showtimeId),
     getSurcharges(),
   ]);
   return picked.map((c) => ({
@@ -548,7 +492,7 @@ export async function previewHold({ showtimeId, seatIds }) {
   if (Object.values(perPair).some((n) => n !== 2)) throw new AppError('COUPLE_SEAT_INCOMPLETE'); // BR-05
 
   const [{ basePrice }, surcharges] = await Promise.all([
-    prisma.showtime.findUnique({ where: { id: showtimeId }, select: { basePrice: true } }),
+    getShowtimeBasePrice(showtimeId),
     getSurcharges(),
   ]);
   const local = toVnClock(map.showtime.startTime).toISOString();
