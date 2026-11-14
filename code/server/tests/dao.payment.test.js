@@ -109,7 +109,7 @@ test('⭐ claimPaymentSuccess: bankCode không gửi (undefined) thì GIỮ bank
 
 test('order DAO (thanh toán): getOrderWithTickets kèm vé; setOrderStatus đổi trạng thái; markOrderPaid ghi PAID + paidAt', async () => {
   const o = await mkOrder(user, ['A1', 'A2']);
-  assert.deepEqual((await orderDao.getOrderWithTickets(o.id)).seats.map((s) => s.seatLabel).sort(), ['A1', 'A2']);
+  assert.deepEqual((await orderDao.getOrderWithTickets(o.id)).tickets.map((s) => s.seatLabel).sort(), ['A1', 'A2']);
   assert.equal(await orderDao.getOrderWithTickets('00000000-0000-4000-8000-000000000000'), null);
   await orderDao.setOrderStatus(o.id, 'REFUND_PENDING');
   assert.equal((await orderDao.getOrderStatus(o.id)).status, 'REFUND_PENDING');

@@ -47,7 +47,7 @@
 | Ghế giữ quá hạn xử lý thế nào? | "Dọn lười": lượt giữ quá hạn coi như trống ngay khi đọc/giữ; cron chỉ dọn dữ liệu. Không có khoảng hở nếu cron chậm. | docs/03 mục 5.6 |
 | Sao tin được là khách đã trả tiền? | Chỉ IPN của VNPay (kiểm chữ ký HMAC + số tiền khớp + idempotent) được đổi trạng thái; trang return và client không thể giả mạo. | `payment.service.js`; `tests/payment.ipn.test.js` |
 | IPN đến hai lần? / đến muộn khi ghế đã bị lấy? | Idempotent (cập nhật có điều kiện, chỉ một lần thành công). Đến muộn mà ghế đã mất → đơn `REFUND_PENDING` để admin hoàn tiền thủ công. | docs/03 mục 5.7 |
-| Khách tự sửa giá / số tiền được không? | Không: server tự tính mọi khoản tiền từ bảng giá, giá chốt vào `OrderSeat` / `OrderCombo`. Client chỉ hiển thị. | `pricing.service.js`, `booking.service.js` |
+| Khách tự sửa giá / số tiền được không? | Không: server tự tính mọi khoản tiền từ bảng giá, giá chốt vào `Ticket` / `OrderCombo`. Client chỉ hiển thị. | `pricing.service.js`, `booking.service.js` |
 | Phân quyền thế nào? | JWT 15 phút + refresh 7 ngày (cookie httpOnly). Route `/admin`, `/staff` đọc **lại vai trò từ DB mỗi request** nên khóa tài khoản / hạ quyền có hiệu lực ngay. UI ẩn nút chỉ là tiện lợi. | `middlewares/auth.js` |
 | Có chống lỗi bảo mật phổ biến không? | bcrypt; zod `.strict()` chống mass assignment; URL chỉ http(s)/đường dẫn nội bộ (chống XSS, open redirect); rate limit; header bảo mật; truy vấn qua Prisma (chống SQL injection). | docs/08 |
 | Hạn chế còn lại? | Nêu thẳng (docs/08 mục "Hạn chế đã biết"): access token 15 phút trên route khách; rate limit trong bộ nhớ; chưa phát hiện tái sử dụng refresh token; nhật ký ghi sau phản hồi (best-effort, không atomic). | docs/08 |

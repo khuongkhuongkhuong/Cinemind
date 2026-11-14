@@ -35,7 +35,7 @@ before(async () => {
   orders.paid = await makeOrder(alice, { status: 'PAID', paidAt: new Date() });
   orders.pending = await makeOrder(bob, { status: 'PENDING' });
   orders.old = await makeOrder(bob, { status: 'CANCELLED', createdAt: new Date(Date.now() - 30 * 86_400_000) });
-  await prisma.orderSeat.create({ data: { orderId: orders.paid.id, seatId: (await prisma.seat.findFirst({ where: { roomId: showtime.roomId } })).id, seatLabel: 'Z9', seatType: 'STANDARD', price: 100_000 } });
+  await prisma.ticket.create({ data: { orderId: orders.paid.id, seatId: (await prisma.seat.findFirst({ where: { roomId: showtime.roomId } })).id, seatLabel: 'Z9', seatType: 'STANDARD', price: 100_000 } });
   await prisma.payment.create({ data: { orderId: orders.refund.id, txnRef: `${orders.refund.code}-1`, amount: 100_000, status: 'SUCCESS', bankCode: 'NCB', providerTxnNo: '999', responseCode: '00', paidAt: new Date() } });
 });
 

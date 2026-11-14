@@ -53,7 +53,7 @@ test('insertOrderWithTickets: tạo đơn + các dòng vé với GIÁ ĐÃ CHỐ
   assert.equal(o.status, 'PENDING');
   assert.equal(o.source, 'WEB');
   const detail = await orderDao.getOrderDetail(o.id);
-  assert.deepEqual(detail.seats.map((s) => [s.seatLabel, s.price]), [['A1', 50_000], ['A2', 50_000]]);
+  assert.deepEqual(detail.tickets.map((s) => [s.seatLabel, s.price]), [['A1', 50_000], ['A2', 50_000]]);
   assert.equal(detail.showtime.id, showtime.id);
   assert.deepEqual(await orderDao.getOrderOwner(o.id), { userId: user.id });
   assert.deepEqual(await orderDao.getOrderStatus(o.id), { status: 'PENDING' });
@@ -209,7 +209,7 @@ test('"vé của tôi": countOrdersOfUser + findOrdersOfUser lọc đúng user v
   assert.equal(await orderDao.countOrdersOfUser(filter), 2);
   const rows = await orderDao.findOrdersOfUser(filter, { skip: 0, take: 10 });
   assert.deepEqual(rows.map((r) => r.id), [p2.id, p1.id]); // mới nhất trước
-  assert.deepEqual(rows[0].seats.map((s) => s.seatLabel), ['A1', 'A2']);
+  assert.deepEqual(rows[0].tickets.map((s) => s.seatLabel), ['A1', 'A2']);
   assert.ok(rows[0].showtime.movie.title && rows[0].showtime.room.cinema.name);
   assert.deepEqual((await orderDao.findOrdersOfUser(filter, { skip: 1, take: 1 })).map((r) => r.id), [p1.id]);
   assert.equal(await orderDao.countOrdersOfUser({ userId: user.id, status: 'REFUNDED' }), 0);
@@ -218,9 +218,9 @@ test('"vé của tôi": countOrdersOfUser + findOrdersOfUser lọc đúng user v
 test('tính lại tiền: getOrderForRecalc / getOrderLines đọc đủ dòng; updateOrderTotals ghi đúng; setOrderPromotion gắn và gỡ mã', async () => {
   const o = await mkOrder(user, { labels: ['A1', 'A2'] });
   const full = await orderDao.getOrderForRecalc(o.id);
-  assert.equal(full.seats.length, 2);
+  assert.equal(full.tickets.length, 2);
   assert.ok(Array.isArray(full.combos) && full.promotion === null);
-  assert.equal((await orderDao.getOrderLines(o.id)).seats.length, 2);
+  assert.equal((await orderDao.getOrderLines(o.id)).tickets.length, 2);
 
   await orderDao.updateOrderTotals(o.id, { seatTotal: 100_000, comboTotal: 70_000, discount: 17_000, promotionId: null, total: 153_000 });
   const after = await orderDao.getOrderStatus(o.id);

@@ -34,7 +34,7 @@
 ## 3. Năm quyết định thiết kế quan trọng nhất (để trình bày với hội đồng)
 
 1. **Chống trùng ghế bằng ràng buộc UNIQUE của PostgreSQL** trong transaction — database làm trọng tài, không "kiểm tra rồi ghi" (`03` mục 5).
-2. **Tách `SeatLock` (ai đang chiếm ghế) khỏi `OrderSeat` (lịch sử đơn)** — nhả ghế mà không mất lịch sử; xử lý được thanh toán đến muộn (`03` mục 1.2).
+2. **Tách `SeatLock` (ai đang chiếm ghế) khỏi `Ticket` (lịch sử đơn)** — nhả ghế mà không mất lịch sử; xử lý được thanh toán đến muộn (`03` mục 1.2).
 3. **Chỉ IPN có chữ ký mới xác nhận thanh toán**, xử lý idempotent; một thuật toán cho cả IPN đúng hạn lẫn đến muộn (`02` mục 6, `03` mục 5.7).
 4. **Giá được chốt vào đơn** (phi chuẩn hóa có chủ đích) để dữ liệu lịch sử không đổi khi bảng giá đổi (BR-14).
 5. **Logic nghiệp vụ chỉ nằm ở service** → AI Agent là một kênh mới gọi lại cùng service, mọi luật tự động áp dụng (`04` mục 5, `07`).

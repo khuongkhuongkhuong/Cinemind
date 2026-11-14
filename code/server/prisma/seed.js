@@ -13,7 +13,7 @@ const VN_OFFSET_H = 7; // giờ Việt Nam = UTC+7; DB lưu UTC
 // ---- 1. Xóa sạch theo thứ tự phụ thuộc (bảng con trước, bảng cha sau) ----
 async function wipe() {
   const order = [
-    'seatLock', 'payment', 'orderCombo', 'orderSeat', 'order', 'chatMessage', 'chatSession',
+    'seatLock', 'payment', 'orderCombo', 'ticket', 'order', 'chatMessage', 'chatSession',
     'refreshToken', 'auditLog', 'showtime', 'seat', 'room', 'cinema', 'city', 'movieGenre', 'movie', 'genre',
     'combo', 'promotion', 'banner', 'priceRule', 'seatTypeSurcharge', 'user',
   ];

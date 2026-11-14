@@ -12,7 +12,7 @@ export const ORDER_INCLUDE = {
       room: { select: { name: true, cinema: { select: { name: true } } } },
     },
   },
-  seats: { orderBy: { seatLabel: 'asc' } },
+  tickets: { orderBy: { seatLabel: 'asc' } },
   combos: { include: { combo: { select: { name: true } } }, orderBy: { combo: { name: 'asc' } } },
   promotion: { select: { code: true, name: true } },
 };
@@ -76,7 +76,7 @@ export const markOrdersCancelled = (orderIds, db = prisma) =>
  * @returns {Promise<object>} Order vừa tạo
  */
 export const insertOrderWithTickets = ({ tickets, ...order }, db = prisma) =>
-  db.order.create({ data: { ...order, seats: { create: tickets } } });
+  db.order.create({ data: { ...order, tickets: { create: tickets } } });
 
 /** Chỉ chủ đơn. @returns {Promise<{ userId: string }|null>} */
 export const getOrderOwner = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, select: { userId: true } });
@@ -126,17 +126,17 @@ export const findOrdersOfUser = ({ userId, status }, { skip, take }, db = prisma
     take,
     select: {
       id: true, code: true, status: true, total: true, createdAt: true, paidAt: true, checkedInAt: true,
-      seats: { select: { seatLabel: true }, orderBy: { seatLabel: 'asc' } },
+      tickets: { select: { seatLabel: true }, orderBy: { seatLabel: 'asc' } },
       showtime: ORDER_INCLUDE.showtime,
     },
   });
 
 /** Đơn kèm dòng vé, combo và khuyến mãi — để TÍNH LẠI tiền (recalcOrder). @returns {Promise<object|null>} */
 export const getOrderForRecalc = (orderId, db = prisma) =>
-  db.order.findUnique({ where: { id: orderId }, include: { seats: true, combos: true, promotion: true } });
+  db.order.findUnique({ where: { id: orderId }, include: { tickets: true, combos: true, promotion: true } });
 
 /** Đơn kèm dòng vé và combo (để tính tạm tính khi áp mã). @returns {Promise<object|null>} */
-export const getOrderLines = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, include: { seats: true, combos: true } });
+export const getOrderLines = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, include: { tickets: true, combos: true } });
 
 /** Ghi lại các khoản tiền đã tính lại. @param {{ seatTotal: number, comboTotal: number, discount: number, promotionId: string|null, total: number }} totals */
 export const updateOrderTotals = (orderId, { seatTotal, comboTotal, discount, promotionId, total }, db = prisma) =>
@@ -146,7 +146,7 @@ export const updateOrderTotals = (orderId, { seatTotal, comboTotal, discount, pr
 export const setOrderPromotion = (orderId, promotionId, db = prisma) => db.order.update({ where: { id: orderId }, data: { promotionId } });
 
 /** Đơn kèm các dòng vé (để xác nhận thanh toán: chuyển từng ghế sang đã bán). @returns {Promise<object|null>} */
-export const getOrderWithTickets = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, include: { seats: true } });
+export const getOrderWithTickets = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, include: { tickets: true } });
 
 /** Đổi trạng thái đơn (không kiểm điều kiện: service đã quyết định trong transaction). */
 export const setOrderStatus = (orderId, status, db = prisma) => db.order.update({ where: { id: orderId }, data: { status } });

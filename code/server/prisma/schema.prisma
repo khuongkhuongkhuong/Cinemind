@@ -246,7 +246,7 @@ model Seat {
 
   room       Room        @relation(fields: [roomId], references: [id])
   locks      SeatLock[]
-  orderSeats OrderSeat[]
+  tickets Ticket[]
 
   @@unique([roomId, row, number])
 }
@@ -357,7 +357,7 @@ model Order {
   showtime    Showtime   @relation(fields: [showtimeId], references: [id])
   promotion   Promotion? @relation(fields: [promotionId], references: [id])
 
-  seats    OrderSeat[]
+  tickets  Ticket[]
   combos   OrderCombo[]
   locks    SeatLock[]
   payments Payment[]
@@ -369,7 +369,7 @@ model Order {
 }
 
 // Dòng hóa đơn = "vé" của từng ghế. Lịch sử, KHÔNG xóa.
-model OrderSeat {
+model Ticket {
   id        String   @id @default(uuid()) @db.Uuid
   orderId   String   @db.Uuid
   seatId    String   @db.Uuid

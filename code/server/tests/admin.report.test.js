@@ -27,7 +27,7 @@ async function makeOrder({ showtime, status = 'PAID', paidAt, total, seats }) {
     },
   });
   const roomSeats = await prisma.seat.findMany({ where: { roomId: showtime.roomId }, take: seats, orderBy: [{ row: 'asc' }, { number: 'asc' }] });
-  await prisma.orderSeat.createMany({
+  await prisma.ticket.createMany({
     data: roomSeats.map((s) => ({ orderId: order.id, seatId: s.id, seatLabel: `${s.row}${s.number}`, seatType: s.type, price: Math.floor(total / seats) })),
   });
   return order;

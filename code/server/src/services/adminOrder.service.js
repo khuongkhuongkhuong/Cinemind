@@ -33,14 +33,14 @@ export async function listAdminOrders({ status, from, to, q, page, pageSize }) {
       select: {
         id: true, code: true, status: true, total: true, createdAt: true, paidAt: true, checkedInAt: true,
         user: { select: { id: true, email: true, fullName: true } },
-        seats: { select: { seatLabel: true }, orderBy: { seatLabel: 'asc' } },
+        tickets: { select: { seatLabel: true }, orderBy: { seatLabel: 'asc' } },
         showtime: { select: { startTime: true, movie: { select: { title: true } }, room: { select: { cinema: { select: { name: true } } } } } },
       },
     }),
   ]);
-  const items = rows.map(({ seats, showtime, ...o }) => ({
+  const items = rows.map(({ tickets, showtime, ...o }) => ({
     ...o,
-    seatLabels: seats.map((s) => s.seatLabel),
+    seatLabels: tickets.map((s) => s.seatLabel),
     showtime: { startTime: showtime.startTime, movieTitle: showtime.movie.title, cinemaName: showtime.room.cinema.name },
   }));
   return { items, meta: buildMeta({ page, pageSize }, total) };
