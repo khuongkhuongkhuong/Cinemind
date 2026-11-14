@@ -1,4 +1,5 @@
-import { prisma } from '../config/prisma.js';
+import { findPriceRule } from '../dao/priceRule.dao.js';
+import { getAllSurcharges } from '../dao/seatTypeSurcharge.dao.js';
 import { AppError } from '../utils/AppError.js';
 import { vnWeekday } from '../lib/time.js';
 
@@ -21,7 +22,7 @@ export function getDayType({ startTime }) {
  */
 export async function getBasePrice({ format, startTime }) {
   const dayType = getDayType({ startTime });
-  const rule = await prisma.priceRule.findUnique({ where: { format_dayType: { format, dayType } } });
+  const rule = await findPriceRule({ format, dayType });
   if (!rule) throw new AppError('NOT_FOUND', { message: `Chưa có bảng giá cho ${format} / ${dayType}.` });
   return { basePrice: rule.basePrice, dayType };
 }
@@ -31,7 +32,7 @@ export async function getBasePrice({ format, startTime }) {
  * @returns {Promise<Record<'STANDARD' | 'VIP' | 'COUPLE', number>>}
  */
 export async function getSurcharges() {
-  const rows = await prisma.seatTypeSurcharge.findMany();
+  const rows = await getAllSurcharges();
   return Object.fromEntries(rows.map((r) => [r.seatType, r.surcharge]));
 }
 

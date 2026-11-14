@@ -1,4 +1,5 @@
-import { prisma } from '../config/prisma.js';
+import { findTokenWithUser, insertRefreshToken, revokeIfValid, revokeToken } from '../dao/refreshToken.dao.js';
+import { findUserByEmail, findUserById, insertUser } from '../dao/user.dao.js';
 import { AppError } from '../utils/AppError.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import {
@@ -15,12 +16,10 @@ const toPublicUser = (u) => ({
 
 export async function issueTokens(user) {
   const refreshToken = generateRefreshToken();
-  await prisma.refreshToken.create({
-    data: {
-      userId: user.id,
-      tokenHash: hashRefreshToken(refreshToken),
-      expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
-    },
+  await insertRefreshToken({
+    userId: user.id,
+    tokenHash: hashRefreshToken(refreshToken),
+    expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
   });
   return { accessToken: signAccessToken(user), refreshToken };
 }
@@ -35,9 +34,7 @@ export async function register({ email, password, fullName, phone }) {
   const passwordHash = await hashPassword(password);
   try {
     // Ghi thẳng và để UNIQUE(email) làm trọng tài (giống tinh thần chống trùng ghế), không "check rồi insert".
-    const user = await prisma.user.create({
-      data: { email, passwordHash, fullName, phone: phone ?? null },
-    });
+    const user = await insertUser({ email, passwordHash, fullName, phone: phone ?? null });
     return { user: toPublicUser(user), ...(await issueTokens(user)) };
   } catch (err) {
     if (err.code === 'P2002') throw new AppError('EMAIL_EXISTS');
@@ -52,7 +49,7 @@ export async function register({ email, password, fullName, phone }) {
  * @throws {AppError} INVALID_CREDENTIALS | ACCOUNT_DISABLED
  */
 export async function login({ email, password }) {
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await findUserByEmail(email);
   const passwordOk = await verifyPassword(password, user?.passwordHash ?? DUMMY_HASH);
   // Sai email và sai mật khẩu trả CÙNG một lỗi để kẻ tấn công không dò được email nào tồn tại.
   if (!user || !passwordOk) throw new AppError('INVALID_CREDENTIALS');
@@ -73,13 +70,10 @@ export async function refresh({ refreshToken }) {
 
   // updateMany có điều kiện = "thu hồi nếu còn hiệu lực" trong MỘT câu lệnh nguyên tử:
   // hai request cùng lúc với cùng token thì chỉ một cái có count = 1.
-  const revoked = await prisma.refreshToken.updateMany({
-    where: { tokenHash, revokedAt: null, expiresAt: { gt: new Date() } },
-    data: { revokedAt: new Date() },
-  });
-  if (revoked.count !== 1) throw new AppError('UNAUTHORIZED');
+  const revoked = await revokeIfValid({ tokenHash, now: new Date() });
+  if (revoked !== 1) throw new AppError('UNAUTHORIZED');
 
-  const record = await prisma.refreshToken.findUnique({ where: { tokenHash }, include: { user: true } });
+  const record = await findTokenWithUser(tokenHash);
   if (!record.user.isActive) throw new AppError('ACCOUNT_DISABLED');
   return issueTokens(record.user);
 }
@@ -91,10 +85,7 @@ export async function refresh({ refreshToken }) {
  */
 export async function logout({ refreshToken }) {
   if (!refreshToken) return;
-  await prisma.refreshToken.updateMany({
-    where: { tokenHash: hashRefreshToken(refreshToken), revokedAt: null },
-    data: { revokedAt: new Date() },
-  });
+  await revokeToken({ tokenHash: hashRefreshToken(refreshToken), now: new Date() });
 }
 
 /**
@@ -104,7 +95,7 @@ export async function logout({ refreshToken }) {
  * @throws {AppError} UNAUTHORIZED | ACCOUNT_DISABLED
  */
 export async function getMe({ userId }) {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await findUserById(userId);
   if (!user) throw new AppError('UNAUTHORIZED');
   if (!user.isActive) throw new AppError('ACCOUNT_DISABLED');
   return toPublicUser(user);

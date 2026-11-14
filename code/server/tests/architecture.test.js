@@ -62,3 +62,47 @@ test('services có import Prisma là bình thường, nhưng KHÔNG import từ 
   const offenders = files(join(SRC, 'services')).filter((f) => /from '\.\.\/(controllers|routes)\//.test(code(f))).map(rel);
   assert.deepEqual(offenders, []);
 });
+
+// ------------------------------------------------------------------ Tầng DAO (docs/04 mục 5.2, v1.23) ------------------------------------------------------------------
+
+// Các service ĐÃ chuyển sang DAO. Danh sách này chỉ TĂNG khi chuyển thêm service (không bao giờ bớt đi).
+const DAO_SERVICES = ['pricing', 'auth', 'user'];
+const DIRECT_QUERY = /\b(prisma|tx)\.[a-z]\w*\.(find|create|update|delete|upsert|count|group|aggregate)/;
+
+test('⭐ dao/ chỉ truy vấn: không ném AppError, không đụng req/res, không import service / controller', () => {
+  const dir = join(SRC, 'dao');
+  assert.ok(files(dir).length > 0, 'không thấy file nào trong dao/');
+  const offenders = files(dir)
+    .filter((f) => /AppError|from 'express'|\breq\.|\bres\.|from '\.\.\/(services|controllers|routes|ai)\//.test(code(f)))
+    .map(rel);
+  assert.deepEqual(offenders, []);
+});
+
+test('⭐ dao/: tham số cuối của mọi hàm xuất ra là `db = prisma` (trừ transaction.js, nơi tx là tham số bắt buộc)', () => {
+  const offenders = [];
+  for (const f of files(join(SRC, 'dao')).filter((x) => !x.endsWith('transaction.js'))) {
+    const src = code(f);
+    const exported = [...src.matchAll(/export const (\w+) = (?:async )?\(([^)]*)\)\s*=>/g)];
+    assert.ok(exported.length > 0, `${rel(f)}: không đọc được hàm xuất ra`);
+    for (const [, name, params] of exported) if (!/db = prisma\s*$/.test(params.trim())) offenders.push(`${rel(f)}: ${name}(${params})`);
+  }
+  assert.deepEqual(offenders, []);
+});
+
+test('⭐ service đã chuyển KHÔNG còn gọi prisma.<bảng> / tx.<bảng> và không import config/prisma (mở transaction qua dao/transaction.js)', () => {
+  const offenders = DAO_SERVICES
+    .map((n) => join(SRC, 'services', `${n}.service.js`))
+    .filter((f) => DIRECT_QUERY.test(code(f)) || /config\/prisma|\$transaction|\$executeRaw/.test(code(f)))
+    .map(rel);
+  assert.deepEqual(offenders, []);
+});
+
+test('controllers / routes / validators / ai KHÔNG import dao/ (chỉ gọi service)', () => {
+  const offenders = ['controllers', 'routes', 'validators', 'ai']
+    .map((d) => join(SRC, d))
+    .filter((d) => existsSync(d))
+    .flatMap(files)
+    .filter((f) => /from '\.\.\/(\.\.\/)?dao\//.test(code(f)))
+    .map(rel);
+  assert.deepEqual(offenders, []);
+});
