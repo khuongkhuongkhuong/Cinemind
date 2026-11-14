@@ -85,7 +85,7 @@ test('sửa rạp: đổi một phần, các trường khác giữ nguyên; body
 test('⭐ tắt rạp còn suất sắp chiếu đã có người mua -> 409 RESOURCE_IN_USE; đơn PENDING hết hạn / suất đã hủy thì không chặn', async () => {
   const { data: cinema } = await mkCinema();
   const room = await prisma.room.create({ data: { cinemaId: cinema.id, name: `TestRoom-${RUN}` } });
-  const movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING' } });
+  const movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING', description: { not: 'Mô tả thử' } } });
   const T0 = new Date(Math.ceil((Date.now() + 70 * DAY) / (60 * minute)) * 60 * minute);
   const st = await showtimeSvc.createShowtime({ movieId: movie.id, roomId: room.id, startTime: T0, format: 'F2D', audio: 'SUBTITLE' });
   const order = await prisma.order.create({
@@ -106,7 +106,7 @@ test('⭐ tắt rạp còn suất sắp chiếu đã có người mua -> 409 RES
 test('lịch chiếu theo rạp (công khai): nhóm theo phim -> định dạng; chỉ suất OPEN trong ngày VN; rạp tắt / không có -> 404; ngày sai -> 400', async () => {
   const { data: cinema } = await mkCinema();
   const room = await prisma.room.create({ data: { cinemaId: cinema.id, name: `TestRoom-${RUN}-pub` } });
-  const [m1, m2] = await prisma.movie.findMany({ where: { status: 'NOW_SHOWING' }, take: 2, orderBy: { title: 'asc' } });
+  const [m1, m2] = await prisma.movie.findMany({ where: { status: 'NOW_SHOWING', description: { not: 'Mô tả thử' } }, take: 2, orderBy: { title: 'asc' } });
   // 10:00 giờ VN (03:00Z) của một ngày xa trong tương lai; các suất cách nhau đủ xa để không trùng giờ.
   const day = new Date(Date.now() + 80 * DAY).toISOString().slice(0, 10);
   const at = (hhmmVn) => new Date(Date.parse(`${day}T${hhmmVn}:00+07:00`));
@@ -147,7 +147,7 @@ test('lịch chiếu theo rạp (công khai): nhóm theo phim -> định dạng;
 test('tắt rạp: suất ĐÃ HỦY hoặc ĐÃ CHIẾU xong (dù có đơn đã thanh toán) không chặn việc tắt', async () => {
   const { data: cinema } = await mkCinema();
   const room = await prisma.room.create({ data: { cinemaId: cinema.id, name: `TestRoom-${RUN}-old` } });
-  const movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING' } });
+  const movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING', description: { not: 'Mô tả thử' } } });
   const mkShowtime = (start, status) => prisma.showtime.create({
     data: { movieId: movie.id, roomId: room.id, startTime: start, endTime: new Date(start.getTime() + 2 * 60 * minute), format: 'F2D', audio: 'SUBTITLE', basePrice: 90000, status },
   });
