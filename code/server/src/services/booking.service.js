@@ -1,5 +1,16 @@
-import { ORDER_INCLUDE } from '../dao/order.dao.js';
-import { prisma } from '../config/prisma.js';
+import { runInTransaction } from '../dao/transaction.js';
+import {
+  ORDER_INCLUDE, cancelPendingOrderIfNotExpired, countOrdersOfUser, findActivePendingOrderIds, findOrdersOfUser, getOrderDetail,
+  getOrderDetailByCode, getOrderForRecalc, getOrderLines, getOrderOwner, getOrderStatus, insertOrderWithTickets, listStalePendingOrderIds,
+  markOrderExpiredIfStale, markOrdersCancelled, setOrderPromotion, touchPendingOrder, updateOrderTotals,
+} from '../dao/order.dao.js';
+import {
+  deleteExpiredHeldLocks, deleteHeldLocksOfOrder, deleteLocksOfOrder, deleteLocksOfOrders, findTakenLocks, insertHeldLocks,
+} from '../dao/seatLock.dao.js';
+import { findSeatsInRoom } from '../dao/seat.dao.js';
+import { getShowtimeById } from '../dao/showtime.dao.js';
+import { findActiveCombosByIds } from '../dao/combo.dao.js';
+import { deleteCombosOfOrder, insertOrderCombos } from '../dao/orderCombo.dao.js';
 import { AppError } from '../utils/AppError.js';
 import { generateOrderCode } from '../lib/code.js';
 import { calcSeatPrices, getSurcharges } from './pricing.service.js';
@@ -52,7 +63,7 @@ export function toOrderDto(o) {
  * @throws {AppError} NOT_FOUND | SHOWTIME_CLOSED | SEAT_LIMIT_EXCEEDED | SEAT_UNAVAILABLE | COUPLE_SEAT_INCOMPLETE
  */
 async function validateRequest({ showtimeId, seatIds }) {
-  const showtime = await prisma.showtime.findUnique({ where: { id: showtimeId } });
+  const showtime = await getShowtimeById(showtimeId);
   if (!showtime) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy suất chiếu.' });
   if (!isOpenForSale(showtime)) throw new AppError('SHOWTIME_CLOSED'); // BR-04
 
@@ -61,7 +72,7 @@ async function validateRequest({ showtimeId, seatIds }) {
   }
   if (seatIds.length > MAX_SEATS) throw new AppError('SEAT_LIMIT_EXCEEDED'); // BR-02
 
-  const seats = await prisma.seat.findMany({ where: { id: { in: seatIds }, roomId: showtime.roomId } });
+  const seats = await findSeatsInRoom({ roomId: showtime.roomId, seatIds });
   if (seats.length !== seatIds.length) {
     throw new AppError('NOT_FOUND', { message: 'Có ghế không thuộc phòng chiếu của suất này.' });
   }
@@ -89,65 +100,46 @@ function runHoldTransaction({ userId, showtime, seats, priced, source }) {
   const seatIds = seats.map((s) => s.id);
   const priceBySeat = new Map(priced.seats.map((p) => [p.id, p.price]));
 
-  return prisma.$transaction(async (tx) => {
+  return runInTransaction(async (tx) => {
     // 1. BR-03: hủy đơn PENDING còn hạn của chính user này + nhả ghế của nó.
     //    Chỉ đơn CÒN HẠN: đơn đã quá hạn để cron chuyển EXPIRED, vì thanh toán đến muộn vẫn phải xử lý được (BR-31).
     //    Nằm TRONG transaction => nếu lần giữ mới thất bại thì rollback, đơn cũ vẫn còn nguyên.
-    const old = await tx.order.findMany({
-      where: { userId, status: 'PENDING', expiresAt: { gt: now } },
-      select: { id: true },
-    });
-    if (old.length) {
-      const oldIds = old.map((o) => o.id);
-      await tx.seatLock.deleteMany({ where: { orderId: { in: oldIds } } });
-      await tx.order.updateMany({ where: { id: { in: oldIds } }, data: { status: 'CANCELLED' } });
+    const oldIds = await findActivePendingOrderIds({ userId, now }, tx);
+    if (oldIds.length) {
+      await deleteLocksOfOrders(oldIds, tx);
+      await markOrdersCancelled(oldIds, tx);
     }
 
     // 2. Dọn "lười": xóa lượt giữ ĐÃ QUÁ HẠN của đúng các ghế đang xin, để INSERT bên dưới không vướng khóa chính.
-    await tx.seatLock.deleteMany({
-      where: { showtimeId: showtime.id, seatId: { in: seatIds }, status: 'HELD', expiresAt: { lte: now } },
-    });
+    await deleteExpiredHeldLocks({ showtimeId: showtime.id, seatIds, now }, tx);
 
     // 3. Tạo đơn + các dòng ghế với GIÁ CHỐT (BR-14).
-    const order = await tx.order.create({
-      data: {
-        code: generateOrderCode(),
-        userId,
-        showtimeId: showtime.id,
-        source,
-        expiresAt,
-        seatTotal: priced.total,
-        total: priced.total,
-        seats: {
-          create: seats.map((s) => ({
-            seatId: s.id, seatLabel: `${s.row}${s.number}`, seatType: s.type, price: priceBySeat.get(s.id),
-          })),
-        },
-      },
-    });
+    const order = await insertOrderWithTickets({
+      code: generateOrderCode(),
+      userId,
+      showtimeId: showtime.id,
+      source,
+      expiresAt,
+      seatTotal: priced.total,
+      total: priced.total,
+      tickets: seats.map((s) => ({
+        seatId: s.id, seatLabel: `${s.row}${s.number}`, seatType: s.type, price: priceBySeat.get(s.id),
+      })),
+    }, tx);
 
     // 4. ⭐ Trọng tài: chèn TẤT CẢ SeatLock trong MỘT câu lệnh. Khóa chính (showtimeId, seatId) của PostgreSQL
     //    cho đúng một người thắng mỗi ghế. Trùng ghế nào => lỗi P2002 => ROLLBACK cả transaction.
     //    TUYỆT ĐỐI không dùng skipDuplicates: nó lặng lẽ bỏ ghế trùng và gây bán trùng.
-    await tx.seatLock.createMany({
-      data: seatIds.map((seatId) => ({ showtimeId: showtime.id, seatId, orderId: order.id, status: 'HELD', expiresAt })),
-    });
+    await insertHeldLocks({ showtimeId: showtime.id, seatIds, orderId: order.id, expiresAt }, tx);
 
-    return tx.order.findUnique({ where: { id: order.id }, include: orderInclude });
+    return getOrderDetail(order.id, tx);
   }, TX_OPTIONS);
 }
 
 /** Sau khi thua: tra xem ghế nào đang bị người khác giữ/mua, để báo lại cho client (details của SEAT_UNAVAILABLE). */
 async function findConflicts({ showtimeId, seatIds }) {
   const now = new Date();
-  const locks = await prisma.seatLock.findMany({
-    where: {
-      showtimeId,
-      seatId: { in: seatIds },
-      OR: [{ status: 'SOLD' }, { expiresAt: { gt: now } }], // HELD còn hạn hoặc đã bán
-    },
-    include: { seat: { select: { row: true, number: true } } },
-  });
+  const locks = await findTakenLocks({ showtimeId, seatIds, now }); // HELD còn hạn hoặc đã bán
   return locks.map((l) => ({ seatId: l.seatId, label: `${l.seat.row}${l.seat.number}` }));
 }
 
@@ -187,7 +179,7 @@ export async function holdSeats({ userId, showtimeId, seatIds, source = 'WEB' })
  * @throws {AppError} NOT_FOUND | FORBIDDEN
  */
 export async function getOrder({ userId, orderId }) {
-  const order = await prisma.order.findUnique({ where: { id: orderId }, include: orderInclude });
+  const order = await getOrderDetail(orderId);
   if (!order) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy đơn hàng.' });
   if (order.userId !== userId) throw new AppError('FORBIDDEN');
   return toOrderDto(order);
@@ -201,24 +193,21 @@ export async function getOrder({ userId, orderId }) {
  * @throws {AppError} NOT_FOUND | FORBIDDEN | ORDER_EXPIRED | ORDER_NOT_PENDING
  */
 export async function cancelOrder({ userId, orderId }) {
-  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { userId: true } });
+  const order = await getOrderOwner(orderId);
   if (!order) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy đơn hàng.' });
   if (order.userId !== userId) throw new AppError('FORBIDDEN');
 
-  const cancelled = await prisma.$transaction(async (tx) => {
+  const cancelled = await runInTransaction(async (tx) => {
     // Cập nhật CÓ ĐIỀU KIỆN trong một câu lệnh: nếu IPN thanh toán vừa chuyển đơn sang PAID cùng lúc,
     // điều kiện status = PENDING sai => count = 0 => không hủy nhầm đơn đã trả tiền.
-    const { count } = await tx.order.updateMany({
-      where: { id: orderId, status: 'PENDING', expiresAt: { gt: new Date() } },
-      data: { status: 'CANCELLED' },
-    });
-    if (count === 1) await tx.seatLock.deleteMany({ where: { orderId } });
+    const count = await cancelPendingOrderIfNotExpired({ orderId, now: new Date() }, tx);
+    if (count === 1) await deleteLocksOfOrder(orderId, tx);
     return count === 1;
   });
 
   if (!cancelled) {
     // Không hủy được: xem lý do để báo đúng mã lỗi (đã hết hạn giữ ghế, hay đơn không còn PENDING).
-    const now = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
+    const now = await getOrderStatus(orderId);
     throw new AppError(now.status === 'PENDING' ? 'ORDER_EXPIRED' : 'ORDER_NOT_PENDING');
   }
   return getOrder({ userId, orderId });
@@ -231,20 +220,14 @@ export async function cancelOrder({ userId, orderId }) {
  * @returns {Promise<number>} số đơn đã chuyển EXPIRED
  */
 export async function expirePendingOrders({ now = new Date() } = {}) {
-  const stale = await prisma.order.findMany({
-    where: { status: 'PENDING', expiresAt: { lt: now } }, // dùng index (status, expiresAt)
-    select: { id: true },
-  });
+  const staleIds = await listStalePendingOrderIds({ now }); // dùng index (status, expiresAt)
   let expired = 0;
-  for (const { id } of stale) {
-    await prisma.$transaction(async (tx) => {
+  for (const id of staleIds) {
+    await runInTransaction(async (tx) => {
       // Có điều kiện status = PENDING: nếu IPN vừa xác nhận đơn này thì count = 0 và ta không đụng vào.
-      const { count } = await tx.order.updateMany({
-        where: { id, status: 'PENDING', expiresAt: { lt: now } },
-        data: { status: 'EXPIRED' },
-      });
+      const count = await markOrderExpiredIfStale({ orderId: id, now }, tx);
       if (count === 1) {
-        await tx.seatLock.deleteMany({ where: { orderId: id, status: 'HELD' } });
+        await deleteHeldLocksOfOrder(id, tx);
         expired++;
       }
     });
@@ -258,19 +241,10 @@ export async function expirePendingOrders({ now = new Date() } = {}) {
  * @returns {Promise<{ items: object[], meta: object }>} items là `OrderSummary` (04-api-contract mục 3.7)
  */
 export async function listMyOrders({ userId, status = 'PAID', page, pageSize }) {
-  const where = { userId, status };
+  const filter = { userId, status };
   const [total, rows] = await Promise.all([
-    prisma.order.count({ where }),
-    prisma.order.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      ...toSkipTake({ page, pageSize }),
-      select: {
-        id: true, code: true, status: true, total: true, createdAt: true, paidAt: true, checkedInAt: true,
-        seats: { select: { seatLabel: true }, orderBy: { seatLabel: 'asc' } },
-        showtime: orderInclude.showtime,
-      },
-    }),
+    countOrdersOfUser(filter),
+    findOrdersOfUser(filter, toSkipTake({ page, pageSize })),
   ]);
   const items = rows.map(({ seats, showtime, ...o }) => ({
     ...o,
@@ -291,7 +265,7 @@ export async function listMyOrders({ userId, status = 'PAID', page, pageSize }) 
  * @throws {AppError} NOT_FOUND
  */
 export async function getMyOrderByCode({ userId, code }) {
-  const order = await prisma.order.findUnique({ where: { code: code.toUpperCase() }, include: orderInclude });
+  const order = await getOrderDetailByCode(code.toUpperCase());
   if (!order || order.userId !== userId) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy vé.' });
   return { ...toOrderDto(order), qrContent: order.status === 'PAID' ? `CINEMIND:${order.code}` : null };
 }
@@ -311,10 +285,7 @@ const MAX_COMBO_QTY = 10; // BR-20
  * @param {string} orderId
  */
 async function recalcOrder(tx, orderId) {
-  const order = await tx.order.findUnique({
-    where: { id: orderId },
-    include: { seats: true, combos: true, promotion: true },
-  });
+  const order = await getOrderForRecalc(orderId, tx);
   const seatTotal = order.seats.reduce((sum, s) => sum + s.price, 0);
   const comboTotal = order.combos.reduce((sum, c) => sum + c.quantity * c.unitPrice, 0);
   const subtotal = seatTotal + comboTotal;
@@ -330,10 +301,7 @@ async function recalcOrder(tx, orderId) {
       promotionId = null; // gỡ mã
     }
   }
-  await tx.order.update({
-    where: { id: orderId },
-    data: { seatTotal, comboTotal, discount, promotionId, total: subtotal - discount },
-  });
+  await updateOrderTotals(orderId, { seatTotal, comboTotal, discount, promotionId, total: subtotal - discount }, tx);
 }
 
 /**
@@ -342,17 +310,14 @@ async function recalcOrder(tx, orderId) {
  * xảy ra cùng lúc thì một bên phải chờ bên kia xong, không ai ghi chồng lên ai.
  */
 async function withPendingOrder({ userId, orderId }, work) {
-  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { userId: true } });
+  const order = await getOrderOwner(orderId);
   if (!order) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy đơn hàng.' });
   if (order.userId !== userId) throw new AppError('FORBIDDEN');
 
-  await prisma.$transaction(async (tx) => {
-    const { count } = await tx.order.updateMany({
-      where: { id: orderId, status: 'PENDING', expiresAt: { gt: new Date() } },
-      data: { updatedAt: new Date() },
-    });
+  await runInTransaction(async (tx) => {
+    const count = await touchPendingOrder({ orderId, now: new Date() }, tx);
     if (count === 0) {
-      const now = await tx.order.findUnique({ where: { id: orderId }, select: { status: true } });
+      const now = await getOrderStatus(orderId, tx);
       throw new AppError(now.status === 'PENDING' ? 'ORDER_EXPIRED' : 'ORDER_NOT_PENDING');
     }
     await work(tx);
@@ -373,16 +338,14 @@ export async function setCombos({ userId, orderId, items }) {
   if (items.some((i) => !Number.isInteger(i.quantity) || i.quantity < 1 || i.quantity > MAX_COMBO_QTY)) {
     throw fieldError(`Số lượng mỗi combo từ 1 đến ${MAX_COMBO_QTY}.`);
   }
-  const combos = await prisma.combo.findMany({ where: { id: { in: items.map((i) => i.comboId) }, isActive: true } });
+  const combos = await findActiveCombosByIds(items.map((i) => i.comboId));
   if (combos.length !== items.length) throw fieldError('Có combo không tồn tại hoặc đã ngừng bán.');
   const priceOf = new Map(combos.map((c) => [c.id, c.price]));
 
   return withPendingOrder({ userId, orderId }, async (tx) => {
-    await tx.orderCombo.deleteMany({ where: { orderId } });
+    await deleteCombosOfOrder(orderId, tx);
     if (items.length) {
-      await tx.orderCombo.createMany({
-        data: items.map((i) => ({ orderId, comboId: i.comboId, quantity: i.quantity, unitPrice: priceOf.get(i.comboId) })),
-      });
+      await insertOrderCombos({ orderId, items: items.map((i) => ({ comboId: i.comboId, quantity: i.quantity, unitPrice: priceOf.get(i.comboId) })) }, tx);
     }
   });
 }
@@ -395,11 +358,11 @@ export async function setCombos({ userId, orderId, items }) {
  */
 export async function applyPromotion({ userId, orderId, code }) {
   return withPendingOrder({ userId, orderId }, async (tx) => {
-    const order = await tx.order.findUnique({ where: { id: orderId }, include: { seats: true, combos: true } });
+    const order = await getOrderLines(orderId, tx);
     const subtotal = order.seats.reduce((s, x) => s + x.price, 0) + order.combos.reduce((s, c) => s + c.quantity * c.unitPrice, 0);
     const promotion = await findPromotionByCode({ code, db: tx });
     await assertPromotionUsable({ promotion, userId, subtotal, orderId, db: tx });
-    await tx.order.update({ where: { id: orderId }, data: { promotionId: promotion.id } });
+    await setOrderPromotion(orderId, promotion.id, tx);
   });
 }
 
@@ -409,5 +372,5 @@ export async function applyPromotion({ userId, orderId, code }) {
  * @returns {Promise<object>} `Order`
  */
 export function removePromotion({ userId, orderId }) {
-  return withPendingOrder({ userId, orderId }, (tx) => tx.order.update({ where: { id: orderId }, data: { promotionId: null } }));
+  return withPendingOrder({ userId, orderId }, (tx) => setOrderPromotion(orderId, null, tx));
 }

@@ -71,7 +71,7 @@ test('danh sách: lọc vai trò, tìm email/họ tên không phân biệt hoa-t
   const all = await svc.listUsers({ q: `NGƯỜI DÙNG ${RUN}`, page: 1, pageSize: 50 });
   assert.equal(all.meta.total, 2);
   assert.ok(all.items.every((u) => !('passwordHash' in u)));
-  const staffOnly = await svc.listUsers({ q: String(RUN), role: 'STAFF', page: 1, pageSize: 50 });
+  const staffOnly = await svc.listUsers({ q: `aus-${RUN}`, role: 'STAFF', page: 1, pageSize: 50 });
   assert.ok(staffOnly.items.some((u) => u.id === s.id));
   assert.ok(staffOnly.items.every((u) => u.role === 'STAFF'));
   const page = await svc.listUsers({ q: `NGƯỜI DÙNG ${RUN}`, page: 2, pageSize: 1 });
@@ -117,7 +117,10 @@ test('⭐ luôn còn ít nhất một admin hoạt động: không khóa / hạ 
   const B = await makeUser('USER');
   const actor = roles.users.ADMIN;
   const ROLLBACK = new Error('rollback');
-  await prisma.$transaction(async (tx) => {
+  // RepeatableRead: transaction chỉ thấy ảnh chụp dữ liệu lúc bắt đầu. Nếu để READ COMMITTED, file test khác chạy song song
+  // (createRoleUsers) có thể COMMIT thêm một admin giữa chừng, khiến "còn admin khác" và test báo sai. Đổi lại, nếu file test
+  // khác vừa sửa đúng các dòng admin này thì Postgres báo xung đột ghi (P2034): đó là tín hiệu "thử lại", không phải lỗi.
+  const runOnce = () => prisma.$transaction(async (tx) => {
     // Giả lập tình huống chỉ còn A là admin đang hoạt động (mọi admin khác tạm khóa) — sẽ ROLLBACK, không ảnh hưởng ai.
     await tx.user.updateMany({ where: { role: 'ADMIN', isActive: true, id: { not: A.id } }, data: { isActive: false } });
 
@@ -129,7 +132,10 @@ test('⭐ luôn còn ít nhất một admin hoạt động: không khóa / hạ 
     await svc.applyUserUpdate(tx, { actorId: actor.id, userId: B.id, role: 'ADMIN' }); // có người thay thế thì hạ quyền A được
     assert.equal((await svc.applyUserUpdate(tx, { actorId: actor.id, userId: A.id, role: 'USER' })).role, 'USER');
     throw ROLLBACK;
-  }).catch((e) => { if (e !== ROLLBACK) throw e; });
+  }, { isolationLevel: 'RepeatableRead' }).catch((e) => { if (e !== ROLLBACK) throw e; });
+  for (let attempt = 1; ; attempt++) {
+    try { await runOnce(); break; } catch (e) { if (e.code !== 'P2034' || attempt >= 8) throw e; }
+  }
   assert.equal((await prisma.user.findUnique({ where: { id: A.id } })).role, 'ADMIN'); // rollback thật
 });
 

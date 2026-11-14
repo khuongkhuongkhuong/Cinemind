@@ -14,3 +14,43 @@ export const countTakenLocksByShowtime = ({ showtimeIds, now }, db = prisma) =>
     where: { showtimeId: { in: showtimeIds }, OR: [{ status: 'SOLD' }, { expiresAt: { gt: now } }] },
     _count: { _all: true },
   });
+
+/**
+ * Xóa mọi lượt giữ / bán của các đơn đã cho (nhả ghế khi hủy đơn).
+ * @returns {Promise<{ count: number }>}
+ */
+export const deleteLocksOfOrders = (orderIds, db = prisma) => db.seatLock.deleteMany({ where: { orderId: { in: orderIds } } });
+
+/** Xóa mọi lượt giữ / bán của MỘT đơn. */
+export const deleteLocksOfOrder = (orderId, db = prisma) => db.seatLock.deleteMany({ where: { orderId } });
+
+/** Xóa các lượt giữ còn ở trạng thái HELD của một đơn (dọn đơn hết hạn; ghế SOLD không đụng tới). */
+export const deleteHeldLocksOfOrder = (orderId, db = prisma) => db.seatLock.deleteMany({ where: { orderId, status: 'HELD' } });
+
+/**
+ * "Dọn lười": xóa lượt giữ ĐÃ QUÁ HẠN của đúng các ghế đang xin, để INSERT sau đó không vướng khóa chính.
+ * @param {{ showtimeId: string, seatIds: string[], now: Date }} params
+ */
+export const deleteExpiredHeldLocks = ({ showtimeId, seatIds, now }, db = prisma) =>
+  db.seatLock.deleteMany({ where: { showtimeId, seatId: { in: seatIds }, status: 'HELD', expiresAt: { lte: now } } });
+
+/**
+ * ⭐ TRỌNG TÀI chống trùng ghế: chèn TẤT CẢ lượt giữ trong MỘT câu lệnh. Khóa chính (showtimeId, seatId) của PostgreSQL
+ * cho đúng một người thắng mỗi ghế; trùng ghế nào => lỗi P2002 (đi xuyên qua DAO) => service ROLLBACK cả transaction.
+ * TUYỆT ĐỐI không dùng `skipDuplicates`: nó lặng lẽ bỏ ghế trùng và gây bán trùng. Phải gọi với `tx` của transaction giữ ghế.
+ * @param {{ showtimeId: string, seatIds: string[], orderId: string, expiresAt: Date }} params
+ */
+export const insertHeldLocks = ({ showtimeId, seatIds, orderId, expiresAt }, db = prisma) =>
+  db.seatLock.createMany({
+    data: seatIds.map((seatId) => ({ showtimeId, seatId, orderId, status: 'HELD', expiresAt })),
+  });
+
+/**
+ * Các ghế (trong danh sách) đang bị người khác giữ còn hạn hoặc đã mua, kèm hàng + số ghế.
+ * @returns {Promise<Array<{ seatId: string, seat: { row: string, number: number } }>>}
+ */
+export const findTakenLocks = ({ showtimeId, seatIds, now }, db = prisma) =>
+  db.seatLock.findMany({
+    where: { showtimeId, seatId: { in: seatIds }, OR: [{ status: 'SOLD' }, { expiresAt: { gt: now } }] },
+    include: { seat: { select: { row: true, number: true } } },
+  });

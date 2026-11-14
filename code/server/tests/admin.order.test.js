@@ -48,7 +48,7 @@ after(async () => {
   await prisma.$disconnect();
 });
 
-const list = (extra = {}) => svc.listAdminOrders({ q: String(RUN), page: 1, pageSize: 50, ...extra }); // q=RUN: chỉ thấy đơn của test này
+const list = (extra = {}) => svc.listAdminOrders({ q: `aord-${RUN}`, page: 1, pageSize: 50, ...extra }); // chỉ thấy đơn của test này (email test-aord-<RUN>-...; "aord-" tránh khớp nhầm file khác trùng RUN cùng mili-giây)
 
 test('danh sách: tìm theo email/họ tên (không phân biệt hoa-thường) và theo mã đơn; mới nhất trước', async () => {
   const all = await list();

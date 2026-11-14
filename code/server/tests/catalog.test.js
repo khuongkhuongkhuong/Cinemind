@@ -61,6 +61,7 @@ test('GET /cinemas?cityId chỉ trả rạp của thành phố đó', async () =
   const cities = (await get('/cities')).json.data;
   const hanoi = cities.find((c) => c.name === 'Hà Nội');
   const r = await get(`/cinemas?cityId=${hanoi.id}`);
-  assert.equal(r.json.data.length, 2);
-  assert.ok(r.json.data.every((c) => c.cityId === hanoi.id));
+  // Chỉ đếm rạp DỮ LIỆU MẪU: test khác chạy song song (admin.cinema.crud) tạm tạo rạp "TestCinema-..." trong cùng thành phố.
+  assert.equal(r.json.data.filter((c) => c.name.startsWith('Cinemind')).length, 2);
+  assert.ok(r.json.data.every((c) => c.cityId === hanoi.id)); // dù có rạp tạm, mọi rạp trả về đều đúng thành phố
 });

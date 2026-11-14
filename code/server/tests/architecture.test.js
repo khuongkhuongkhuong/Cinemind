@@ -66,7 +66,7 @@ test('services có import Prisma là bình thường, nhưng KHÔNG import từ 
 // ------------------------------------------------------------------ Tầng DAO (docs/04 mục 5.2, v1.23) ------------------------------------------------------------------
 
 // Các service ĐÃ chuyển sang DAO. Danh sách này chỉ TĂNG khi chuyển thêm service (không bao giờ bớt đi).
-const DAO_SERVICES = ['pricing', 'auth', 'user', 'ticket', 'showtime'];
+const DAO_SERVICES = ['pricing', 'auth', 'user', 'ticket', 'showtime', 'booking'];
 const DIRECT_QUERY = /\b(prisma|tx)\.[a-z]\w*\.(find|create|update|delete|upsert|count|group|aggregate)/;
 
 test('⭐ dao/ chỉ truy vấn: không ném AppError, không đụng req/res, không import service / controller', () => {
@@ -95,6 +95,24 @@ test('⭐ service đã chuyển KHÔNG còn gọi prisma.<bảng> / tx.<bảng> 
     .filter((f) => DIRECT_QUERY.test(code(f)) || /config\/prisma|\$transaction|\$executeRaw/.test(code(f)))
     .map(rel);
   assert.deepEqual(offenders, []);
+});
+
+test('⭐ bất biến giữ ghế: dao/ không bao giờ dùng `skipDuplicates` (nó lặng lẽ bỏ ghế trùng và gây bán trùng)', () => {
+  const offenders = files(join(SRC, 'dao')).filter((f) => /skipDuplicates/.test(code(f))).map(rel);
+  assert.deepEqual(offenders, []);
+  assert.match(code(join(SRC, 'dao', 'seatLock.dao.js')), /createMany/); // đúng là đang dùng createMany (trọng tài là khóa chính)
+});
+
+test('⭐ bất biến giữ ghế: MỌI bước trong transaction giữ ghế (booking.runHoldTransaction) gọi DAO với cùng `tx`', () => {
+  const src = code(join(SRC, 'services', 'booking.service.js'));
+  const start = src.indexOf('function runHoldTransaction');
+  assert.ok(start >= 0, 'không thấy runHoldTransaction');
+  const body = src.slice(src.indexOf('runInTransaction(async (tx) => {', start), src.indexOf('}, TX_OPTIONS);', start));
+  assert.ok(body.length > 100, 'không cắt được thân transaction');
+  const statements = body.split(/\n\s*(?=await |return |const \w+ = await )/).slice(1); // MỌI lệnh gọi DAO, kể cả trong khối if
+  assert.ok(statements.length >= 7, `chỉ thấy ${statements.length} lệnh`);
+  const missing = statements.filter((st) => !/\btx\b/.test(st)).map((st) => st.split('\n')[0].trim());
+  assert.deepEqual(missing, []);
 });
 
 test('controllers / routes / validators / ai KHÔNG import dao/ (chỉ gọi service)', () => {
