@@ -11,7 +11,7 @@ await prisma.showtime.deleteMany({ where: { roomId: { in: roomIds } } });
 await prisma.room.deleteMany({ where: { id: { in: roomIds } } });
 // Phim do test admin tạo (mô tả cố định 'Mô tả thử') và chưa có suất chiếu
 await prisma.movie.deleteMany({ where: { description: 'Mô tả thử', showtimes: { none: {} } } });
-const orders = await prisma.order.deleteMany({ where }); // SeatLock, OrderSeat xóa theo (cascade)
+const orders = await prisma.order.deleteMany({ where }); // SeatLock, Ticket xóa theo (cascade)
 const users = await prisma.user.deleteMany({ where: { email: { startsWith: 'test-' } } });
 const audits = await prisma.auditLog.deleteMany({ where: { actorId: null } }); // nhật ký mồ côi do tài khoản test đã bị xóa
 console.log(`Đã xóa ${orders.count} đơn, ${users.count} user test và ${audits.count} dòng nhật ký mồ côi.`);

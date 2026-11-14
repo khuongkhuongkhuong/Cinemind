@@ -131,7 +131,7 @@ test('⭐ order.dao: checkInIfNotUsed trả count — 10 lần SONG SONG chỉ 1
     const found = await orderDao.findOrderByCode(paid.code);
     assert.equal(found.id, paid.id);
     assert.equal(found.showtime.status, 'OPEN'); // trạng thái suất cần cho luật check-in
-    assert.ok(found.showtime.movie.title && Array.isArray(found.seats));
+    assert.ok(found.showtime.movie.title && Array.isArray(found.tickets));
     assert.equal(await orderDao.findOrderByCode('KHONGCOMA'), null);
     assert.equal((await orderDao.getOrderById(paid.id)).code, paid.code);
     assert.equal((await orderDao.getOrderDetail(paid.id)).showtime.room.cinema.name.length > 0, true);

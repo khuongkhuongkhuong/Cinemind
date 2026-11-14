@@ -24,7 +24,7 @@
 - Chống trùng ghế bằng **PK/UNIQUE `SeatLock(showtimeId, seatId)`** trong transaction; giữ ghế "tất cả hoặc không". **Không** check-then-insert, **không** `createMany({ skipDuplicates: true })` cho SeatLock.
 - Lượt giữ quá hạn coi như trống (dọn lười) — cron chỉ để dọn dữ liệu.
 - **Chỉ IPN VNPay** (đã kiểm chữ ký + số tiền, idempotent) được chuyển đơn sang `PAID`; trang return chỉ đọc trạng thái.
-- Server tự tính mọi khoản tiền; giá chốt vào `OrderSeat`/`OrderCombo`. Tiền = `Int` VND; thời gian lưu UTC.
+- Server tự tính mọi khoản tiền; giá chốt vào `Ticket`/`OrderCombo`. Tiền = `Int` VND; thời gian lưu UTC.
 - Mật khẩu băm bcrypt; `userId` luôn lấy từ token, không lấy từ body.
 
 ## Quy trình

@@ -44,7 +44,7 @@ export function toOrderDto(o) {
       cinema: { name: showtime.room.cinema.name },
       room: { name: showtime.room.name },
     },
-    seats: o.seats.map((s) => ({ seatId: s.seatId, label: s.seatLabel, type: s.seatType, price: s.price })),
+    seats: o.tickets.map((s) => ({ seatId: s.seatId, label: s.seatLabel, type: s.seatType, price: s.price })),
     combos: o.combos.map((c) => ({
       comboId: c.comboId, name: c.combo.name, quantity: c.quantity, unitPrice: c.unitPrice, subtotal: c.quantity * c.unitPrice,
     })),
@@ -246,9 +246,9 @@ export async function listMyOrders({ userId, status = 'PAID', page, pageSize }) 
     countOrdersOfUser(filter),
     findOrdersOfUser(filter, toSkipTake({ page, pageSize })),
   ]);
-  const items = rows.map(({ seats, showtime, ...o }) => ({
+  const items = rows.map(({ tickets, showtime, ...o }) => ({
     ...o,
-    seatLabels: seats.map((s) => s.seatLabel),
+    seatLabels: tickets.map((s) => s.seatLabel),
     showtime: {
       id: showtime.id, startTime: showtime.startTime, format: showtime.format, audio: showtime.audio,
       movie: showtime.movie, cinema: { name: showtime.room.cinema.name }, room: { name: showtime.room.name },
@@ -286,7 +286,7 @@ const MAX_COMBO_QTY = 10; // BR-20
  */
 async function recalcOrder(tx, orderId) {
   const order = await getOrderForRecalc(orderId, tx);
-  const seatTotal = order.seats.reduce((sum, s) => sum + s.price, 0);
+  const seatTotal = order.tickets.reduce((sum, s) => sum + s.price, 0);
   const comboTotal = order.combos.reduce((sum, c) => sum + c.quantity * c.unitPrice, 0);
   const subtotal = seatTotal + comboTotal;
 
@@ -359,7 +359,7 @@ export async function setCombos({ userId, orderId, items }) {
 export async function applyPromotion({ userId, orderId, code }) {
   return withPendingOrder({ userId, orderId }, async (tx) => {
     const order = await getOrderLines(orderId, tx);
-    const subtotal = order.seats.reduce((s, x) => s + x.price, 0) + order.combos.reduce((s, c) => s + c.quantity * c.unitPrice, 0);
+    const subtotal = order.tickets.reduce((s, x) => s + x.price, 0) + order.combos.reduce((s, c) => s + c.quantity * c.unitPrice, 0);
     const promotion = await findPromotionByCode({ code, db: tx });
     await assertPromotionUsable({ promotion, userId, subtotal, orderId, db: tx });
     await setOrderPromotion(orderId, promotion.id, tx);

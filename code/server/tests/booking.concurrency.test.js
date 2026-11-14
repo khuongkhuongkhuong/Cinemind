@@ -41,7 +41,7 @@ before(async () => {
 
 after(async () => {
   const userIds = users.map((u) => u.id);
-  await prisma.order.deleteMany({ where: { userId: { in: userIds } } }); // SeatLock + OrderSeat xóa theo (cascade)
+  await prisma.order.deleteMany({ where: { userId: { in: userIds } } }); // SeatLock + Ticket xóa theo (cascade)
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   await prisma.showtime.deleteMany({ where: { id: { in: tempShowtimeIds } } });
   await prisma.$disconnect();

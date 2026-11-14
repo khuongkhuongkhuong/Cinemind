@@ -1,6 +1,6 @@
 # 03 — Thiết kế cơ sở dữ liệu
 
-> Phiên bản: 1.1 — cập nhật 02/10/2026 (thêm bảng chuẩn bị AI). Schema đầy đủ: [`schema.prisma`](./schema.prisma).
+> Phiên bản: 1.2 — cập nhật 14/11/2026: đổi tên bảng `OrderSeat` → `Ticket` (và quan hệ `Order.seats` → `tickets`, `Seat.orderSeats` → `tickets`); dữ liệu và API giữ nguyên (API vẫn trả `seats`). Trước đó 1.1 — 02/10/2026 (thêm bảng chuẩn bị AI). Schema đầy đủ: [`schema.prisma`](./schema.prisma).
 > CSDL: PostgreSQL · ORM: Prisma · Quy ước: tên bảng/cột tiếng Anh, `camelCase`; tiền là số nguyên VND; thời gian lưu UTC.
 
 ## 1. Quyết định thiết kế quan trọng
@@ -20,7 +20,7 @@
 | Bảng | Trả lời câu hỏi | Khi đơn hết hạn / hủy |
 |---|---|---|
 | `SeatLock` | *Lúc này ai đang chiếm ghế?* — chứa ràng buộc **UNIQUE (showtimeId, seatId)** chống trùng ghế | **Xóa** → ghế được nhả |
-| `OrderSeat` | *Đơn này đã chọn ghế nào, giá bao nhiêu?* — lịch sử, giá đã chốt (BR-14) | **Giữ nguyên** |
+| `Ticket` | *Đơn này đã chọn ghế nào, giá bao nhiêu?* — lịch sử, giá đã chốt (BR-14) | **Giữ nguyên** |
 
 Lý do phải tách: BR-31 (IPN đến muộn) cần biết đơn hết hạn từng chọn ghế nào để thử giữ lại — nếu chỉ có một bảng và đã xóa thì mất thông tin.
 
@@ -36,7 +36,7 @@ Suy ra trạng thái ghế của một suất:
 
 | Chỗ | Lý do |
 |---|---|
-| `OrderSeat.price`, `OrderSeat.seatType`, `OrderCombo.unitPrice` | Đóng băng giá lúc mua (BR-14) |
+| `Ticket.price`, `Ticket.seatType`, `OrderCombo.unitPrice` | Đóng băng giá lúc mua (BR-14) |
 | `Order.total`, `Order.discount`… | Số tiền đã gửi sang VNPay phải cố định để đối soát; báo cáo nhanh |
 | `Showtime.basePrice` | Giá gốc chốt khi tạo suất (tra từ `PriceRule`); admin có thể điều chỉnh riêng một suất |
 | `Promotion.usedCount` | Kiểm tra "còn lượt" nhanh, cập nhật nguyên tử khi thanh toán thành công |
@@ -59,7 +59,7 @@ Suy ra trạng thái ghế của một suất:
 | | `PriceRule` | Giá gốc theo (định dạng × loại ngày) — BR-12 | M |
 | | `SeatTypeSurcharge` | Phụ thu theo loại ghế — BR-13 | M |
 | Đặt vé | `Order` | Đơn hàng: trạng thái, hạn giữ, tổng tiền, mã đặt vé / QR, check-in | M |
-| | `OrderSeat` | Ghế của đơn + giá chốt (= "vé") | M |
+| | `Ticket` | Ghế của đơn + giá chốt (= "vé") | M |
 | | `SeatLock` | Khóa ghế theo suất — **UNIQUE chống trùng** | M ⭐ |
 | | `OrderCombo` | Combo của đơn + đơn giá chốt | S |
 | | `Payment` | Từng lần thanh toán VNPay của đơn (có thể thử lại nhiều lần) | M ⭐ |
@@ -89,8 +89,8 @@ erDiagram
     Showtime ||--o{ SeatLock : "khóa ghế"
     Seat ||--o{ SeatLock : "bị khóa"
     Order ||--o{ SeatLock : "giữ"
-    Order ||--|{ OrderSeat : "gồm ghế"
-    Seat ||--o{ OrderSeat : ""
+    Order ||--|{ Ticket : "gồm ghế"
+    Seat ||--o{ Ticket : ""
     Order ||--o{ OrderCombo : "gồm combo"
     Combo ||--o{ OrderCombo : ""
     Promotion |o--o{ Order : "áp dụng"
@@ -154,7 +154,7 @@ erDiagram
         int total
         datetime checkedInAt
     }
-    OrderSeat {
+    Ticket {
         uuid id PK
         uuid orderId FK
         uuid seatId FK
@@ -192,7 +192,7 @@ erDiagram
 | `PriceRule` | `format`, `dayType` (WEEKDAY / WEEKEND), `basePrice` | UNIQUE (format, dayType) |
 | `SeatTypeSurcharge` | `seatType`, `surcharge` | PK `seatType` |
 | `Order` | `code` (chuỗi ngẫu nhiên — BR-32), `status`, `expiresAt`, `seatTotal`, `comboTotal`, `discount`, `total`, `promotionId`, `paidAt`, `checkedInAt`, `checkedInById` | UNIQUE `code`; index (userId, createdAt), (status, expiresAt) cho tác vụ dọn dẹp |
-| `OrderSeat` | `seatLabel`, `seatType`, `price` — đều là bản chốt. Ghế đôi: **mỗi ghế lưu một nửa giá cặp** để `seatTotal` = tổng `price` | UNIQUE (orderId, seatId) |
+| `Ticket` | `seatLabel`, `seatType`, `price` — đều là bản chốt. Ghế đôi: **mỗi ghế lưu một nửa giá cặp** để `seatTotal` = tổng `price` | UNIQUE (orderId, seatId) |
 | `SeatLock` ⭐ | `orderId`, `status` (HELD / SOLD), `expiresAt` | **PK / UNIQUE (showtimeId, seatId)**; index `orderId`, `expiresAt` |
 | `OrderCombo` | `quantity`, `unitPrice` (chốt) | UNIQUE (orderId, comboId) |
 | `Payment` | `txnRef` (mã giao dịch gửi VNPay), `amount`, `status`, `providerTxnNo`, `rawData` (JSON để đối soát) | UNIQUE `txnRef`; index `orderId` |
@@ -225,7 +225,7 @@ erDiagram
 |---|---|---|
 | 1 | Đơn PENDING cũ của user → `CANCELLED`; xóa `SeatLock` của đơn đó | BR-03 |
 | 2 | Xóa các `SeatLock` **HELD đã quá hạn** của chính các ghế được yêu cầu trong suất này | Dọn "lười" (lazy) — không chờ tác vụ định kỳ |
-| 3 | Tạo `Order` (PENDING, `expiresAt` = now + 10 phút, tổng tiền) + các `OrderSeat` (giá chốt) | BR-01, BR-14 |
+| 3 | Tạo `Order` (PENDING, `expiresAt` = now + 10 phút, tổng tiền) + các `Ticket` (giá chốt) | BR-01, BR-14 |
 | 4 | Chèn **tất cả** `SeatLock` (HELD, cùng `expiresAt`) | Trọng tài UNIQUE |
 | 5 | COMMIT | |
 
@@ -274,7 +274,7 @@ Chọn combo, áp mã, tạo thanh toán, hủy đơn: luôn kiểm tra `status 
 4. VNPay báo thất bại → `Payment` = `FAILED`; đơn giữ nguyên (E5).
 5. VNPay báo thành công → **Transaction xác nhận**:
    - Xóa `SeatLock` HELD quá hạn của **người khác** trên các ghế của đơn.
-   - Với từng `OrderSeat`: nếu `SeatLock` của chính đơn còn → chuyển `SOLD`, `expiresAt = null`; nếu đã mất → chèn mới `SeatLock` SOLD (UNIQUE làm trọng tài).
+   - Với từng `Ticket`: nếu `SeatLock` của chính đơn còn → chuyển `SOLD`, `expiresAt = null`; nếu đã mất → chèn mới `SeatLock` SOLD (UNIQUE làm trọng tài).
    - `Order` → `PAID`, `paidAt`; `Payment` → `SUCCESS`; `Promotion.usedCount + 1` (BR-24); cộng điểm (BR-25).
 6. Nếu bước 5 vi phạm UNIQUE (ghế đã bị người khác lấy — chỉ xảy ra khi IPN đến muộn) → ROLLBACK → transaction khác: `Payment` = `SUCCESS`, `Order` = `REFUND_PENDING` (BR-31, E8).
 
@@ -313,7 +313,7 @@ File đầy đủ: [`schema.prisma`](./schema.prisma) — 22 model, 16 enum. Khi
 
 | Quan hệ | Hành vi | Lý do |
 |---|---|---|
-| `OrderSeat`, `OrderCombo`, `SeatLock` → `Order` | Cascade | Là "con" của đơn; không tồn tại độc lập |
+| `Ticket`, `OrderCombo`, `SeatLock` → `Order` | Cascade | Là "con" của đơn; không tồn tại độc lập |
 | `RefreshToken` → `User`, `MovieGenre` → `Movie`/`Genre` | Cascade | Dữ liệu phụ trợ |
 | `AuditLog` → `User` | SetNull | Giữ nhật ký ngay cả khi tài khoản người thực hiện bị xóa |
 | Các quan hệ còn lại (Movie, Showtime, Seat, User → Order…) | Restrict (mặc định) | **Không cho xóa** dữ liệu đã có lịch sử giao dịch → admin dùng `isActive` / `status` để ẩn thay vì xóa |

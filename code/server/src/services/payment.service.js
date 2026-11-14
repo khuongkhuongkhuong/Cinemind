@@ -147,10 +147,10 @@ async function markPaid(tx, payment, query) {
   }
 
   // Xóa lượt giữ HELD đã quá hạn của NGƯỜI KHÁC trên các ghế của đơn, để ta có thể chiếm chỗ.
-  const seatIds = order.seats.map((s) => s.seatId);
+  const seatIds = order.tickets.map((s) => s.seatId);
   await deleteExpiredHeldLocks({ showtimeId: order.showtimeId, seatIds, now: new Date(), exceptOrderId: order.id }, tx);
 
-  for (const s of order.seats) {
+  for (const s of order.tickets) {
     // Lượt giữ của chính đơn còn -> chuyển SOLD. Mất rồi (cron đã dọn / đơn đã hết hạn) -> chèn mới;
     // nếu ghế đã thuộc người khác thì khóa chính báo P2002 và ta rollback (bước 6).
     const own = await markLockSold({ showtimeId: order.showtimeId, seatId: s.seatId, orderId: order.id }, tx);

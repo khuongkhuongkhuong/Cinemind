@@ -36,7 +36,7 @@ export async function getRevenueReport({ from, to, groupBy }) {
   const orders = await prisma.order.findMany({
     where: { status: 'PAID', paidAt: { gte: vnDayRange(from).from, lt: vnDayRange(to).to } },
     select: {
-      total: true, paidAt: true, _count: { select: { seats: true } },
+      total: true, paidAt: true, _count: { select: { tickets: true } },
       showtime: { select: { movie: { select: { id: true, title: true } }, room: { select: { cinema: { select: { id: true, name: true } } } } } },
     },
   });
@@ -45,7 +45,7 @@ export async function getRevenueReport({ from, to, groupBy }) {
   const add = (key, label, o) => {
     const g = groups.get(key) ?? { key, label, revenue: 0, ticketCount: 0, orderCount: 0 };
     g.revenue += o.total;
-    g.ticketCount += o._count.seats;
+    g.ticketCount += o._count.tickets;
     g.orderCount += 1;
     groups.set(key, g);
   };
