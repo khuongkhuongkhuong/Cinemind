@@ -144,3 +144,12 @@ export const updateOrderTotals = (orderId, { seatTotal, comboTotal, discount, pr
 
 /** Gắn mã khuyến mãi vào đơn (`null` = gỡ mã). */
 export const setOrderPromotion = (orderId, promotionId, db = prisma) => db.order.update({ where: { id: orderId }, data: { promotionId } });
+
+/** Đơn kèm các dòng vé (để xác nhận thanh toán: chuyển từng ghế sang đã bán). @returns {Promise<object|null>} */
+export const getOrderWithTickets = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, include: { seats: true } });
+
+/** Đổi trạng thái đơn (không kiểm điều kiện: service đã quyết định trong transaction). */
+export const setOrderStatus = (orderId, status, db = prisma) => db.order.update({ where: { id: orderId }, data: { status } });
+
+/** Ghi nhận đơn ĐÃ THANH TOÁN. Chỉ được gọi từ luồng xác nhận IPN. */
+export const markOrderPaid = (orderId, paidAt, db = prisma) => db.order.update({ where: { id: orderId }, data: { status: 'PAID', paidAt } });

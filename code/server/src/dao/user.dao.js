@@ -20,3 +20,6 @@ export const insertUser = (data, db = prisma) => db.user.create({ data });
 export const updateUserById = (userId, data, db = prisma) => db.user.update({ where: { id: userId }, data });
 
 export const setPasswordHash = (userId, passwordHash, db = prisma) => db.user.update({ where: { id: userId }, data: { passwordHash } });
+
+/** Cộng điểm thưởng (BR-25) bằng `increment` nguyên tử của CSDL. */
+export const addPoints = (userId, points, db = prisma) => db.user.update({ where: { id: userId }, data: { points: { increment: points } } });

@@ -29,10 +29,16 @@ export const deleteHeldLocksOfOrder = (orderId, db = prisma) => db.seatLock.dele
 
 /**
  * "Dọn lười": xóa lượt giữ ĐÃ QUÁ HẠN của đúng các ghế đang xin, để INSERT sau đó không vướng khóa chính.
- * @param {{ showtimeId: string, seatIds: string[], now: Date }} params
+ * @param {{ showtimeId: string, seatIds: string[], now: Date, exceptOrderId?: string }} params
+ *   `exceptOrderId`: không xóa lượt giữ của đơn này (khi xác nhận thanh toán chỉ dọn lượt của NGƯỜI KHÁC)
  */
-export const deleteExpiredHeldLocks = ({ showtimeId, seatIds, now }, db = prisma) =>
-  db.seatLock.deleteMany({ where: { showtimeId, seatId: { in: seatIds }, status: 'HELD', expiresAt: { lte: now } } });
+export const deleteExpiredHeldLocks = ({ showtimeId, seatIds, now, exceptOrderId }, db = prisma) =>
+  db.seatLock.deleteMany({
+    where: {
+      showtimeId, seatId: { in: seatIds }, status: 'HELD', expiresAt: { lte: now },
+      ...(exceptOrderId && { orderId: { not: exceptOrderId } }),
+    },
+  });
 
 /**
  * ⭐ TRỌNG TÀI chống trùng ghế: chèn TẤT CẢ lượt giữ trong MỘT câu lệnh. Khóa chính (showtimeId, seatId) của PostgreSQL
@@ -54,3 +60,17 @@ export const findTakenLocks = ({ showtimeId, seatIds, now }, db = prisma) =>
     where: { showtimeId, seatId: { in: seatIds }, OR: [{ status: 'SOLD' }, { expiresAt: { gt: now } }] },
     include: { seat: { select: { row: true, number: true } } },
   });
+
+/**
+ * Chuyển lượt giữ CỦA ĐƠN NÀY sang đã bán (SOLD, hết hạn = null).
+ * @returns {Promise<number>} 1 nếu còn lượt giữ để chuyển, 0 nếu đã mất (cron đã dọn / đơn đã hết hạn)
+ */
+export const markLockSold = async ({ showtimeId, seatId, orderId }, db = prisma) =>
+  (await db.seatLock.updateMany({ where: { showtimeId, seatId, orderId }, data: { status: 'SOLD', expiresAt: null } })).count;
+
+/**
+ * ⭐ Chèn lượt bán mới khi lượt giữ đã mất. Nếu ghế đã thuộc người khác thì khóa chính (showtimeId, seatId) báo P2002
+ * (đi xuyên DAO) và service ROLLBACK — đây là cách không bao giờ bán trùng ghế khi IPN đến muộn.
+ */
+export const insertSoldLock = ({ showtimeId, seatId, orderId }, db = prisma) =>
+  db.seatLock.create({ data: { showtimeId, seatId, orderId, status: 'SOLD' } });
