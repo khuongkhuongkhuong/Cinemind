@@ -53,7 +53,7 @@ before(async () => {
   await prisma.seat.createMany({ data });
   seatsByLabel = Object.fromEntries((await prisma.seat.findMany({ where: { roomId: room.id } })).map((s) => [`${s.row}${s.number}`, s]));
 
-  movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING' } });
+  movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING', description: { not: 'Mô tả thử' } } });
   const start = new Date(Math.ceil((Date.now() + 61 * DAY) / (60 * minute)) * 60 * minute);
   showtime = await showtimeSvc.createShowtime({ movieId: movie.id, roomId: room.id, startTime: start, format: 'F2D', audio: 'SUBTITLE', basePrice: 80_000 });
   customer = await prisma.user.create({ data: { email: `test-agent-${RUN}-a@example.com`, passwordHash: 'x', fullName: 'Khách A' } });

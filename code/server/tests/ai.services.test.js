@@ -58,7 +58,7 @@ const release = async () => { await prisma.seatLock.deleteMany({ where: { showti
 
 before(async () => {
   await buildRoom();
-  const movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING' } });
+  const movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING', description: { not: 'Mô tả thử' } } });
   const start = new Date(Math.ceil((Date.now() + 60 * DAY) / (60 * minute)) * 60 * minute);
   showtime = await showtimeSvc.createShowtime({ movieId: movie.id, roomId: room.id, startTime: start, format: 'F2D', audio: 'SUBTITLE', basePrice: 80_000 });
   customer = await prisma.user.create({ data: { email: `test-aisv-${RUN}-a@example.com`, passwordHash: 'x', fullName: 'Test A' } });
@@ -164,7 +164,7 @@ test('⭐ findShowtimes: availableSeatCount trừ ghế đã bán / đang giữ 
 });
 
 test('findShowtimes: suất đã hủy và suất đã đóng bán (< 15 phút) không xuất hiện; tham số sai -> VALIDATION_ERROR', async () => {
-  const movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING' } });
+  const movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING', description: { not: 'Mô tả thử' } } });
   const t = (offsetMin) => new Date(Date.now() + offsetMin * minute);
   const mk = (start, status = 'OPEN') => prisma.showtime.create({
     data: { movieId: movie.id, roomId: room.id, startTime: start, endTime: new Date(start.getTime() + 60 * minute), format: 'F3D', audio: 'DUBBED', basePrice: 90_000, status },
@@ -301,7 +301,7 @@ test('suggestSeats: kiểm tra đầu vào — > 8 ghế SEAT_LIMIT_EXCEEDED; 0 
     assert.equal((await failErr(suggest(bad))).code, 'VALIDATION_ERROR', JSON.stringify(bad));
   }
   assert.equal((await failErr(showtimeSvc.suggestSeats({ showtimeId: '00000000-0000-4000-8000-000000000000', quantity: 2 }))).code, 'NOT_FOUND');
-  const movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING' } });
+  const movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING', description: { not: 'Mô tả thử' } } });
   const soon = new Date(Date.now() + 5 * minute);
   const closing = await prisma.showtime.create({
     data: { movieId: movie.id, roomId: room.id, startTime: soon, endTime: new Date(soon.getTime() + 60 * minute), format: 'F2D', audio: 'SUBTITLE', basePrice: 80_000 },

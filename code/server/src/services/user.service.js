@@ -1,4 +1,6 @@
-import { prisma } from '../config/prisma.js';
+import { runInTransaction } from '../dao/transaction.js';
+import { findUserById, findUserRoleState, setPasswordHash, updateUserById } from '../dao/user.dao.js';
+import { revokeAllOfUser } from '../dao/refreshToken.dao.js';
 import { AppError } from '../utils/AppError.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import { issueTokens } from './auth.service.js';
@@ -8,7 +10,7 @@ const publicUser = (u) => ({ id: u.id, email: u.email, fullName: u.fullName, pho
 
 /** Lấy user đang đăng nhập và chắc chắn còn tồn tại / chưa bị khóa (requireAuth không hỏi DB). */
 async function loadActiveUser(userId) {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await findUserById(userId);
   if (!user) throw new AppError('UNAUTHORIZED');
   if (!user.isActive) throw new AppError('ACCOUNT_DISABLED');
   return user;
@@ -23,10 +25,7 @@ async function loadActiveUser(userId) {
  */
 export async function updateProfile({ userId, fullName, phone }) {
   await loadActiveUser(userId);
-  const user = await prisma.user.update({
-    where: { id: userId },
-    data: { ...(fullName !== undefined && { fullName }), ...(phone !== undefined && { phone }) },
-  });
+  const user = await updateUserById(userId, { ...(fullName !== undefined && { fullName }), ...(phone !== undefined && { phone }) });
   return publicUser(user);
 }
 
@@ -49,10 +48,11 @@ export async function changePassword({ userId, currentPassword, newPassword }) {
   if (currentPassword === newPassword) throw fieldError('newPassword', 'Mật khẩu mới phải khác mật khẩu hiện tại.');
 
   const passwordHash = await hashPassword(newPassword);
-  await prisma.$transaction([
-    prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
-    prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
-  ]);
+  // Đổi mật khẩu + thu hồi mọi refresh token trong MỘT transaction: hoặc cả hai, hoặc không gì cả.
+  await runInTransaction(async (tx) => {
+    await setPasswordHash(userId, passwordHash, tx);
+    await revokeAllOfUser({ userId, now: new Date() }, tx);
+  });
   const { refreshToken } = await issueTokens(user);
   return { refreshToken };
 }
@@ -62,5 +62,4 @@ export async function changePassword({ userId, currentPassword, newPassword }) {
  * @param {{ userId: string }} params
  * @returns {Promise<{ role: string, isActive: boolean } | null>} null nếu tài khoản không còn tồn tại
  */
-export const getAccountState = ({ userId }) =>
-  prisma.user.findUnique({ where: { id: userId }, select: { role: true, isActive: true } });
+export const getAccountState = ({ userId }) => findUserRoleState(userId);

@@ -49,7 +49,7 @@ before(async () => {
   for (let n = 1; n <= 10; n++) data.push({ roomId: room.id, row: 'B', number: n, type: 'VIP' });
   await prisma.seat.createMany({ data });
   seatsByLabel = Object.fromEntries((await prisma.seat.findMany({ where: { roomId: room.id } })).map((s) => [`${s.row}${s.number}`, s]));
-  const movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING' } });
+  const movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING', description: { not: 'Mô tả thử' } } });
   const start = new Date(Math.ceil((Date.now() + 62 * DAY) / (60 * minute)) * 60 * minute);
   showtime = await showtimeSvc.createShowtime({ movieId: movie.id, roomId: room.id, startTime: start, format: 'F2D', audio: 'SUBTITLE', basePrice: 80_000 });
   const mk = (tag, role = 'USER') => prisma.user.create({ data: { email: `test-aihttp-${RUN}-${tag}@example.com`, passwordHash: 'x', fullName: `Test ${tag}`, role } });
