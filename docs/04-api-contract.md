@@ -476,8 +476,9 @@ Mỗi thư mục `client/`, `server/` có `package.json` riêng, chạy độc l
 ```mermaid
 flowchart LR
     R[routes<br/>URL → middleware → controller] --> C[controllers<br/>đọc req, gọi 1 service, trả res]
-    C --> S[services<br/>TOÀN BỘ logic nghiệp vụ]
-    S --> P[(Prisma / PostgreSQL)]
+    C --> S[services<br/>TOÀN BỘ logic nghiệp vụ + transaction]
+    S --> D[dao<br/>mỗi hàm = một thao tác đọc / ghi CSDL]
+    D --> P[(Prisma / PostgreSQL)]
     S --> L[lib<br/>vnpay, jwt, password, code]
     J[jobs<br/>dọn đơn hết hạn] --> S
     AI[ai/ — Giai đoạn sau<br/>AI Agent gọi service như tool] -.-> S
@@ -487,8 +488,18 @@ flowchart LR
 |---|---|---|
 | `routes/` | Khai báo method + path, gắn middleware (`requireAuth`, `requireRole`, `validate`) | Viết logic |
 | `controllers/` | Lấy `req.params / body / query / user`, gọi **một** hàm service, trả `res` theo định dạng chuẩn | Import Prisma; tính toán nghiệp vụ |
-| `services/` | Logic nghiệp vụ, transaction, kiểm tra luật BR, gọi Prisma; nhận **tham số thuần** (`userId`, `showtimeId`…), trả **object thuần**, lỗi thì `throw new AppError(code)` | Đụng tới `req`, `res`, cookie, header |
+| `services/` | Logic nghiệp vụ, mở transaction (qua `dao/transaction.js`), kiểm tra luật BR, gọi **hàm DAO**; nhận **tham số thuần** (`userId`, `showtimeId`…), trả **object thuần**, lỗi thì `throw new AppError(code)` | Đụng tới `req`, `res`, cookie, header; gọi `prisma.<bảng>` / `tx.<bảng>` trực tiếp (với các service đã chuyển — xem bên dưới) |
+| `dao/` (v1.23) | **Chỉ truy vấn**: mỗi file một bảng, mỗi hàm một thao tác đọc / ghi có tên rõ nghĩa (`insertHeldLocks`, `findTakenLocks`…), trả nguyên đối tượng Prisma (= đối tượng thực thể) hoặc `count` | `throw new AppError`; chứa luật nghiệp vụ (giá, hạn giữ, quyền…); đụng `req`/`res`; import service |
+| `entity` (mô hình Prisma) | Chỉ **chứa dữ liệu** (các cột của bảng) | Có hàm truy vấn CSDL — mọi truy vấn nằm ở `dao/` |
 | `lib/` | Tiện ích kỹ thuật không chứa luật nghiệp vụ | Truy cập DB |
+
+**Quy ước tầng DAO (v1.23):**
+- Tên hàm theo động từ: `get*` (đọc theo khóa, có thể trả `null`), `find*` (tìm theo điều kiện), `list*` (nhiều dòng), `insert*`, `mark*` / `set*` (cập nhật), `delete*`, `count*`. Tên DAO **không trùng** tên hàm của service (vd DAO là `insertPayment`, service là `createPayment`) để biểu đồ lớp / tuần tự không nhầm hai tầng.
+- **Tham số cuối của mọi hàm DAO là `db = prisma`**: truyền `tx` khi chạy trong transaction, nên mọi bước của một nghiệp vụ nhiều bước (giữ ghế, xác nhận IPN, tạo suất) dùng **cùng một `tx`**.
+- Cập nhật có điều kiện (`updateMany` + kiểm `count`: soát vé, giành giao dịch IPN, hủy đơn) trả về `count`; **service** quyết định nghĩa của `count = 0`.
+- Lỗi của CSDL (vd `P2002` khi trùng khóa chính `SeatLock`) **đi xuyên qua DAO** và được service bắt để dịch sang `AppError`.
+- `dao/transaction.js` có `runInTransaction(work, options)` và `lockRoom(tx, roomId)` (khóa tư vấn theo phòng) — service không gọi `prisma.$transaction` trực tiếp.
+- Phạm vi chuyển sang DAO ở v1.23: `pricing`, `auth`, `ticket`, `showtime`, `booking`, `payment`, `chat` (và `user` khi cần). Các service quản trị (`admin*`), `report`, `catalog` có thể chuyển dần sau; `controllers/`, `routes/`, `ai/` **không** import `dao/` (chỉ gọi service).
 
 > Vì service không phụ thuộc HTTP, sau này AI Agent gọi thẳng `bookingService.holdSeats({ userId, showtimeId, seatIds })` y như controller (NFR-18).
 
@@ -528,6 +539,11 @@ server/
 │   │   ├── ticket.service.js       # tra cứu, check-in
 │   │   ├── user.service.js
 │   │   └── report.service.js
+│   ├── dao/                  # (v1.23) mỗi file một bảng, chỉ truy vấn
+│   │   ├── transaction.js          # runInTransaction, lockRoom
+│   │   ├── seat.dao.js  showtime.dao.js  seatLock.dao.js ⭐  order.dao.js  payment.dao.js ⭐
+│   │   └── promotion.dao.js  user.dao.js  refreshToken.dao.js  movie.dao.js  room.dao.js
+│   │       priceRule.dao.js  seatTypeSurcharge.dao.js  chatSession.dao.js  chatMessage.dao.js
 │   ├── validators/           # schema kiểm tra body/query: auth.schema.js, order.schema.js, ...
 │   ├── middlewares/          # auth.js, validate.js, errorHandler.js, rateLimit.js
 │   ├── jobs/
@@ -638,3 +654,4 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 02/10/2026 | 1.20 | Mục 2.2, 2.7, 3.2b: GET /cinemas/:id/showtimes; POST/PUT /admin/cinemas (quy tắc tắt rạp) — bổ sung | Người A |
 | 02/10/2026 | 1.21 | Mục 2.7: nhật ký thao tác quản trị `GET /admin/audit-logs` (FR-39; bảng `AuditLog`, docs/03) — bổ sung | Người A |
 | 29/10/2026 | 1.22 | Mục 1.2, 2.8, 3.9: kênh trợ lý AI (`/ai/chat`, `/ai/confirm`, `/ai/sessions/:id`), mã lỗi `AI_UNAVAILABLE` (503), xác nhận do server cưỡng chế (docs/07 v2.0) — bổ sung | Người A |
+| 14/11/2026 | 1.23 | Mục 5.2, 5.3: thêm tầng `dao/` (services → dao → Prisma); DAO chỉ truy vấn, tham số cuối `db = prisma`; thực thể không chứa hàm truy vấn (theo nhận xét của giảng viên về biểu đồ lớp / tuần tự). **Không đổi API** — bổ sung kiến trúc | Người A |

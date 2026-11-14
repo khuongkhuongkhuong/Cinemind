@@ -15,7 +15,7 @@
 - Thanh toán: VNPay sandbox. Chưa dùng Redis.
 
 ## Quy tắc kiến trúc (bắt buộc)
-- Server: `routes → controllers → services → Prisma`. Controller chỉ đọc `req`, gọi **một** service, trả `res`; **không import Prisma**.
+- Server: `routes → controllers → services → dao → Prisma`. Controller chỉ đọc `req`, gọi **một** service, trả `res`; **không import Prisma**. **DAO (`server/src/dao/`) chỉ truy vấn**: mỗi hàm một thao tác đọc/ghi CSDL, không ném `AppError`, không chứa luật nghiệp vụ, tham số cuối `db = prisma` (truyền `tx` khi trong transaction). Service gọi hàm DAO, không gọi `prisma.<bảng>` trực tiếp (các service đã chuyển); mở transaction qua `dao/transaction.js`. Entity (mô hình Prisma) chỉ chứa dữ liệu.
 - **Toàn bộ logic nghiệp vụ ở `services/`**: nhận một object tham số (`{ userId, showtimeId, seatIds }`), trả object thuần, lỗi bằng `throw new AppError(CODE)`; không đụng `req`/`res`. Có JSDoc cho hàm public — AI Agent sẽ gọi service như tool.
 - Client: `page → hook (TanStack Query) → api/*.api.js`; page không gọi Axios trực tiếp. Rẽ nhánh lỗi theo `error.code`, không theo `message`.
 - Response: `{ success, data, meta? }` / `{ success: false, error: { code, message, details } }` — đúng `04-api-contract.md`.
