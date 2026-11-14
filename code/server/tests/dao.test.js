@@ -53,6 +53,8 @@ test('⭐ lỗi CSDL đi xuyên qua DAO (DAO không ném AppError): trùng email
 
 test('⭐ lockRoom: hai transaction cùng phòng xếp hàng (cái sau chờ cái trước commit); khác phòng thì không chờ nhau', async () => {
   const order = [];
+  // Cùng thời gian chờ như service (nhóm kết nối có thể đầy khi cả bộ test chạy song song; mặc định chỉ chờ 2 giây).
+  const opts = { maxWait: 10_000, timeout: 15_000 };
   let releaseFirst;
   const gate = new Promise((r) => { releaseFirst = r; });
   const first = runInTransaction(async (tx) => {
@@ -60,10 +62,10 @@ test('⭐ lockRoom: hai transaction cùng phòng xếp hàng (cái sau chờ cá
     order.push('first-locked');
     await gate;
     order.push('first-done');
-  });
+  }, opts);
   await new Promise((r) => setTimeout(r, 100));
-  const second = runInTransaction(async (tx) => { await lockRoom(tx, 'room-A'); order.push('second-locked'); });
-  const other = runInTransaction(async (tx) => { await lockRoom(tx, 'room-B'); order.push('other-locked'); });
+  const second = runInTransaction(async (tx) => { await lockRoom(tx, 'room-A'); order.push('second-locked'); }, opts);
+  const other = runInTransaction(async (tx) => { await lockRoom(tx, 'room-B'); order.push('other-locked'); }, opts);
   await other; // phòng khác không bị chặn
   await new Promise((r) => setTimeout(r, 150));
   assert.deepEqual(order, ['first-locked', 'other-locked']); // second vẫn đang chờ

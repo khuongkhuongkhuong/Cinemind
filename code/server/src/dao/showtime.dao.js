@@ -111,3 +111,6 @@ export const insertShowtime = ({ movieId, roomId, startTime, endTime, format, au
 /** Cập nhật suất (service quyết định trường nào đổi). @returns {Promise<object>} theo `ADMIN_SELECT` */
 export const updateShowtimeById = (showtimeId, data, db = prisma) =>
   db.showtime.update({ where: { id: showtimeId }, data, select: ADMIN_SELECT });
+
+/** @returns {Promise<object|null>} Showtime thô (không kèm quan hệ) */
+export const getShowtimeById = (showtimeId, db = prisma) => db.showtime.findUnique({ where: { id: showtimeId } });
