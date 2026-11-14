@@ -66,7 +66,7 @@ test('services có import Prisma là bình thường, nhưng KHÔNG import từ 
 // ------------------------------------------------------------------ Tầng DAO (docs/04 mục 5.2, v1.23) ------------------------------------------------------------------
 
 // Các service ĐÃ chuyển sang DAO. Danh sách này chỉ TĂNG khi chuyển thêm service (không bao giờ bớt đi).
-const DAO_SERVICES = ['pricing', 'auth', 'user', 'ticket', 'showtime', 'booking', 'payment'];
+const DAO_SERVICES = ['pricing', 'auth', 'user', 'ticket', 'showtime', 'booking', 'payment', 'chat'];
 const DIRECT_QUERY = /\b(prisma|tx)\.[a-z]\w*\.(find|create|update|delete|upsert|count|group|aggregate)/;
 
 test('⭐ dao/ chỉ truy vấn: không ném AppError, không đụng req/res, không import service / controller', () => {
@@ -113,6 +113,17 @@ test('⭐ bất biến giữ ghế: MỌI bước trong transaction giữ ghế 
   assert.ok(statements.length >= 7, `chỉ thấy ${statements.length} lệnh`);
   const missing = statements.filter((st) => !/\btx\b/.test(st)).map((st) => st.split('\n')[0].trim());
   assert.deepEqual(missing, []);
+});
+
+test('⭐ chat: mọi bước trong MỖI transaction (ghi tin + cập nhật trạng thái phiên) gọi DAO với cùng `tx`', () => {
+  const src = code(join(SRC, 'services', 'chat.service.js'));
+  const bodies = [...src.matchAll(/runInTransaction\(async \(tx\) => \{([\s\S]*?)\n  \}\);/g)].map((m) => m[1]);
+  assert.equal(bodies.length, 2, 'chat.service phải có đúng 2 transaction (chat và confirm)');
+  for (const body of bodies) {
+    const statements = body.split(/\n\s*(?=await )/).slice(1);
+    assert.equal(statements.length, 2);
+    assert.deepEqual(statements.filter((st) => !/\btx\b/.test(st)).map((st) => st.split('\n')[0].trim()), []);
+  }
 });
 
 test('⭐ bất biến IPN: MỌI bước của markPaid (xác nhận thanh toán) và nhánh "ghế đã mất" dùng cùng `tx`; chỉ markOrderPaid mới đưa đơn sang PAID', () => {

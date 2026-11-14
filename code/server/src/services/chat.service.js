@@ -1,4 +1,6 @@
-import { prisma } from '../config/prisma.js';
+import { runInTransaction } from '../dao/transaction.js';
+import { claimPendingAction, getSessionById, insertSession, markSessionClosed, updateSessionState } from '../dao/chatSession.dao.js';
+import { getLastMessage, getRecentMessages, insertMessage, insertMessages, listVisibleMessages } from '../dao/chatMessage.dao.js';
 import { AppError } from '../utils/AppError.js';
 import { getLlm } from '../ai/llm/index.js';
 import { runAgentTurn } from '../ai/agent.js';
@@ -53,7 +55,7 @@ const publicPending = (p) => (p ? { actionId: p.actionId, tool: p.tool, summary:
 
 /** Phiên của CHÍNH người dùng. @throws {AppError} NOT_FOUND (không có / đã đóng) | FORBIDDEN (của người khác) */
 async function loadOwnedSession({ sessionId, userId }) {
-  const session = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+  const session = await getSessionById(sessionId);
   if (!session) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phiên trò chuyện.' });
   if (session.userId !== userId) throw new AppError('FORBIDDEN');
   if (session.status !== 'ACTIVE') throw new AppError('NOT_FOUND', { message: 'Phiên trò chuyện này đã đóng.' });
@@ -99,7 +101,7 @@ async function currentOrderOf({ userId, state }) {
 
 /** Thời điểm tạo tin kế tiếp: luôn SAU tin mới nhất của phiên để thứ tự không bao giờ đảo. */
 async function nextBase(sessionId) {
-  const last = await prisma.chatMessage.findFirst({ where: { sessionId }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
+  const last = await getLastMessage(sessionId);
   return Math.max(Date.now(), (last?.createdAt.getTime() ?? 0) + 1);
 }
 
@@ -122,7 +124,7 @@ export async function chat({ userId, sessionId, text, now = new Date() }) {
   const session = sessionId ? await loadOwnedSession({ sessionId, userId }) : null;
   const state = session ? readState(session) : {};
   const rows = session
-    ? (await prisma.chatMessage.findMany({ where: { sessionId: session.id }, orderBy: { createdAt: 'desc' }, take: HISTORY_LIMIT - 1 })).reverse()
+    ? (await getRecentMessages({ sessionId: session.id, take: HISTORY_LIMIT - 1 })).reverse()
     : [];
   const userMessage = { role: 'user', content: clean };
 
@@ -140,13 +142,17 @@ export async function chat({ userId, sessionId, text, now = new Date() }) {
   }
 
   // Lưu hội thoại + trạng thái trong MỘT transaction: tin của khách, các lượt gọi tool, câu trả lời, việc đang chờ xác nhận.
-  const id = session ? session.id : (await prisma.chatSession.create({ data: { userId } })).id;
+  const id = session ? session.id : (await insertSession(userId)).id;
   const base = session ? await nextBase(id) : Date.now();
   const messages = [userMessage, ...result.newMessages].map((m, i) => toRow(m, id, new Date(base + i)));
-  await prisma.$transaction([
-    prisma.chatMessage.createMany({ data: messages }),
-    prisma.chatSession.update({ where: { id }, data: { state: { ...state, pendingAction: result.pendingAction }, lastActiveAt: new Date(Math.max(now.getTime(), (session?.lastActiveAt.getTime() ?? 0) + 1)) } }),
-  ]);
+  await runInTransaction(async (tx) => {
+    await insertMessages(messages, tx);
+    await updateSessionState({
+      sessionId: id,
+      state: { ...state, pendingAction: result.pendingAction },
+      lastActiveAt: new Date(Math.max(now.getTime(), (session?.lastActiveAt.getTime() ?? 0) + 1)),
+    }, tx);
+  });
   return { sessionId: id, reply: { text: result.text, pendingAction: publicPending(result.pendingAction) } };
 }
 
@@ -180,11 +186,13 @@ export async function confirm({ userId, sessionId, actionId, approve, now = new 
   if (!pending || pending.actionId !== actionId) throw noPending();
 
   // Nhận phần: chỉ MỘT request cập nhật được (điều kiện lastActiveAt còn nguyên giá trị đã đọc).
-  const claimed = await prisma.chatSession.updateMany({
-    where: { id: session.id, lastActiveAt: session.lastActiveAt },
-    data: { state: { ...state, pendingAction: null }, lastActiveAt: new Date(Math.max(now.getTime(), session.lastActiveAt.getTime() + 1)) },
+  const claimed = await claimPendingAction({
+    sessionId: session.id,
+    expectedLastActiveAt: session.lastActiveAt,
+    state: { ...state, pendingAction: null },
+    lastActiveAt: new Date(Math.max(now.getTime(), session.lastActiveAt.getTime() + 1)),
   });
-  if (claimed.count !== 1) throw noPending();
+  if (claimed !== 1) throw noPending();
   if (new Date(pending.expiresAt) <= now) throw noPending(); // đã gỡ việc chờ ở trên; không thực thi
 
   let reply;
@@ -202,10 +210,10 @@ export async function confirm({ userId, sessionId, actionId, approve, now = new 
   }
 
   const base = await nextBase(session.id);
-  await prisma.$transaction([
-    prisma.chatMessage.create({ data: { sessionId: session.id, role: 'ASSISTANT', content: reply.text, createdAt: new Date(base) } }),
-    prisma.chatSession.update({ where: { id: session.id }, data: { state: { ...state, pendingAction: null, currentOrderId } } }),
-  ]);
+  await runInTransaction(async (tx) => {
+    await insertMessage({ sessionId: session.id, role: 'ASSISTANT', content: reply.text, createdAt: new Date(base) }, tx);
+    await updateSessionState({ sessionId: session.id, state: { ...state, pendingAction: null, currentOrderId } }, tx);
+  });
   return { reply };
 }
 
@@ -217,7 +225,7 @@ export async function confirm({ userId, sessionId, actionId, approve, now = new 
  */
 export async function getSession({ userId, sessionId, now = new Date() }) {
   const session = await loadOwnedSession({ sessionId, userId });
-  const rows = await prisma.chatMessage.findMany({ where: { sessionId, role: { in: ['USER', 'ASSISTANT'] } }, orderBy: { createdAt: 'asc' } });
+  const rows = await listVisibleMessages(sessionId);
   const pending = readState(session).pendingAction;
   return {
     sessionId: session.id,
@@ -235,6 +243,6 @@ export async function getSession({ userId, sessionId, now = new Date() }) {
  */
 export async function closeSession({ userId, sessionId }) {
   const session = await loadOwnedSession({ sessionId, userId });
-  await prisma.chatSession.update({ where: { id: session.id }, data: { status: 'CLOSED', state: { ...readState(session), pendingAction: null } } });
+  await markSessionClosed({ sessionId: session.id, state: { ...readState(session), pendingAction: null } });
   return { sessionId: session.id, status: 'CLOSED' };
 }
