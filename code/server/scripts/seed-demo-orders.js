@@ -3,7 +3,7 @@
 //                              npm run db:demo -- --live  (thêm một suất bắt đầu sau ~25 phút + vé của user mẫu, để demo SOÁT VÉ)
 //                              npm run db:demo -- --only-live  (chỉ bước trên, không tạo thêm đơn hàng loạt — chạy lại ngay trước buổi demo)
 //
-// Mọi đơn đi qua ĐÚNG các service thật (holdSeats -> setCombos -> createPayment -> simulateIpn): giữ ghế bằng khóa chính SeatLock,
+// Mọi đơn đi qua ĐÚNG các service thật (holdSeats -> setCombos -> createPayment -> simulateIpn): giữ ghế bằng UNIQUE Ticket(showtimeId, occupiedSeatId),
 // IPN có chữ ký và kiểm số tiền. Chỉ có MỘT bước "đạo cụ": lùi `createdAt` / `paidAt` về quá khứ để biểu đồ doanh thu có nhiều ngày.
 import { prisma } from '../src/config/prisma.js';
 import { holdSeats, setCombos, cancelOrder } from '../src/services/booking.service.js';
@@ -39,7 +39,7 @@ async function ensureCustomers() {
 
 /** Chọn ngẫu nhiên `count` ghế đơn (không phải ghế đôi) còn trống của suất. */
 async function freeSeats(showtime, count) {
-  const locked = new Set((await prisma.seatLock.findMany({ where: { showtimeId: showtime.id }, select: { seatId: true } })).map((l) => l.seatId));
+  const locked = new Set((await prisma.ticket.findMany({ where: { showtimeId: showtime.id, occupiedSeatId: { not: null } }, select: { seatId: true } })).map((t) => t.seatId));
   const seats = await prisma.seat.findMany({ where: { roomId: showtime.roomId, isActive: true, type: { not: 'COUPLE' } }, select: { id: true } });
   const free = seats.filter((s) => !locked.has(s.id));
   const chosen = [];
