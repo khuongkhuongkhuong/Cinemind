@@ -1,26 +1,21 @@
 import { prisma } from '../config/prisma.js';
 
-/**
- * Hình dạng "đơn đầy đủ" mà các màn hình đọc (đơn, vé, soát vé, quản trị). Nằm ở DAO vì đây là CÁCH ĐỌC dữ liệu,
- * không phải luật nghiệp vụ; service chỉ việc đổi nó sang `Order` DTO (booking.service.toOrderDto).
- */
-export const ORDER_INCLUDE = {
-  showtime: {
-    select: {
-      id: true, startTime: true, format: true, audio: true,
-      movie: { select: { title: true, ageRating: true, posterUrl: true } },
-      room: { select: { name: true, cinema: { select: { name: true } } } },
-    },
-  },
-  tickets: { orderBy: { seatLabel: 'asc' } },
-  combos: { include: { combo: { select: { name: true } } }, orderBy: { combo: { name: 'asc' } } },
-  promotion: { select: { code: true, name: true } },
+/** Phần của suất mà đơn / vé / soát vé cần (kèm `status` để soát vé biết suất đã hủy hay chưa). Suất của đơn lấy qua VÉ. */
+export const SHOWTIME_SELECT = {
+  id: true, startTime: true, status: true, format: true, audio: true,
+  movie: { select: { title: true, ageRating: true, posterUrl: true } },
+  room: { select: { name: true, cinema: { select: { name: true } } } },
 };
 
-// Soát vé cần thêm trạng thái suất để biết suất đã bị hủy hay chưa.
-const TICKET_INCLUDE = {
-  ...ORDER_INCLUDE,
-  showtime: { select: { ...ORDER_INCLUDE.showtime.select, status: true } },
+/**
+ * Hình dạng "đơn đầy đủ" mà các màn hình đọc (đơn, vé, soát vé, quản trị). Nằm ở DAO vì đây là CÁCH ĐỌC dữ liệu,
+ * không phải luật nghiệp vụ; service chỉ việc đổi nó sang `Order` DTO (order.service.toOrderDto).
+ * `Order` không còn `showtime` (docs/03 v1.3): suất nằm ở từng vé, mọi vé của một đơn cùng một suất.
+ */
+export const ORDER_INCLUDE = {
+  tickets: { orderBy: { seatLabel: 'asc' }, include: { showtime: { select: SHOWTIME_SELECT } } },
+  combos: { include: { combo: { select: { name: true } } }, orderBy: { combo: { name: 'asc' } } },
+  promotion: { select: { code: true, name: true } },
 };
 
 /**
@@ -28,26 +23,13 @@ const TICKET_INCLUDE = {
  * @param {string} code mã đơn / vé, đã qua normalizeTicketCode
  * @returns {Promise<object|null>}
  */
-export const findOrderByCode = (code, db = prisma) => db.order.findUnique({ where: { code }, include: TICKET_INCLUDE });
+export const findOrderByCode = (code, db = prisma) => db.order.findUnique({ where: { code }, include: ORDER_INCLUDE });
 
 /** Đơn thô (không kèm quan hệ). @returns {Promise<object|null>} */
 export const getOrderById = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId } });
 
 /** Đơn đầy đủ theo `ORDER_INCLUDE`. @returns {Promise<object|null>} */
 export const getOrderDetail = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, include: ORDER_INCLUDE });
-
-/**
- * Số đơn "đã chiếm chỗ" của suất: đã thanh toán, chờ hoàn tiền, hoặc đang chờ thanh toán còn hạn giữ ghế.
- * Có thì suất không được sửa / hủy.
- * @returns {Promise<number>}
- */
-export const countActiveSalesOfShowtime = ({ showtimeId, now }, db = prisma) =>
-  db.order.count({
-    where: {
-      showtimeId,
-      OR: [{ status: { in: ['PAID', 'REFUND_PENDING'] } }, { status: 'PENDING', expiresAt: { gt: now } }],
-    },
-  });
 
 /**
  * ⭐ Đánh dấu đơn ĐÃ VÀO RẠP — MỘT câu cập nhật có điều kiện (`status = PAID` và `checkedInAt IS NULL`): hai nhân viên quét
@@ -70,13 +52,11 @@ export const markOrdersCancelled = (orderIds, db = prisma) =>
   db.order.updateMany({ where: { id: { in: orderIds } }, data: { status: 'CANCELLED' } });
 
 /**
- * Tạo đơn kèm các dòng vé với GIÁ ĐÃ CHỐT (BR-14).
- * @param {{ code: string, userId: string, showtimeId: string, source: string, expiresAt: Date, seatTotal: number, total: number,
- *   tickets: Array<{ seatId: string, seatLabel: string, seatType: string, price: number }> }} data
+ * Tạo đơn (chưa có vé; vé được chèn riêng bằng `ticket.dao.insertTickets` trong cùng transaction).
+ * @param {{ code: string, userId: string, source: string, expiresAt: Date, seatTotal: number, total: number }} data
  * @returns {Promise<object>} Order vừa tạo
  */
-export const insertOrderWithTickets = ({ tickets, ...order }, db = prisma) =>
-  db.order.create({ data: { ...order, tickets: { create: tickets } } });
+export const insertOrder = (data, db = prisma) => db.order.create({ data });
 
 /** Chỉ chủ đơn. @returns {Promise<{ userId: string }|null>} */
 export const getOrderOwner = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, select: { userId: true } });
@@ -126,8 +106,7 @@ export const findOrdersOfUser = ({ userId, status }, { skip, take }, db = prisma
     take,
     select: {
       id: true, code: true, status: true, total: true, createdAt: true, paidAt: true, checkedInAt: true,
-      tickets: { select: { seatLabel: true }, orderBy: { seatLabel: 'asc' } },
-      showtime: ORDER_INCLUDE.showtime,
+      tickets: { select: { seatLabel: true, showtime: { select: SHOWTIME_SELECT } }, orderBy: { seatLabel: 'asc' } },
     },
   });
 
@@ -144,9 +123,6 @@ export const updateOrderTotals = (orderId, { seatTotal, comboTotal, discount, pr
 
 /** Gắn mã khuyến mãi vào đơn (`null` = gỡ mã). */
 export const setOrderPromotion = (orderId, promotionId, db = prisma) => db.order.update({ where: { id: orderId }, data: { promotionId } });
-
-/** Đơn kèm các dòng vé (để xác nhận thanh toán: chuyển từng ghế sang đã bán). @returns {Promise<object|null>} */
-export const getOrderWithTickets = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, include: { tickets: true } });
 
 /** Đổi trạng thái đơn (không kiểm điều kiện: service đã quyết định trong transaction). */
 export const setOrderStatus = (orderId, status, db = prisma) => db.order.update({ where: { id: orderId }, data: { status } });

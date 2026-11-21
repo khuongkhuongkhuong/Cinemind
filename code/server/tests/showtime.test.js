@@ -26,7 +26,7 @@ before(async () => {
 });
 
 after(async () => {
-  await prisma.order.deleteMany({ where: { userId: user.id } }); // SeatLock xóa theo (cascade)
+  await prisma.order.deleteMany({ where: { userId: user.id } }); // Ticket xóa theo (cascade)
   await prisma.user.delete({ where: { id: user.id } });
   server.close();
   await prisma.$disconnect();
@@ -72,19 +72,16 @@ test('sơ đồ ghế: đủ 96 ghế, giá đúng BR-11/13, ghế đôi hiển 
 test('⭐ trạng thái ghế: HELD còn hạn -> HELD, HELD quá hạn -> AVAILABLE, SOLD -> SOLD', async () => {
   const seats = await prisma.seat.findMany({ where: { roomId: showtime.roomId, row: 'A' }, orderBy: { number: 'asc' } });
   const [held, expired, sold] = seats;
-  const order = await prisma.order.create({
+  // Hạn giữ ghế nằm ở ĐƠN (docs/03 v1.3): đơn còn hạn giữ vé HELD -> HELD; đơn quá hạn -> vé HELD coi như trống; vé SOLD -> SOLD.
+  const mkOrder = (tag, seat, ticketStatus, expiresAt, extra = {}) => prisma.order.create({
     data: {
-      code: `TEST${Date.now()}`, userId: user.id, showtimeId: showtime.id,
-      expiresAt: new Date(Date.now() + 10 * minute), seatTotal: 0, total: 0,
+      code: `T${tag}${Date.now()}`.slice(-10), userId: user.id, expiresAt, seatTotal: 0, total: 0, ...extra,
+      tickets: { create: [{ showtimeId: showtime.id, seatId: seat.id, seatLabel: `${seat.row}${seat.number}`, seatType: seat.type, price: 0, status: ticketStatus, occupiedSeatId: seat.id }] },
     },
   });
-  await prisma.seatLock.createMany({
-    data: [
-      { showtimeId: showtime.id, seatId: held.id, orderId: order.id, status: 'HELD', expiresAt: new Date(Date.now() + 5 * minute) },
-      { showtimeId: showtime.id, seatId: expired.id, orderId: order.id, status: 'HELD', expiresAt: new Date(Date.now() - minute) },
-      { showtimeId: showtime.id, seatId: sold.id, orderId: order.id, status: 'SOLD', expiresAt: null },
-    ],
-  });
+  await mkOrder('H', held, 'HELD', new Date(Date.now() + 5 * minute));
+  await mkOrder('E', expired, 'HELD', new Date(Date.now() - minute));
+  await mkOrder('S', sold, 'SOLD', new Date(Date.now() + 10 * minute), { status: 'PAID', paidAt: new Date() });
 
   const map = (await get(`/showtimes/${showtime.id}/seats`)).json.data.seats;
   const status = (seat) => map.find((s) => s.id === seat.id).status;

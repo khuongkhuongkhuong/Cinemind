@@ -5,11 +5,12 @@ import assert from 'node:assert/strict';
 
 process.env.NODE_ENV = 'test';
 const { prisma } = await import('../src/config/prisma.js');
-const { lookupTicket, checkIn, evaluateCheckIn } = await import('../src/services/ticket.service.js');
+const { lookupForCheckIn: lookupTicket, checkIn, evaluateCheckIn } = await import('../src/services/order.service.js');
 const { normalizeTicketCode } = await import('../src/lib/code.js');
 const { default: app } = await import('../src/app.js');
 const { signAccessToken } = await import('../src/lib/jwt.js');
 const { createRoleUsers } = await import('./helpers/role-users.js');
+const { createOrder } = await import('./helpers/orders.js');
 
 const minute = 60_000;
 const RUN = Date.now();
@@ -20,7 +21,7 @@ let n = 0;
 
 const failErr = (p) => p.then(() => null, (e) => e);
 // Tạo thẳng đơn trong DB (không qua giữ ghế) để khỏi tranh ghế; chỉ cần đủ cho luồng soát vé.
-const makeOrder = (data = {}, st = showtime) => prisma.order.create({
+const makeOrder = (data = {}, st = showtime) => createOrder({
   data: {
     code: `T${RUN}${process.pid}${n++}`.slice(-10).toUpperCase(), userId: customer.id, showtimeId: st.id, status: 'PAID', paidAt: new Date(),
     expiresAt: new Date(Date.now() + 10 * minute), seatTotal: 0, total: 0, ...data,
@@ -56,7 +57,7 @@ test('normalizeTicketCode: nhận mã trần, nội dung QR, chữ thường, c�
 });
 
 test('⭐ BR-34 evaluateCheckIn: đúng ranh giới ±30 phút (gồm cả hai đầu mút)', () => {
-  const order = { status: 'PAID', checkedInAt: null, showtime: { startTime: showtime.startTime, status: 'OPEN' } };
+  const order = { status: 'PAID', checkedInAt: null, tickets: [{ showtime: { startTime: showtime.startTime, status: 'OPEN' } }] };
   const verdict = (offset) => evaluateCheckIn(order, at(offset));
   assert.deepEqual(verdict(-31), { canCheckIn: false, reason: 'TOO_EARLY' });
   assert.equal(verdict(-30).canCheckIn, true); // đúng 30 phút trước: được
@@ -66,14 +67,14 @@ test('⭐ BR-34 evaluateCheckIn: đúng ranh giới ±30 phút (gồm cả hai �
 });
 
 test('evaluateCheckIn: thứ tự ưu tiên — chưa trả tiền > đã dùng > suất hủy > ngoài giờ', () => {
-  const base = { status: 'PAID', checkedInAt: null, showtime: { startTime: showtime.startTime, status: 'OPEN' } };
+  const base = { status: 'PAID', checkedInAt: null, tickets: [{ showtime: { startTime: showtime.startTime, status: 'OPEN' } }] };
   const now = at(0);
   assert.equal(evaluateCheckIn({ ...base, status: 'PENDING' }, now).reason, 'NOT_PAID');
   for (const status of ['CANCELLED', 'EXPIRED', 'REFUND_PENDING', 'REFUNDED']) {
     assert.equal(evaluateCheckIn({ ...base, status }, now).reason, 'NOT_PAID'); // chỉ PAID mới vào được
   }
   assert.equal(evaluateCheckIn({ ...base, checkedInAt: new Date() }, at(999)).reason, 'ALREADY_USED');
-  assert.equal(evaluateCheckIn({ ...base, showtime: { ...base.showtime, status: 'CANCELLED' } }, now).reason, 'SHOWTIME_CANCELLED');
+  assert.equal(evaluateCheckIn({ ...base, tickets: [{ showtime: { ...base.tickets[0].showtime, status: 'CANCELLED' } }] }, now).reason, 'SHOWTIME_CANCELLED');
 });
 
 test('lookupTicket: trả vé + canCheckIn; vé lạ -> NOT_FOUND; mã QR / chữ thường đều tra được', async () => {

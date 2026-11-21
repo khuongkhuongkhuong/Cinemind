@@ -12,10 +12,6 @@ export const insertPayment = ({ orderId, txnRef, amount, bankCode }, db = prisma
 /** @returns {Promise<object|null>} Payment theo mã giao dịch của VNPay (`vnp_TxnRef`) */
 export const findPaymentByTxnRef = (txnRef, db = prisma) => db.payment.findUnique({ where: { txnRef } });
 
-/** Giao dịch kèm chủ đơn + trạng thái đơn (cho trang kết quả, chỉ đọc). */
-export const findPaymentWithOrder = (txnRef, db = prisma) =>
-  db.payment.findUnique({ where: { txnRef }, include: { order: { select: { userId: true, status: true } } } });
-
 /**
  * ⭐ Ghi nhận THẤT BẠI NẾU giao dịch còn PENDING — một câu cập nhật có điều kiện.
  * @param {{ id: string, fields: { responseCode: string|null, providerTxnNo: string|null, rawData: object } }} params

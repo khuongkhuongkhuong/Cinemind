@@ -22,13 +22,14 @@ const rows = (groupBy, from = '2025-03-10', to = '2025-03-12') => getRevenueRepo
 async function makeOrder({ showtime, status = 'PAID', paidAt, total, seats }) {
   const order = await prisma.order.create({
     data: {
-      code: `P${RUN}${process.pid}${n++}`.slice(-10).toUpperCase(), userId: user.id, showtimeId: showtime.id, status,
+      code: `P${RUN}${process.pid}${n++}`.slice(-10).toUpperCase(), userId: user.id, status,
       paidAt: new Date(paidAt), expiresAt: new Date('2025-03-01T00:00:00Z'), seatTotal: total, total,
     },
   });
   const roomSeats = await prisma.seat.findMany({ where: { roomId: showtime.roomId }, take: seats, orderBy: [{ row: 'asc' }, { number: 'asc' }] });
   await prisma.ticket.createMany({
-    data: roomSeats.map((s) => ({ orderId: order.id, seatId: s.id, seatLabel: `${s.row}${s.number}`, seatType: s.type, price: Math.floor(total / seats) })),
+    // RELEASED: vé chỉ để mang suất + số ghế cho báo cáo; không chiếm ghế nên không tranh với test đặt vé chạy song song.
+    data: roomSeats.map((s) => ({ orderId: order.id, showtimeId: showtime.id, status: 'RELEASED', seatId: s.id, seatLabel: `${s.row}${s.number}`, seatType: s.type, price: Math.floor(total / seats) })),
   });
   return order;
 }

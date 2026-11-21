@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 
 process.env.NODE_ENV = 'test';
 const { prisma } = await import('../src/config/prisma.js');
-const { holdSeats, getOrder } = await import('../src/services/booking.service.js');
+const { holdSeats, getOrder } = await import('../src/services/order.service.js');
 const { default: app } = await import('../src/app.js');
 const { signAccessToken } = await import('../src/lib/jwt.js');
 
@@ -20,7 +20,8 @@ const seat = (label) => seats.find((s) => `${s.row}${s.number}` === label);
 const ids = (...labels) => labels.map((l) => seat(l).id);
 const hold = (user, ...labels) => holdSeats({ userId: user.id, showtimeId: showtime.id, seatIds: ids(...labels) });
 const failCode = (promise) => promise.then(() => null, (e) => e.code);
-const locksOf = (...labels) => prisma.seatLock.findMany({ where: { showtimeId: showtime.id, seatId: { in: ids(...labels) } } });
+// Vé ĐANG CHIẾM ghế (HELD/SOLD): occupiedSeatId khác NULL. Vé đã nhả (RELEASED) vẫn còn làm lịch sử nhưng không chiếm ghế.
+const locksOf = (...labels) => prisma.ticket.findMany({ where: { showtimeId: showtime.id, seatId: { in: ids(...labels) }, occupiedSeatId: { not: null } } });
 
 async function newUsers(n) {
   const created = [];
@@ -41,7 +42,7 @@ before(async () => {
 
 after(async () => {
   const userIds = users.map((u) => u.id);
-  await prisma.order.deleteMany({ where: { userId: { in: userIds } } }); // SeatLock + Ticket xóa theo (cascade)
+  await prisma.order.deleteMany({ where: { userId: { in: userIds } } }); // Ticket xóa theo (cascade)
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   await prisma.showtime.deleteMany({ where: { id: { in: tempShowtimeIds } } });
   await prisma.$disconnect();
@@ -58,10 +59,12 @@ test('⭐ 50 người cùng giành A1+A2 một lúc: ĐÚNG 1 người thắng, 
   assert.ok(losers.every((r) => r.err.code === 'SEAT_UNAVAILABLE'), 'mọi người thua đều phải nhận SEAT_UNAVAILABLE');
   assert.deepEqual(losers[0].err.details.seatLabels.sort(), ['A1', 'A2']);
 
-  // DB: đúng 2 SeatLock (của người thắng) và đúng 1 đơn — người thua rollback sạch, không để lại đơn rác.
+  // DB: đúng 2 vé chiếm ghế (occupiedSeatId khác NULL) cho A1, A2 — đều thuộc đơn của người thắng — và đúng 1 đơn:
+  // người thua rollback sạch, không để lại đơn rác, không để lại vé nào.
   const locks = await locksOf('A1', 'A2');
   assert.equal(locks.length, 2);
-  assert.ok(locks.every((l) => l.orderId === winners[0].ok.id));
+  assert.deepEqual(locks.map((l) => l.occupiedSeatId).sort(), ids('A1', 'A2').sort());
+  assert.ok(locks.every((l) => l.orderId === winners[0].ok.id && l.status === 'HELD'));
   const orders = await prisma.order.count({ where: { userId: { in: racers.map((u) => u.id) } } });
   assert.equal(orders, 1);
 });
@@ -76,22 +79,26 @@ test('⭐ tất cả hoặc không: Y xin B1+B2+B3 khi B3 đã bị giữ -> th�
 
 test('lượt giữ quá hạn coi như trống: người khác giữ được ngay, không cần chờ cron', async () => {
   const [old, fresh] = await newUsers(2);
+  // Hạn giữ ghế nằm ở ĐƠN (docs/03 v1.3): đơn quá hạn + vé HELD của nó = ghế trống.
   const stale = await prisma.order.create({
-    data: { code: `EXP${RUN}`.slice(0, 12), userId: old.id, showtimeId: showtime.id, expiresAt: new Date(Date.now() - minute), seatTotal: 0, total: 0 },
-  });
-  await prisma.seatLock.create({
-    data: { showtimeId: showtime.id, seatId: seat('C1').id, orderId: stale.id, status: 'HELD', expiresAt: new Date(Date.now() - minute) },
+    data: {
+      code: `EXP${RUN}`.slice(0, 12), userId: old.id, expiresAt: new Date(Date.now() - minute), seatTotal: 0, total: 0,
+      tickets: { create: [{ showtimeId: showtime.id, seatId: seat('C1').id, seatLabel: 'C1', seatType: seat('C1').type, price: 0, status: 'HELD', occupiedSeatId: seat('C1').id }] },
+    },
   });
   const order = await hold(fresh, 'C1');
   assert.equal(order.status, 'PENDING');
   const [lock] = await locksOf('C1');
   assert.equal(lock.orderId, order.id);
+  // dọn lười: vé quá hạn được nhả NGAY trong transaction giữ ghế (không chờ cron) và vẫn còn làm lịch sử
+  const [old1] = await prisma.ticket.findMany({ where: { orderId: stale.id } });
+  assert.deepEqual([old1.status, old1.occupiedSeatId], ['RELEASED', null]);
 });
 
 test('ghế đã SOLD thì không giữ được', async () => {
   const [buyer, other] = await newUsers(2);
   const paid = await hold(buyer, 'C5');
-  await prisma.seatLock.updateMany({ where: { orderId: paid.id }, data: { status: 'SOLD', expiresAt: null } });
+  await prisma.ticket.updateMany({ where: { orderId: paid.id }, data: { status: 'SOLD' } }); // occupiedSeatId vẫn = seatId
   assert.equal(await failCode(hold(other, 'C5')), 'SEAT_UNAVAILABLE');
 });
 
@@ -102,6 +109,8 @@ test('BR-03: tạo đơn mới thì đơn PENDING cũ bị hủy và ghế đư�
   assert.equal((await prisma.order.findUnique({ where: { id: first.id } })).status, 'CANCELLED');
   assert.equal((await locksOf('D1')).length, 0);
   assert.equal((await locksOf('D2')).length, 1);
+  // vé của đơn cũ KHÔNG bị xóa: chuyển RELEASED, còn làm lịch sử
+  assert.deepEqual((await prisma.ticket.findMany({ where: { orderId: first.id } })).map((t) => [t.status, t.occupiedSeatId]), [['RELEASED', null]]);
   assert.equal(second.status, 'PENDING');
 });
 
@@ -130,6 +139,8 @@ test('giá được chốt vào đơn và server tự tính (BR-11, BR-13, BR-14
 test('các luật kiểm tra trước: > 8 ghế, ghế đôi lẻ, suất sắp chiếu, ghế sai phòng', async () => {
   const [u] = await newUsers(1);
   const nine = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9'];
+  assert.equal(await failCode(hold(u)), 'VALIDATION_ERROR'); // không có ghế nào: không tạo đơn rỗng
+  assert.equal(await prisma.order.count({ where: { userId: u.id } }), 0);
   assert.equal(await failCode(hold(u, ...nine)), 'SEAT_LIMIT_EXCEEDED');
   assert.equal(await failCode(hold(u, 'H3')), 'COUPLE_SEAT_INCOMPLETE'); // chỉ 1 ghế của cặp H3-4
   assert.equal(await failCode(hold(u, 'H3', 'H5')), 'COUPLE_SEAT_INCOMPLETE'); // hai ghế khác cặp
@@ -175,4 +186,23 @@ test('POST /orders qua HTTP: không token -> 401; có token -> 201; thiếu seat
   } finally {
     server.close();
   }
+});
+
+test('hủy đơn: vé -> RELEASED + occupiedSeatId NULL (vé cũ vẫn còn làm lịch sử); người khác giữ được chính ghế đó', async () => {
+  const { cancelOrder } = await import('../src/services/order.service.js');
+  const [a, b] = await newUsers(2);
+  const order = await hold(a, 'E5');
+  await cancelOrder({ userId: a.id, orderId: order.id });
+  assert.deepEqual((await prisma.ticket.findMany({ where: { orderId: order.id } })).map((t) => [t.status, t.occupiedSeatId]), [['RELEASED', null]]);
+  assert.equal((await locksOf('E5')).length, 0);
+  const next = await hold(b, 'E5');
+  assert.equal((await locksOf('E5'))[0].orderId, next.id);
+  assert.equal(await prisma.ticket.count({ where: { orderId: order.id } }), 1); // vé cũ vẫn còn
+});
+
+test('⭐ bất biến occupiedSeatId (docs/03 mục 1.2): với MỌI vé của các user test, (HELD hoặc SOLD) <=> occupiedSeatId có giá trị và = seatId; RELEASED <=> NULL', async () => {
+  const tickets = await prisma.ticket.findMany({ where: { order: { userId: { in: users.map((u) => u.id) } } } });
+  assert.ok(tickets.length > 10, 'cần có dữ liệu từ các test trước để bất biến có ý nghĩa');
+  const bad = tickets.filter((t) => (t.status !== 'RELEASED') !== (t.occupiedSeatId !== null) || (t.occupiedSeatId !== null && t.occupiedSeatId !== t.seatId));
+  assert.deepEqual(bad.map((t) => [t.seatLabel, t.status, t.occupiedSeatId]), []);
 });

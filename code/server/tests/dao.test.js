@@ -8,6 +8,7 @@ process.env.NODE_ENV = 'test';
 const { prisma } = await import('../src/config/prisma.js');
 const { runInTransaction, lockRoom } = await import('../src/dao/transaction.js');
 const userDao = await import('../src/dao/user.dao.js');
+const { createOrder } = await import('./helpers/orders.js');
 const tokenDao = await import('../src/dao/refreshToken.dao.js');
 const { findPriceRule } = await import('../src/dao/priceRule.dao.js');
 const { getAllSurcharges } = await import('../src/dao/seatTypeSurcharge.dao.js');
@@ -86,21 +87,23 @@ test('⭐ revokeIfValid: cập nhật có điều kiện trả count — 10 lầ
   assert.equal(await tokenDao.revokeIfValid({ tokenHash: hash('khong-co'), now: new Date() }), 0);
 });
 
-test('refreshToken DAO: findTokenWithUser kèm user; revokeToken / revokeAllOfUser chỉ đụng token còn hiệu lực của đúng user', async () => {
+test('refreshToken DAO: findToken (KHÔNG kèm user — user thuộc user.service); revokeToken / revokeAllOfUser chỉ đụng token còn hiệu lực của đúng user', async () => {
   const other = await userDao.insertUser({ email: email('other'), passwordHash: 'x', fullName: 'Người khác', phone: null });
   const future = new Date(Date.now() + 60_000);
   await tokenDao.insertRefreshToken({ userId: user.id, tokenHash: hash('a'), expiresAt: future });
   await tokenDao.insertRefreshToken({ userId: user.id, tokenHash: hash('b'), expiresAt: future });
   await tokenDao.insertRefreshToken({ userId: other.id, tokenHash: hash('c'), expiresAt: future });
 
-  assert.equal((await tokenDao.findTokenWithUser(hash('a'))).user.id, user.id);
-  assert.equal(await tokenDao.findTokenWithUser(hash('khong-co')), null);
+  const found = await tokenDao.findToken(hash('a'));
+  assert.equal(found.userId, user.id);
+  assert.equal('user' in found, false);
+  assert.equal(await tokenDao.findToken(hash('khong-co')), null);
   assert.equal(await tokenDao.revokeToken({ tokenHash: hash('a'), now: new Date() }), 1);
   assert.equal(await tokenDao.revokeToken({ tokenHash: hash('a'), now: new Date() }), 0); // đã thu hồi
   // Còn chưa thu hồi của user này: 'b' và 't2' (token hết hạn ở test trước, revokedAt vẫn null). 'a' và 't1' đã thu hồi rồi nên không tính.
   assert.equal(await tokenDao.revokeAllOfUser({ userId: user.id, now: new Date() }), 2);
   assert.equal(await tokenDao.revokeAllOfUser({ userId: user.id, now: new Date() }), 0); // gọi lại: không còn gì
-  assert.equal((await tokenDao.findTokenWithUser(hash('c'))).revokedAt, null); // token của người khác nguyên vẹn
+  assert.equal((await tokenDao.findToken(hash('c'))).revokedAt, null); // token của người khác nguyên vẹn
 });
 
 test('user / priceRule / surcharge DAO: đọc đúng, trả null khi không có', async () => {
@@ -122,7 +125,7 @@ test('user / priceRule / surcharge DAO: đọc đúng, trả null khi không có
 test('⭐ order.dao: checkInIfNotUsed trả count — 10 lần SONG SONG chỉ 1 lần thành công; đơn chưa PAID / đã dùng -> 0; findOrderByCode kèm trạng thái suất', async () => {
   const orderDao = await import('../src/dao/order.dao.js');
   const showtime = await prisma.showtime.findFirst({ where: { status: 'OPEN', room: { name: { startsWith: 'Phòng ' }, seats: { some: {} } } } });
-  const mk = (tag, status) => prisma.order.create({
+  const mk = (tag, status) => createOrder({
     data: { code: `D${RUN}${process.pid}${tag}`.slice(-10), userId: user.id, showtimeId: showtime.id, status, paidAt: status === 'PAID' ? new Date() : null, expiresAt: new Date(), seatTotal: 1, total: 1 },
   });
   const paid = await mk('p', 'PAID');
@@ -130,11 +133,11 @@ test('⭐ order.dao: checkInIfNotUsed trả count — 10 lần SONG SONG chỉ 1
   try {
     const found = await orderDao.findOrderByCode(paid.code);
     assert.equal(found.id, paid.id);
-    assert.equal(found.showtime.status, 'OPEN'); // trạng thái suất cần cho luật check-in
-    assert.ok(found.showtime.movie.title && Array.isArray(found.tickets));
+    assert.equal(found.tickets[0].showtime.status, 'OPEN'); // suất nằm ở vé; trạng thái suất cần cho luật check-in
+    assert.ok(found.tickets[0].showtime.movie.title && Array.isArray(found.tickets));
     assert.equal(await orderDao.findOrderByCode('KHONGCOMA'), null);
     assert.equal((await orderDao.getOrderById(paid.id)).code, paid.code);
-    assert.equal((await orderDao.getOrderDetail(paid.id)).showtime.room.cinema.name.length > 0, true);
+    assert.equal((await orderDao.getOrderDetail(paid.id)).tickets[0].showtime.room.cinema.name.length > 0, true);
 
     const now = new Date();
     const counts = await Promise.all(Array.from({ length: 10 }, () => orderDao.checkInIfNotUsed({ orderId: paid.id, staffId: user.id, now })));

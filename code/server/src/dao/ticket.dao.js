@@ -43,6 +43,9 @@ export const releaseHeldTicketsOfOrders = async (orderIds, db = prisma) =>
  * Viết bằng MỘT câu UPDATE … FROM có điều kiện `status = 'HELD'` trên chính dòng vé: nếu IPN vừa chuyển vé đó sang SOLD,
  * PostgreSQL kiểm lại điều kiện trên dòng mới và KHÔNG nhả nhầm vé đã bán. (Không dùng updateMany với điều kiện quan hệ
  * `order: {...}` vì Prisma có thể sinh câu lệnh con đọc lại bảng Ticket bằng ảnh chụp cũ.)
+ * ⚠ Múi giờ: cột `Order.expiresAt` là `timestamp` (không múi giờ, Prisma lưu giờ UTC). Truyền `Date` thẳng vào SQL thô thì Postgres coi nó là
+ * `timestamptz` rồi đổi theo múi giờ của PHIÊN, làm so sánh lệch vài giờ (vé HELD còn hạn bị nhả nhầm). Vì vậy truyền chuỗi ISO rồi ép `::timestamp`
+ * (ép chuỗi có 'Z' sang `timestamp` giữ nguyên giờ UTC), cho kết quả đúng với mọi múi giờ của máy chủ CSDL.
  * @param {{ showtimeId: string, seatIds: string[], now: Date, exceptOrderId?: string }} params
  * @returns {Promise<number>} số vé đã nhả
  */
@@ -54,7 +57,7 @@ export const releaseExpiredHeldTickets = ({ showtimeId, seatIds, now, exceptOrde
       AND t."showtimeId" = ${showtimeId}::uuid
       AND t."seatId" = ANY(${seatIds}::uuid[])
       AND t."status" = 'HELD'
-      AND o."expiresAt" <= ${now}
+      AND o."expiresAt" <= ${now.toISOString()}::timestamp
       AND (${exceptOrderId}::uuid IS NULL OR t."orderId" <> ${exceptOrderId}::uuid)`;
 
 /** Vé của một đơn (để bán khi IPN). @returns {Promise<Array<{ id: string, showtimeId: string, seatId: string, status: string }>>} */

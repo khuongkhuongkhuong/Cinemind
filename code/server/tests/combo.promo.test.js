@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 process.env.NODE_ENV = 'test';
 const { prisma } = await import('../src/config/prisma.js');
 const { env } = await import('../src/config/env.js');
-const { holdSeats, setCombos, applyPromotion, removePromotion, cancelOrder } = await import('../src/services/booking.service.js');
+const { holdSeats, setCombos, applyPromotion, removePromotion, cancelOrder } = await import('../src/services/order.service.js');
 const { calcDiscount } = await import('../src/services/promotion.service.js');
 const { createPayment, confirmPayment } = await import('../src/services/payment.service.js');
 const { sign } = await import('../src/lib/vnpay.js');
@@ -70,7 +70,7 @@ before(async () => {
 after(async () => {
   const userIds = users.map((u) => u.id);
   await prisma.payment.deleteMany({ where: { order: { userId: { in: userIds } } } });
-  await prisma.order.deleteMany({ where: { userId: { in: userIds } } }); // OrderCombo, SeatLock cascade
+  await prisma.order.deleteMany({ where: { userId: { in: userIds } } }); // OrderCombo, Ticket cascade
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   await prisma.promotion.deleteMany({ where: { id: { in: Object.values(promos).map((p) => p.id) } } });
   await prisma.combo.deleteMany({ where: { id: { in: [comboA.id, comboB.id] } } });
@@ -219,7 +219,8 @@ test('⭐ khách đổi combo SAU khi tạo link thanh toán rồi trả theo li
   assert.equal((await confirmPayment({ query: ipn(payment) })).RspCode, '00'); // vẫn báo 00 để VNPay ngừng gọi lại
   const o = await row(ctx.orderId);
   assert.equal(o.status, 'REFUND_PENDING');
-  assert.equal(await prisma.seatLock.count({ where: { orderId: ctx.orderId } }), 0);
+  assert.equal(await prisma.ticket.count({ where: { orderId: ctx.orderId, occupiedSeatId: { not: null } } }), 0); // vé đã nhả: không còn chiếm ghế
+  assert.ok((await prisma.ticket.findMany({ where: { orderId: ctx.orderId } })).every((t) => t.status === 'RELEASED')); // nhưng vẫn còn làm lịch sử
   assert.equal((await prisma.payment.findUnique({ where: { id: payment.id } })).status, 'SUCCESS'); // khoản thu được ghi nhận
 });
 

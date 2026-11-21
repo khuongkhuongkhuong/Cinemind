@@ -41,7 +41,7 @@ export async function getSurcharges() {
  * - STANDARD / VIP (BR-11): giá = giá gốc + phụ thu.
  * - COUPLE (BR-13): giá cả cặp = giá gốc × 2 + phụ thu đôi; mỗi ghế trong đơn lưu MỘT NỬA giá cặp
  *   (để tổng các ghế luôn bằng đúng giá cặp). Ghế lẻ trong cặp nhận phần dư (không làm tròn mất tiền).
- * Điều kiện: ghế đôi phải đủ cặp (BR-05) — kiểm tra ở booking.service trước khi gọi hàm này.
+ * Điều kiện: ghế đôi phải đủ cặp (BR-05) — kiểm tra ở seat.service (getSeatsForBooking) trước khi gọi hàm này.
  *
  * @param {{
  *   basePrice: number,
@@ -63,4 +63,13 @@ export function calcSeatPrices({ basePrice, surcharges, seats }) {
     return { id: seat.id, price: seen === 1 ? half : pairPrice - half, pairPrice };
   });
   return { seats: priced, total: priced.reduce((sum, s) => sum + s.price, 0) };
+}
+
+/**
+ * Giá từng ghế của một suất: lấy bảng phụ thu rồi tính (BR-11, BR-13). Gộp `getSurcharges` + `calcSeatPrices` cho các service khác.
+ * @param {{ basePrice: number, seats: Array<{ id: string, type: 'STANDARD' | 'VIP' | 'COUPLE', pairCode?: string | null }> }} params
+ * @returns {Promise<{ seats: Array<{ id: string, price: number, pairPrice?: number }>, total: number }>}
+ */
+export async function priceSeats({ basePrice, seats }) {
+  return calcSeatPrices({ basePrice, surcharges: await getSurcharges(), seats });
 }

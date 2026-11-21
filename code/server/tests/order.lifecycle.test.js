@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 
 process.env.NODE_ENV = 'test';
 const { prisma } = await import('../src/config/prisma.js');
-const { holdSeats, cancelOrder, expirePendingOrders } = await import('../src/services/booking.service.js');
+const { holdSeats, cancelOrder, expirePendingOrders } = await import('../src/services/order.service.js');
 const { default: app } = await import('../src/app.js');
 const { signAccessToken } = await import('../src/lib/jwt.js');
 
@@ -19,7 +19,8 @@ const seat = (label) => seats.find((s) => `${s.row}${s.number}` === label);
 const hold = (user, ...labels) =>
   holdSeats({ userId: user.id, showtimeId: showtime.id, seatIds: labels.map((l) => seat(l).id) });
 const failCode = (promise) => promise.then(() => null, (e) => e.code);
-const lockCount = (orderId) => prisma.seatLock.count({ where: { orderId } });
+// Số vé ĐANG CHIẾM ghế của đơn (HELD/SOLD). Vé đã nhả (RELEASED) vẫn còn làm lịch sử nhưng không chiếm ghế.
+const lockCount = (orderId) => prisma.ticket.count({ where: { orderId, occupiedSeatId: { not: null } } });
 const statusOf = async (orderId) => (await prisma.order.findUnique({ where: { id: orderId } })).status;
 const makeUsers = async (n) => {
   const created = [];
@@ -32,11 +33,8 @@ const makeUsers = async (n) => {
   return created;
 };
 // Đưa một đơn về trạng thái "đã quá hạn" mà không phải chờ 10 phút thật.
-const makeExpired = (orderId) =>
-  prisma.$transaction([
-    prisma.order.update({ where: { id: orderId }, data: { expiresAt: new Date(Date.now() - minute) } }),
-    prisma.seatLock.updateMany({ where: { orderId }, data: { expiresAt: new Date(Date.now() - minute) } }),
-  ]);
+// Hạn giữ ghế nằm ở ĐƠN (docs/03 v1.3): chỉ cần lùi `Order.expiresAt`, vé HELD của đơn tự coi như trống.
+const makeExpired = (orderId) => prisma.order.update({ where: { id: orderId }, data: { expiresAt: new Date(Date.now() - minute) } });
 
 before(async () => {
   // Suất XA thứ hai (skip 1) để không đụng test booking dùng suất xa nhất, chạy song song.
@@ -77,7 +75,7 @@ test('hủy lần hai và hủy đơn đã thanh toán -> ORDER_NOT_PENDING (BR-
 
   const paid = await hold(u, 'C3');
   await prisma.order.update({ where: { id: paid.id }, data: { status: 'PAID', paidAt: new Date() } });
-  await prisma.seatLock.updateMany({ where: { orderId: paid.id }, data: { status: 'SOLD', expiresAt: null } });
+  await prisma.ticket.updateMany({ where: { orderId: paid.id }, data: { status: 'SOLD' } }); // occupiedSeatId vẫn = seatId
   assert.equal(await failCode(cancelOrder({ userId: u.id, orderId: paid.id })), 'ORDER_NOT_PENDING');
   assert.equal(await lockCount(paid.id), 1);
 });
@@ -117,7 +115,7 @@ test('expirePendingOrders: đơn quá hạn -> EXPIRED + nhả ghế; đơn còn
   const fresh = await hold(b, 'A6');
   const paid = await hold(c, 'A7');
   await prisma.order.update({ where: { id: paid.id }, data: { status: 'PAID', paidAt: new Date() } });
-  await prisma.seatLock.updateMany({ where: { orderId: paid.id }, data: { status: 'SOLD', expiresAt: null } });
+  await prisma.ticket.updateMany({ where: { orderId: paid.id }, data: { status: 'SOLD' } }); // occupiedSeatId vẫn = seatId
   await makeExpired(stale.id);
   await prisma.order.update({ where: { id: paid.id }, data: { expiresAt: new Date(Date.now() - minute) } }); // PAID nhưng "quá hạn"
 

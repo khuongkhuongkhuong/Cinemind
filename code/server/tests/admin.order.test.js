@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 process.env.NODE_ENV = 'test';
 const { prisma } = await import('../src/config/prisma.js');
 const svc = await import('../src/services/adminOrder.service.js');
-const { lookupTicket } = await import('../src/services/ticket.service.js');
+const { lookupForCheckIn } = await import('../src/services/order.service.js');
+const { createOrder } = await import('./helpers/orders.js');
 const { default: app } = await import('../src/app.js');
 const { signAccessToken } = await import('../src/lib/jwt.js');
 const { createRoleUsers } = await import('./helpers/role-users.js');
@@ -19,7 +20,7 @@ const orders = {};
 let n = 0;
 
 const failCode = (p) => p.then(() => null, (e) => e.code);
-const makeOrder = (user, data = {}) => prisma.order.create({
+const makeOrder = (user, data = {}) => createOrder({
   data: {
     code: `R${RUN}${process.pid}${n++}`.slice(-10).toUpperCase(), userId: user.id, showtimeId: showtime.id,
     expiresAt: new Date(Date.now() + 10 * minute), seatTotal: 100_000, total: 100_000, ...data,
@@ -32,10 +33,9 @@ before(async () => {
   roles = await createRoleUsers(prisma, `ord${RUN}`);
   bob = await prisma.user.create({ data: { email: `test-aord-${RUN}-bob@example.com`, passwordHash: 'x', fullName: `Bob Tran ${RUN}` } });
   orders.refund = await makeOrder(alice, { status: 'REFUND_PENDING', paidAt: new Date() });
-  orders.paid = await makeOrder(alice, { status: 'PAID', paidAt: new Date() });
+  orders.paid = await makeOrder(alice, { status: 'PAID', paidAt: new Date(), seatLabel: 'Z9' });
   orders.pending = await makeOrder(bob, { status: 'PENDING' });
   orders.old = await makeOrder(bob, { status: 'CANCELLED', createdAt: new Date(Date.now() - 30 * 86_400_000) });
-  await prisma.ticket.create({ data: { orderId: orders.paid.id, seatId: (await prisma.seat.findFirst({ where: { roomId: showtime.roomId } })).id, seatLabel: 'Z9', seatType: 'STANDARD', price: 100_000 } });
   await prisma.payment.create({ data: { orderId: orders.refund.id, txnRef: `${orders.refund.code}-1`, amount: 100_000, status: 'SUCCESS', bankCode: 'NCB', providerTxnNo: '999', responseCode: '00', paidAt: new Date() } });
 });
 
@@ -103,7 +103,7 @@ test('⭐ 5 admin bấm hoàn tiền CÙNG MỘT đơn cùng lúc: đúng 1 ngư
 });
 
 test('đơn đã hoàn tiền (hoặc chờ hoàn) không check-in được', async () => {
-  const t = await lookupTicket({ code: orders.refund.code });
+  const t = await lookupForCheckIn({ code: orders.refund.code });
   assert.deepEqual([t.canCheckIn, t.reason], [false, 'NOT_PAID']);
 });
 

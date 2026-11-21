@@ -1,4 +1,5 @@
 import { prisma } from '../config/prisma.js';
+import { incrementUsedCount } from '../dao/promotion.dao.js';
 import { AppError } from '../utils/AppError.js';
 
 const promoError = (reason) => new AppError('PROMO_INVALID', { details: { reason } });
@@ -50,3 +51,11 @@ export async function assertPromotionUsable({ promotion, userId, subtotal, order
 /** Tìm mã theo chuỗi người dùng nhập (không phân biệt hoa/thường, bỏ khoảng trắng). */
 export const findPromotionByCode = ({ code, db = prisma }) =>
   db.promotion.findUnique({ where: { code: code.trim().toUpperCase() } });
+
+/**
+ * Ghi nhận một lượt dùng mã khi đơn thanh toán thành công (BR-24): tăng `usedCount`. Gọi trong transaction của order (truyền `tx`).
+ * @param {string} promotionId
+ * @param {object} [db]
+ * @returns {Promise<object>} Promotion sau khi cập nhật
+ */
+export const recordUsage = (promotionId, db) => incrementUsedCount(promotionId, db);
