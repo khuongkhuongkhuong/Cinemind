@@ -7,6 +7,7 @@ const { prisma } = await import('../src/config/prisma.js');
 const showtimeSvc = await import('../src/services/showtime.service.js');
 const { default: app } = await import('../src/app.js');
 const { createRoleUsers } = await import('./helpers/role-users.js');
+const { createOrder } = await import('./helpers/orders.js');
 
 const minute = 60_000;
 const DAY = 24 * 60 * minute;
@@ -37,8 +38,9 @@ after(async () => {
   server.close();
   const showtimes = await prisma.showtime.findMany({ where: { room: { cinemaId: { in: cinemaIds } } }, select: { id: true } });
   const ids = showtimes.map((s) => s.id);
-  await prisma.order.deleteMany({ where: { showtimeId: { in: ids } } });
+  await prisma.order.deleteMany({ where: { tickets: { some: { showtimeId: { in: ids } } } } });
   await prisma.showtime.deleteMany({ where: { id: { in: ids } } });
+  await prisma.seat.deleteMany({ where: { room: { cinemaId: { in: cinemaIds } } } });
   await prisma.room.deleteMany({ where: { cinemaId: { in: cinemaIds } } });
   await prisma.cinema.deleteMany({ where: { id: { in: cinemaIds } } });
   await prisma.user.delete({ where: { id: customer.id } });
@@ -88,7 +90,7 @@ test('⭐ tắt rạp còn suất sắp chiếu đã có người mua -> 409 RES
   const movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING', description: { not: 'Mô tả thử' } } });
   const T0 = new Date(Math.ceil((Date.now() + 70 * DAY) / (60 * minute)) * 60 * minute);
   const st = await showtimeSvc.createShowtime({ movieId: movie.id, roomId: room.id, startTime: T0, format: 'F2D', audio: 'SUBTITLE' });
-  const order = await prisma.order.create({
+  const order = await createOrder({
     data: { code: `C${RUN}${process.pid}`.slice(-10), userId: customer.id, showtimeId: st.id, status: 'PAID', paidAt: new Date(), expiresAt: new Date(Date.now() + 10 * minute), seatTotal: 0, total: 0 },
   });
 
@@ -98,6 +100,7 @@ test('⭐ tắt rạp còn suất sắp chiếu đã có người mua -> 409 RES
   assert.equal((await prisma.cinema.findUnique({ where: { id: cinema.id } })).isActive, true);
 
   await prisma.order.update({ where: { id: order.id }, data: { status: 'PENDING', paidAt: null, expiresAt: new Date(Date.now() - minute) } });
+  await prisma.ticket.updateMany({ where: { orderId: order.id }, data: { status: 'HELD' } }); // vé đi theo đơn: HELD của đơn đã quá hạn = ghế trống
   const ok = await call('PUT', `/admin/cinemas/${cinema.id}`, { body: { isActive: false } });
   assert.equal(ok.status, 200);
   assert.equal((await ok.json()).data.isActive, false);
@@ -151,7 +154,7 @@ test('tắt rạp: suất ĐÃ HỦY hoặc ĐÃ CHIẾU xong (dù có đơn đ�
   const mkShowtime = (start, status) => prisma.showtime.create({
     data: { movieId: movie.id, roomId: room.id, startTime: start, endTime: new Date(start.getTime() + 2 * 60 * minute), format: 'F2D', audio: 'SUBTITLE', basePrice: 90000, status },
   });
-  const paid = (showtimeId, n) => prisma.order.create({
+  const paid = (showtimeId, n) => createOrder({
     data: { code: `D${RUN}${process.pid}${n}`.slice(-10), userId: customer.id, showtimeId, status: 'PAID', paidAt: new Date(), expiresAt: new Date(), seatTotal: 0, total: 0 },
   });
   const cancelled = await mkShowtime(new Date(Date.now() + 90 * DAY), 'CANCELLED');

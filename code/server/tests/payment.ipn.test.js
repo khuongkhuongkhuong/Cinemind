@@ -7,7 +7,7 @@ process.env.NODE_ENV = 'development'; // để route /dev/.../simulate được 
 process.env.ENABLE_DEV_ROUTES = 'true'; // cổng giả lập phải được bật CÓ CHỦ ĐÍCH (config/env.js)
 const { prisma } = await import('../src/config/prisma.js');
 const { env } = await import('../src/config/env.js');
-const { holdSeats, expirePendingOrders } = await import('../src/services/booking.service.js');
+const { holdSeats, expirePendingOrders } = await import('../src/services/order.service.js');
 const { createPayment, confirmPayment, getPaymentStatus } = await import('../src/services/payment.service.js');
 const { sign, verifySignature } = await import('../src/lib/vnpay.js');
 const { default: app } = await import('../src/app.js');
@@ -52,11 +52,12 @@ async function setup(...labels) {
   return { user, order, payment };
 }
 const orderRow = (id) => prisma.order.findUnique({ where: { id } });
-const locksOf = (orderId) => prisma.seatLock.findMany({ where: { orderId } });
+// Vé ĐANG CHIẾM ghế của đơn (HELD/SOLD, occupiedSeatId khác NULL); ticketsOf: mọi vé, kể cả đã nhả (RELEASED).
+const locksOf = (orderId) => prisma.ticket.findMany({ where: { orderId, occupiedSeatId: { not: null } } });
+const ticketsOf = (orderId) => prisma.ticket.findMany({ where: { orderId }, orderBy: { seatLabel: 'asc' } });
 // Đưa đơn về "đã hết hạn, và cron đã dọn" mà không phải chờ 10 phút thật.
 async function expireAndSweep(orderId) {
   await prisma.order.update({ where: { id: orderId }, data: { expiresAt: new Date(Date.now() - minute) } });
-  await prisma.seatLock.updateMany({ where: { orderId }, data: { expiresAt: new Date(Date.now() - minute) } });
   await expirePendingOrders();
 }
 
@@ -109,7 +110,7 @@ test('⭐ IPN thành công: đơn PAID, ghế SOLD không hết hạn, giao dị
   assert.ok(paid.paidAt);
   const locks = await locksOf(order.id);
   assert.equal(locks.length, 2);
-  assert.ok(locks.every((l) => l.status === 'SOLD' && l.expiresAt === null));
+  assert.ok(locks.every((l) => l.status === 'SOLD' && l.occupiedSeatId === l.seatId));
   const p = await prisma.payment.findUnique({ where: { id: payment.id } });
   assert.equal(p.status, 'SUCCESS');
   assert.equal(p.providerTxnNo, '14000001');
@@ -158,12 +159,26 @@ test('⭐ IPN đến MUỘN nhưng ghế còn trống: đơn hết hạn vẫn �
   await expireAndSweep(order.id);
   assert.equal((await orderRow(order.id)).status, 'EXPIRED');
   assert.equal((await locksOf(order.id)).length, 0); // cron đã nhả ghế
+  assert.ok((await ticketsOf(order.id)).every((t) => t.status === 'RELEASED')); // vé còn làm lịch sử
 
   assert.equal(await rsp(ipn(payment)), '00');
   assert.equal((await orderRow(order.id)).status, 'PAID');
   const locks = await locksOf(order.id);
   assert.equal(locks.length, 2);
   assert.ok(locks.every((l) => l.status === 'SOLD'));
+});
+
+test('⭐ IPN đến MUỘN và ghế đang bị giữ bởi đơn của người khác ĐÃ QUÁ HẠN (chưa ai dọn): IPN nhả vé quá hạn đó rồi bán ghế cho đơn của mình -> PAID', async () => {
+  const { order, payment } = await setup('G3');
+  await expireAndSweep(order.id); // vé của đơn mình đã RELEASED
+  const rival = await makeUser();
+  const rivalOrder = await hold(rival, 'G3'); // người khác giữ G3 (còn hạn)
+  await prisma.order.update({ where: { id: rivalOrder.id }, data: { expiresAt: new Date(Date.now() - minute) } }); // rồi quá hạn, chưa ai dọn
+
+  assert.equal(await rsp(ipn(payment)), '00');
+  assert.equal((await orderRow(order.id)).status, 'PAID');
+  assert.deepEqual((await locksOf(order.id)).map((t) => t.status), ['SOLD']);
+  assert.deepEqual((await ticketsOf(rivalOrder.id)).map((t) => [t.status, t.occupiedSeatId]), [['RELEASED', null]]); // vé quá hạn của người kia được nhả
 });
 
 test('⭐ IPN đến MUỘN và ghế ĐÃ BỊ NGƯỜI KHÁC LẤY: đơn -> REFUND_PENDING, giao dịch SUCCESS, không bán trùng (BR-31)', async () => {
@@ -177,7 +192,9 @@ test('⭐ IPN đến MUỘN và ghế ĐÃ BỊ NGƯỜI KHÁC LẤY: đơn -> R
   assert.equal((await prisma.payment.findUnique({ where: { id: payment.id } })).status, 'SUCCESS');
   // ghế của đối thủ nguyên vẹn; đơn đến muộn KHÔNG chiếm ghế nào (rollback sạch)
   assert.equal((await locksOf(rivalOrder.id)).length, 1);
+  assert.equal((await locksOf(rivalOrder.id))[0].status, 'HELD'); // vé người kia không đổi
   assert.equal((await locksOf(order.id)).length, 0);
+  assert.ok((await ticketsOf(order.id)).every((t) => t.status === 'RELEASED' && t.occupiedSeatId === null)); // vé của đơn muộn vẫn RELEASED
   assert.equal(await rsp(ipn(payment)), '02');
 });
 

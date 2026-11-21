@@ -16,9 +16,6 @@ export const ADMIN_SELECT = {
 /** @returns {Promise<object|null>} suất kèm phim + phòng + rạp */
 export const getShowtimeDetail = (showtimeId, db = prisma) => db.showtime.findUnique({ where: { id: showtimeId }, include: SHOWTIME_INCLUDE });
 
-/** Chỉ giá gốc. @returns {Promise<{ basePrice: number }|null>} */
-export const getShowtimeBasePrice = (showtimeId, db = prisma) => db.showtime.findUnique({ where: { id: showtimeId }, select: { basePrice: true } });
-
 /** Suất kèm bản ghi phim (cho sửa suất). */
 export const getShowtimeWithMovie = (showtimeId, db = prisma) => db.showtime.findUnique({ where: { id: showtimeId }, include: { movie: true } });
 

@@ -37,7 +37,8 @@ export async function getRevenueReport({ from, to, groupBy }) {
     where: { status: 'PAID', paidAt: { gte: vnDayRange(from).from, lt: vnDayRange(to).to } },
     select: {
       total: true, paidAt: true, _count: { select: { tickets: true } },
-      showtime: { select: { movie: { select: { id: true, title: true } }, room: { select: { cinema: { select: { id: true, name: true } } } } } },
+      // Suất lấy từ vé đầu của đơn (mọi vé của một đơn cùng một suất).
+      tickets: { take: 1, select: { showtime: { select: { movie: { select: { id: true, title: true } }, room: { select: { cinema: { select: { id: true, name: true } } } } } } } },
     },
   });
 
@@ -51,8 +52,11 @@ export async function getRevenueReport({ from, to, groupBy }) {
   };
   for (const o of orders) {
     if (groupBy === 'day') add(vnDateKey(o.paidAt), vnDateKey(o.paidAt), o);
-    else if (groupBy === 'movie') add(o.showtime.movie.id, o.showtime.movie.title, o);
-    else add(o.showtime.room.cinema.id, o.showtime.room.cinema.name, o);
+    else {
+      const { showtime } = o.tickets[0];
+      if (groupBy === 'movie') add(showtime.movie.id, showtime.movie.title, o);
+      else add(showtime.room.cinema.id, showtime.room.cinema.name, o);
+    }
   }
 
   if (groupBy === 'day') {

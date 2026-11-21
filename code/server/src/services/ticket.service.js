@@ -1,80 +1,89 @@
-import { checkInIfNotUsed, findOrderByCode, getOrderById, getOrderDetail } from '../dao/order.dao.js';
-import { AppError } from '../utils/AppError.js';
-import { normalizeTicketCode } from '../lib/code.js';
-import { toOrderDto } from './booking.service.js';
+import {
+  countActiveSalesOfShowtime, findTakenTickets, insertTickets, listOccupiedTicketsOfShowtime, listTakenTicketShowtimeIds,
+  listTicketsOfOrder, markTicketSold, releaseExpiredHeldTickets, releaseHeldTicketsOfOrders,
+} from '../dao/ticket.dao.js';
 
-const WINDOW_MS = 30 * 60_000; // BR-34: từ 30 phút trước đến 30 phút sau giờ bắt đầu
-
-const findByCode = (code) => findOrderByCode(normalizeTicketCode(code));
-
-/**
- * Vé này có vào rạp được không, và nếu không thì vì sao? (hàm thuần — một chỗ duy nhất quyết định luật check-in)
- * Thứ tự kiểm tra: chưa trả tiền -> đã dùng -> suất bị hủy -> ngoài khung giờ.
- * @param {{ status: string, checkedInAt: Date|null, showtime: { startTime: Date, status: string } }} order
- * @param {Date} now
- * @returns {{ canCheckIn: true } | { canCheckIn: false, reason: 'NOT_PAID'|'ALREADY_USED'|'SHOWTIME_CANCELLED'|'TOO_EARLY'|'TOO_LATE' }}
- */
-export function evaluateCheckIn(order, now) {
-  if (order.status !== 'PAID') return { canCheckIn: false, reason: 'NOT_PAID' };
-  if (order.checkedInAt) return { canCheckIn: false, reason: 'ALREADY_USED' };
-  if (order.showtime.status !== 'OPEN') return { canCheckIn: false, reason: 'SHOWTIME_CANCELLED' };
-  const delta = now.getTime() - order.showtime.startTime.getTime(); // âm = chưa tới giờ chiếu
-  if (delta < -WINDOW_MS) return { canCheckIn: false, reason: 'TOO_EARLY' };
-  if (delta > WINDOW_MS) return { canCheckIn: false, reason: 'TOO_LATE' };
-  return { canCheckIn: true };
-}
+// Service phụ trách thực thể Ticket (docs/04 mục 5.2). Hàm nhận tham số cuối `db` được GỌI TRONG transaction của service khác:
+// truyền `tx` vào đó; không truyền thì DAO dùng kết nối mặc định (service không import Prisma).
 
 /**
- * Tra cứu vé bằng mã (UC13) để nhân viên xem trước khi cho vào.
- * @param {{ code: string, now?: Date }} params code nhận cả mã trần lẫn nội dung QR "CINEMIND:<mã>"
- * @returns {Promise<{ order: object, canCheckIn: boolean, reason?: string }>}
- * @throws {AppError} NOT_FOUND
+ * Trạng thái các ghế đang bị chiếm của một suất. Vé HELD của đơn đã quá hạn coi như ghế trống ("dọn lười").
+ * @param {{ showtimeId: string, now?: Date }} params
+ * @returns {Promise<Map<string, 'HELD'|'SOLD'>>} seatId -> trạng thái (ghế không có trong Map là trống)
  */
-export async function lookupTicket({ code, now = new Date() }) {
-  const order = await findByCode(code);
-  if (!order) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy vé.' });
-  return { order: toOrderDto(order), ...evaluateCheckIn(order, now) };
-}
-
-/**
- * Check-in vé (UC14): đánh dấu cả đơn đã vào rạp (BR-33: 1 QR cho cả đơn).
- * Mỗi vé chỉ dùng được MỘT lần, kể cả khi hai nhân viên quét cùng lúc: việc "đánh dấu đã dùng" là MỘT câu lệnh
- * cập nhật có điều kiện `checkedInAt IS NULL`, nên chỉ một người thắng — giống ý tưởng "để DB làm trọng tài".
- * @param {{ code: string, staffId: string, now?: Date }} params staffId lấy từ token
- * @returns {Promise<object>} `Order` có `checkedInAt`
- * @throws {AppError} NOT_FOUND | TICKET_NOT_PAID | TICKET_ALREADY_USED | CHECKIN_NOT_ALLOWED
- */
-export async function checkIn({ code, staffId, now = new Date() }) {
-  const order = await findByCode(code);
-  if (!order) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy vé.' });
-
-  const verdict = evaluateCheckIn(order, now);
-  if (!verdict.canCheckIn) throw ticketError(verdict.reason, order);
-
-  const count = await checkInIfNotUsed({ orderId: order.id, staffId, now });
-  if (count === 0) {
-    // Có người vừa quét trước ta: đọc lại để báo họ quét lúc nào.
-    throw ticketError('ALREADY_USED', await getOrderById(order.id));
+export async function getSeatStatuses({ showtimeId, now = new Date() }) {
+  const rows = await listOccupiedTicketsOfShowtime(showtimeId);
+  const map = new Map();
+  for (const t of rows) {
+    if (t.status === 'SOLD') map.set(t.seatId, 'SOLD');
+    else if (t.order.expiresAt > now) map.set(t.seatId, 'HELD'); // HELD quá hạn = trống
   }
-  return toOrderDto(await getOrderDetail(order.id));
+  return map;
 }
 
-function ticketError(reason, order) {
-  switch (reason) {
-    case 'NOT_PAID':
-      return new AppError('TICKET_NOT_PAID');
-    case 'ALREADY_USED':
-      return new AppError('TICKET_ALREADY_USED', {
-        message: `Vé đã được sử dụng lúc ${vnTime(order.checkedInAt)}.`,
-        details: { checkedInAt: order.checkedInAt },
-      });
-    default: // TOO_EARLY | TOO_LATE | SHOWTIME_CANCELLED
-      return new AppError('CHECKIN_NOT_ALLOWED', { details: { reason } });
-  }
+/**
+ * Số ghế đang bị chiếm (SOLD hoặc HELD còn hạn) của mỗi suất.
+ * @param {{ showtimeIds: string[], now?: Date }} params
+ * @returns {Promise<Map<string, number>>} showtimeId -> số ghế (suất không có ghế bị chiếm thì không có trong Map)
+ */
+export async function countTakenSeatsByShowtime({ showtimeIds, now = new Date() }) {
+  const counts = new Map();
+  for (const { showtimeId } of await listTakenTicketShowtimeIds({ showtimeIds, now })) counts.set(showtimeId, (counts.get(showtimeId) ?? 0) + 1);
+  return counts;
 }
 
-/** "HH:mm" theo giờ Việt Nam cho thông báo hiển thị cho nhân viên. */
-function vnTime(date) {
-  const d = new Date(date.getTime() + 7 * 3600_000);
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+/**
+ * ⭐ Giữ ghế cho đơn: dọn lười vé quá hạn trên các ghế này rồi chèn TẤT CẢ vé trong một câu lệnh (P2002 nếu trùng ghế).
+ * Gọi trong transaction của order.service (truyền `tx`).
+ * @param {{ orderId: string, showtimeId: string, seats: Array<{ seatId: string, seatLabel: string, seatType: string, price: number }>, now: Date }} params
+ * @param {object} [db]
+ * @returns {Promise<void>}
+ * @throws lỗi Prisma P2002 khi một ghế đã thuộc vé khác (service gọi dịch sang SEAT_UNAVAILABLE)
+ */
+export async function holdTickets({ orderId, showtimeId, seats, now }, db) {
+  const seatIds = seats.map((s) => s.seatId);
+  await releaseExpiredHeldTickets({ showtimeId, seatIds, now }, db);
+  await insertTickets(seats.map((s) => ({ orderId, showtimeId, ...s })), db);
+}
+
+/**
+ * Ghế (trong danh sách) đang bị người khác chiếm — để báo ghế nào vừa bị lấy.
+ * @param {{ showtimeId: string, seatIds: string[], now?: Date }} params
+ * @returns {Promise<Array<{ seatId: string, label: string }>>}
+ */
+export async function findTakenSeats({ showtimeId, seatIds, now = new Date() }) {
+  return (await findTakenTickets({ showtimeId, seatIds, now })).map((t) => ({ seatId: t.seatId, label: t.seatLabel }));
+}
+
+/**
+ * Nhả vé HELD của các đơn (hủy đơn, BR-03, hết hạn, lệch tiền). Vé vẫn còn làm lịch sử, chỉ chuyển sang RELEASED.
+ * @param {string[]} orderIds
+ * @param {object} [db]
+ * @returns {Promise<number>} số vé đã nhả
+ */
+export const releaseTicketsOfOrders = (orderIds, db) => releaseHeldTicketsOfOrders(orderIds, db);
+
+/**
+ * ⭐ Bán mọi vé của đơn (IPN). Ném P2002 nếu một ghế đã thuộc vé khác — người gọi ROLLBACK và chuyển đơn sang REFUND_PENDING.
+ * @param {{ orderId: string, now: Date }} params
+ * @param {object} [db]
+ * @returns {Promise<void>}
+ */
+export async function sellTicketsOfOrder({ orderId, now }, db) {
+  const tickets = await listTicketsOfOrder(orderId, db);
+  if (tickets.length === 0) return; // đơn không có vé (không xảy ra với đơn tạo qua holdSeats)
+  const { showtimeId } = tickets[0]; // mọi vé của một đơn cùng một suất
+  // Nhả vé HELD quá hạn của NGƯỜI KHÁC trên các ghế của đơn, để vé của đơn này chiếm lại được (IPN đến muộn).
+  await releaseExpiredHeldTickets({ showtimeId, seatIds: tickets.map((t) => t.seatId), now, exceptOrderId: orderId }, db);
+  for (const t of tickets) await markTicketSold({ ticketId: t.id, seatId: t.seatId }, db);
+}
+
+/**
+ * Suất đã có người mua / giữ chưa (không cho sửa / hủy suất)?
+ * @param {{ showtimeId: string, now?: Date }} params
+ * @param {object} [db]
+ * @returns {Promise<boolean>}
+ */
+export async function hasActiveSales({ showtimeId, now = new Date() }, db) {
+  return (await countActiveSalesOfShowtime({ showtimeId, now }, db)) > 0;
 }

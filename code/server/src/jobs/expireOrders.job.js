@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { expirePendingOrders } from '../services/booking.service.js';
+import { expirePendingOrders } from '../services/order.service.js';
 
 let running = false; // chống chạy chồng nếu một lượt còn chưa xong thì phút sau bỏ qua
 

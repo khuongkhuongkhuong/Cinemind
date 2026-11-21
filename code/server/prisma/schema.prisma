@@ -71,9 +71,10 @@ enum OrderStatus {
   REFUNDED
 }
 
-enum LockStatus {
-  HELD
-  SOLD
+enum TicketStatus {
+  HELD // đang giữ, còn hiệu lực khi Order.expiresAt > now (BR-01)
+  SOLD // đã bán (chỉ IPN được chuyển sang trạng thái này)
+  RELEASED // đã nhả: đơn hủy / hết hạn / hoàn tiền — vé vẫn giữ lại làm lịch sử
 }
 
 enum PaymentProvider {
@@ -245,7 +246,6 @@ model Seat {
   isActive Boolean  @default(true) // false = ghế hỏng
 
   room       Room        @relation(fields: [roomId], references: [id])
-  locks      SeatLock[]
   tickets Ticket[]
 
   @@unique([roomId, row, number])
@@ -267,8 +267,7 @@ model Showtime {
 
   movie  Movie      @relation(fields: [movieId], references: [id])
   room   Room       @relation(fields: [roomId], references: [id])
-  orders Order[]
-  locks  SeatLock[]
+  tickets Ticket[]
 
   @@index([movieId, startTime]) // lịch chiếu theo phim
   @@index([roomId, startTime]) // chặn trùng giờ trong phòng
@@ -337,7 +336,6 @@ model Order {
   id            String      @id @default(uuid()) @db.Uuid
   code          String      @unique // mã đặt vé / QR, chuỗi ngẫu nhiên (BR-32)
   userId        String      @db.Uuid
-  showtimeId    String      @db.Uuid
   status        OrderStatus @default(PENDING)
   source        OrderSource @default(WEB)
   expiresAt     DateTime // hạn giữ ghế (BR-01)
@@ -354,33 +352,38 @@ model Order {
 
   user        User       @relation("OrderUser", fields: [userId], references: [id])
   checkedInBy User?      @relation("OrderCheckedInBy", fields: [checkedInById], references: [id])
-  showtime    Showtime   @relation(fields: [showtimeId], references: [id])
   promotion   Promotion? @relation(fields: [promotionId], references: [id])
 
   tickets  Ticket[]
   combos   OrderCombo[]
-  locks    SeatLock[]
   payments Payment[]
 
   @@index([userId, createdAt]) // "Vé của tôi"
   @@index([status, expiresAt]) // tác vụ dọn đơn hết hạn
-  @@index([showtimeId])
   @@index([promotionId, userId]) // BR-22: mỗi tài khoản dùng mã 1 lần
 }
 
-// Dòng hóa đơn = "vé" của từng ghế. Lịch sử, KHÔNG xóa.
+// ⭐ Vé = một ghế trong một suất (lớp trung gian của quan hệ nhiều – nhiều Suất chiếu – Ghế), thuộc một đơn. KHÔNG xóa.
+// v1.3 (21/11/2026): thay cho bảng SeatLock cũ. Trạng thái ghế của suất: không có vé còn hiệu lực = trống;
+// HELD + đơn còn hạn = đang giữ; HELD + đơn quá hạn = coi như trống (dọn lười); SOLD = đã bán.
 model Ticket {
-  id        String   @id @default(uuid()) @db.Uuid
-  orderId   String   @db.Uuid
-  seatId    String   @db.Uuid
-  seatLabel String // "G7" — chốt
-  seatType  SeatType // chốt
-  price     Int // chốt (BR-14)
+  id             String       @id @default(uuid()) @db.Uuid
+  orderId        String       @db.Uuid
+  showtimeId     String       @db.Uuid
+  seatId         String       @db.Uuid
+  seatLabel      String // "G7" — chốt
+  seatType       SeatType // chốt
+  price          Int // chốt (BR-14)
+  status         TicketStatus @default(HELD)
+  occupiedSeatId String?      @db.Uuid // ⭐ = seatId khi HELD/SOLD; NULL khi RELEASED (chỉ DAO ghi cột này)
+  createdAt      DateTime     @default(now())
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  seat  Seat  @relation(fields: [seatId], references: [id])
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  showtime Showtime @relation(fields: [showtimeId], references: [id])
+  seat     Seat     @relation(fields: [seatId], references: [id])
 
   @@unique([orderId, seatId])
+  @@unique([showtimeId, occupiedSeatId]) // ⭐ TRỌNG TÀI chống trùng ghế: mỗi (suất, ghế) tối đa MỘT vé còn hiệu lực; NULL không chặn nhau
   @@index([seatId])
 }
 
@@ -395,25 +398,6 @@ model OrderCombo {
   combo Combo @relation(fields: [comboId], references: [id])
 
   @@unique([orderId, comboId])
-}
-
-// ⭐ Khóa ghế theo suất. Khóa chính kép (showtimeId, seatId) = UNIQUE chống trùng ghế.
-// Không có dòng = ghế trống. HELD quá hạn = coi như trống. SOLD = đã bán.
-model SeatLock {
-  showtimeId String     @db.Uuid
-  seatId     String     @db.Uuid
-  orderId    String     @db.Uuid
-  status     LockStatus @default(HELD)
-  expiresAt  DateTime? // null khi SOLD
-  createdAt  DateTime   @default(now())
-
-  showtime Showtime @relation(fields: [showtimeId], references: [id])
-  seat     Seat     @relation(fields: [seatId], references: [id])
-  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  @@id([showtimeId, seatId])
-  @@index([orderId])
-  @@index([status, expiresAt])
 }
 
 model Payment {

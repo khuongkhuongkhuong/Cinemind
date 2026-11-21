@@ -1,25 +1,23 @@
 import { runInTransaction, lockRoom } from '../dao/transaction.js';
 import {
-  countAdminShowtimes, findAdminShowtimes, findOverlapInRoom, getAdminShowtime, getShowtimeBasePrice, getShowtimeDetail,
+  countAdminShowtimes, findAdminShowtimes, findOverlapInRoom, getAdminShowtime, getShowtimeById, getShowtimeDetail,
   getShowtimeRoomAndStatus, getShowtimeWithMovie, insertShowtime, listOpenShowtimesOfCinema, listOpenShowtimesOfMovie,
   searchOpenShowtimes, updateShowtimeById,
 } from '../dao/showtime.dao.js';
-import { countActiveSeatsByRoom, getSeatsOfRoom } from '../dao/seat.dao.js';
-import { countTakenLocksByShowtime, getLocksOfShowtime } from '../dao/seatLock.dao.js';
-import { getMovieById, getMovieIdById } from '../dao/movie.dao.js';
-import { getRoomById } from '../dao/room.dao.js';
-import { findActiveCinemaSummary } from '../dao/cinema.dao.js';
-import { countActiveSalesOfShowtime } from '../dao/order.dao.js';
 import { AppError } from '../utils/AppError.js';
 import { VN_OFFSET_MS, toVnClock } from '../lib/time.js';
-import { calcSeatPrices, getBasePrice, getSurcharges } from './pricing.service.js';
+import { getBasePrice } from './pricing.service.js';
 import { buildMeta, toSkipTake } from '../utils/pagination.js';
-import { findCitiesByName } from './catalog.service.js';
+import { findCitiesByName, getActiveCinemaSummary } from './catalog.service.js';
+import * as movieService from './movie.service.js';
+import * as roomService from './room.service.js';
+import * as ticketService from './ticket.service.js';
+import * as seatService from './seat.service.js';
 
 const SALE_CUTOFF_MS = 15 * 60_000; // BR-04: ngừng bán online 15 phút trước giờ chiếu
 
 /**
- * Suất còn mở bán không? (BR-04) — hàm thuần, booking.service dùng lại khi giữ ghế.
+ * Suất còn mở bán không? (BR-04) — hàm thuần, order.service dùng lại khi giữ ghế.
  * @param {{ status: string, startTime: Date }} showtime
  * @param {Date} [now]
  */
@@ -34,7 +32,7 @@ export function vnDayRange(dateStr) {
 }
 
 /** Dòng Prisma -> ShowtimeDetail (04-api-contract mục 3.3). */
-const toDetail = (s, now) => ({
+export const toDetail = (s, now) => ({
   id: s.id,
   startTime: s.startTime,
   endTime: s.endTime,
@@ -53,8 +51,7 @@ const toDetail = (s, now) => ({
  * @throws {AppError} NOT_FOUND
  */
 export async function listShowtimesByMovie({ movieId, date, cityId }) {
-  const movie = await getMovieIdById(movieId);
-  if (!movie) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phim.' });
+  if (!(await movieService.movieExists(movieId))) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phim.' });
 
   const { from, to } = vnDayRange(date);
   const now = new Date();
@@ -82,58 +79,31 @@ export async function listShowtimesByMovie({ movieId, date, cityId }) {
  * @throws {AppError} NOT_FOUND
  */
 export async function getShowtime({ showtimeId }) {
-  const s = await getShowtimeDetail(showtimeId);
-  if (!s) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy suất chiếu.' });
-  return toDetail(s, new Date());
+  return toDetail(await loadShowtime({ showtimeId, withDetail: true }), new Date());
 }
 
 /**
- * Sơ đồ ghế của một suất, kèm trạng thái và giá từng ghế. ⭐
- * Trạng thái suy ra từ SeatLock: SOLD -> SOLD; HELD còn hạn -> HELD; HELD đã quá hạn -> AVAILABLE
- * ("dọn lười": không cần chờ cron dọn mới coi là trống).
- * @param {{ showtimeId: string }} params
+ * Nạp một suất chiếu từ CSDL; dùng chung cho các service khác (seat, order) để cùng một thông báo NOT_FOUND.
+ * @param {{ showtimeId: string, withDetail?: boolean }} params `withDetail`: kèm phim / phòng / rạp (cho `toDetail`)
+ * @returns {Promise<object>} dòng Showtime (kèm quan hệ nếu `withDetail`)
  * @throws {AppError} NOT_FOUND
  */
-export async function getSeatMap({ showtimeId }) {
-  const showtime = await getShowtimeDetail(showtimeId);
-  if (!showtime) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy suất chiếu.' });
+export async function loadShowtime({ showtimeId, withDetail = false }) {
+  const row = await (withDetail ? getShowtimeDetail(showtimeId) : getShowtimeById(showtimeId));
+  if (!row) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy suất chiếu.' });
+  return row;
+}
 
-  const now = new Date();
-  const [seats, locks, surcharges] = await Promise.all([
-    getSeatsOfRoom(showtime.roomId),
-    getLocksOfShowtime(showtimeId),
-    getSurcharges(),
-  ]);
-
-  const lockBySeat = new Map(locks.map((l) => [l.seatId, l]));
-  const { seats: priced } = calcSeatPrices({ basePrice: showtime.basePrice, surcharges, seats });
-  const priceBySeat = new Map(priced.map((p) => [p.id, p]));
-
-  const statusOf = (seat) => {
-    if (!seat.isActive) return 'UNAVAILABLE';
-    const lock = lockBySeat.get(seat.id);
-    if (!lock) return 'AVAILABLE';
-    if (lock.status === 'SOLD') return 'SOLD';
-    return lock.expiresAt && lock.expiresAt > now ? 'HELD' : 'AVAILABLE';
-  };
-
-  return {
-    showtime: toDetail(showtime, now),
-    rows: [...new Set(seats.map((s) => s.row))],
-    seats: seats.map((s) => {
-      const p = priceBySeat.get(s.id);
-      return {
-        id: s.id,
-        row: s.row,
-        number: s.number,
-        label: `${s.row}${s.number}`,
-        type: s.type,
-        pairCode: s.pairCode,
-        status: statusOf(s),
-        price: p.pairPrice ?? p.price, // ghế đôi: hiển thị giá cả cặp (hợp đồng mục 3.3)
-      };
-    }),
-  };
+/**
+ * Suất chiếu CÒN MỞ BÁN (BR-04) — order.service gọi khi giữ ghế.
+ * @param {{ showtimeId: string, now?: Date }} params
+ * @returns {Promise<object>} dòng Showtime
+ * @throws {AppError} NOT_FOUND | SHOWTIME_CLOSED
+ */
+export async function getOpenShowtime({ showtimeId, now = new Date() }) {
+  const showtime = await loadShowtime({ showtimeId });
+  if (!isOpenForSale(showtime, now)) throw new AppError('SHOWTIME_CLOSED');
+  return showtime;
 }
 
 // =============================================================================================
@@ -156,10 +126,8 @@ const computeEnd = (startTime, durationMin) => new Date(startTime.getTime() + du
  */
 const findConflict = (tx, { roomId, startTime, endTime, excludeId }) => findOverlapInRoom({ roomId, startTime, endTime, excludeId }, tx);
 
-/** Suất đã có người mua/giữ chưa? (đơn PAID, REFUND_PENDING, hoặc PENDING còn hạn). Có thì không được sửa/hủy. */
-async function hasSales(db, showtimeId) {
-  return (await countActiveSalesOfShowtime({ showtimeId, now: new Date() }, db)) > 0;
-}
+/** Suất đã có người mua/giữ chưa? (vé SOLD, HELD còn hạn, hoặc đơn REFUND_PENDING). Có thì không được sửa/hủy. */
+const hasSales = (db, showtimeId) => ticketService.hasActiveSales({ showtimeId }, db);
 
 /**
  * Chạy `work(tx)` trong transaction ĐÃ KHÓA theo phòng. Hai admin cùng tạo suất chồng lấn trong một phòng: "kiểm tra có
@@ -198,8 +166,8 @@ export async function listAdminShowtimes({ cinemaId, roomId, date, page, pageSiz
 export async function createShowtime({ movieId, roomId, startTime, format, audio, basePrice }) {
   if (startTime.getTime() <= Date.now()) throw fieldError('startTime', 'Giờ chiếu phải ở tương lai.');
   const [movie, room] = await Promise.all([
-    getMovieById(movieId),
-    getRoomById(roomId),
+    movieService.getMovieById(movieId),
+    roomService.getRoomById(roomId),
   ]);
   if (!movie) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phim.' });
   if (!room || !room.isActive) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phòng chiếu.' });
@@ -234,10 +202,10 @@ export async function updateShowtime({ showtimeId, ...changes }) {
     audio: changes.audio ?? current.audio,
   };
   if (changes.startTime && next.startTime.getTime() <= Date.now()) throw fieldError('startTime', 'Giờ chiếu phải ở tương lai.');
-  const movie = next.movieId === current.movieId ? current.movie : await getMovieById(next.movieId);
+  const movie = next.movieId === current.movieId ? current.movie : await movieService.getMovieById(next.movieId);
   if (!movie) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phim.' });
   if (next.roomId !== current.roomId) {
-    const room = await getRoomById(next.roomId);
+    const room = await roomService.getRoomById(next.roomId);
     if (!room || !room.isActive) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phòng chiếu.' });
   }
   const endTime = computeEnd(next.startTime, movie.durationMin);
@@ -283,7 +251,7 @@ export async function cancelShowtime({ showtimeId }) {
  * @throws {AppError} NOT_FOUND
  */
 export async function listShowtimesByCinema({ cinemaId, date }) {
-  const cinema = await findActiveCinemaSummary(cinemaId);
+  const cinema = await getActiveCinemaSummary(cinemaId);
   if (!cinema) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy rạp.' });
 
   const { from, to } = vnDayRange(date);
@@ -306,7 +274,7 @@ export async function listShowtimesByCinema({ cinemaId, date }) {
 }
 
 // =============================================================================================
-// DÀNH CHO TRỢ LÝ AI (docs/07 mục 2, 10): tìm suất chiếu dạng danh sách phẳng + gợi ý ghế liền nhau.
+// DÀNH CHO TRỢ LÝ AI (docs/07 mục 2, 10): tìm suất chiếu dạng danh sách phẳng. (Gợi ý ghế / xem trước giữ ghế nay ở seat.service.)
 // =============================================================================================
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -346,12 +314,10 @@ export async function findShowtimes({ date, movieId, cinemaId, cityId, cityName,
   if (open.length === 0) return [];
 
   // Số ghế còn trống = ghế dùng được của phòng − ghế đã bán hoặc đang được giữ còn hạn (giữ quá hạn coi như trống: dọn lười).
-  const [seatCounts, lockCounts] = await Promise.all([
-    countActiveSeatsByRoom([...new Set(open.map((s) => s.roomId))]),
-    countTakenLocksByShowtime({ showtimeIds: open.map((s) => s.id), now }),
+  const [seatsOfRoom, takenOf] = await Promise.all([
+    seatService.countActiveSeatsByRoom([...new Set(open.map((s) => s.roomId))]),
+    ticketService.countTakenSeatsByShowtime({ showtimeIds: open.map((s) => s.id), now }),
   ]);
-  const seatsOfRoom = new Map(seatCounts.map((c) => [c.roomId, c._count._all]));
-  const takenOf = new Map(lockCounts.map((c) => [c.showtimeId, c._count._all]));
 
   return open.map((s) => {
     const local = toVnClock(s.startTime).toISOString();
@@ -370,139 +336,4 @@ export async function findShowtimes({ date, movieId, cinemaId, cityId, cityName,
       availableSeatCount: Math.max(0, (seatsOfRoom.get(s.roomId) ?? 0) - (takenOf.get(s.id) ?? 0)),
     };
   });
-}
-
-/**
- * Gợi ý tối đa `limit` (mặc định 3) phương án ghế LIỀN NHAU, cùng hàng, cùng loại, đang trống.
- * - Ghế đôi (`seatType = 'COUPLE'`): `quantity` phải chẵn; các CẶP đứng liền nhau. Không chọn ghế đôi nếu không yêu cầu.
- * - `preference`: `CENTER` (giữa phòng, hơi lùi về sau — mặc định) · `BACK` (hàng sau) · `AISLE` (sát lối đi, đầu / cuối hàng).
- * - `totalPrice` do server tính bằng ĐÚNG hàm tính giá của đặt vé (BR-11, BR-13) nên khớp tổng tiền đơn sau khi giữ ghế.
- * Chỉ là GỢI Ý: ghế vẫn có thể bị người khác lấy trước khi giữ; `holdSeats` mới là trọng tài.
- * @param {{ showtimeId: string, quantity: number, preference?: 'CENTER'|'BACK'|'AISLE', seatType?: 'STANDARD'|'VIP'|'COUPLE', limit?: number }} params
- * @returns {Promise<Array<{ seatIds: string[], labels: string[], row: string, seatType: string, totalPrice: number }>>} [] nếu không có phương án nào
- * @throws {AppError} NOT_FOUND | SHOWTIME_CLOSED | SEAT_LIMIT_EXCEEDED | VALIDATION_ERROR
- */
-export async function suggestSeats({ showtimeId, quantity, preference = 'CENTER', seatType, limit = 3 }) {
-  if (!Number.isInteger(quantity) || quantity < 1) throw fieldError('quantity', 'Số ghế phải là số nguyên từ 1.');
-  if (quantity > 8) throw new AppError('SEAT_LIMIT_EXCEEDED'); // BR-02
-  if (!['CENTER', 'BACK', 'AISLE'].includes(preference)) throw fieldError('preference', 'preference phải là CENTER, BACK hoặc AISLE.');
-  if (seatType && !['STANDARD', 'VIP', 'COUPLE'].includes(seatType)) throw fieldError('seatType', 'Loại ghế không hợp lệ.');
-  const wantCouple = seatType === 'COUPLE';
-  if (wantCouple && quantity % 2 !== 0) throw fieldError('quantity', 'Ghế đôi phải chọn theo cặp (số ghế chẵn).'); // BR-05
-
-  const map = await getSeatMap({ showtimeId });
-  if (!map.showtime.isOpenForSale) throw new AppError('SHOWTIME_CLOSED'); // BR-04
-
-  // Mỗi "đơn vị" là một ghế lẻ, hoặc một CẶP ghế đôi (hai ghế cùng pairCode liền nhau, đều trống).
-  const rowsOf = new Map();
-  for (const s of map.seats) {
-    if (s.status !== 'AVAILABLE') continue;
-    if (wantCouple ? s.type !== 'COUPLE' : s.type === 'COUPLE' || (seatType && s.type !== seatType)) continue;
-    if (!rowsOf.has(s.row)) rowsOf.set(s.row, []);
-    rowsOf.get(s.row).push(s);
-  }
-  const units = (seats) => {
-    const sorted = [...seats].sort((a, b) => a.number - b.number);
-    if (!wantCouple) return sorted.map((s) => ({ seats: [s], number: s.number, type: s.type }));
-    const pairs = [];
-    for (let i = 0; i < sorted.length - 1; i++) {
-      if (sorted[i].pairCode && sorted[i].pairCode === sorted[i + 1].pairCode && sorted[i + 1].number === sorted[i].number + 1) {
-        pairs.push({ seats: [sorted[i], sorted[i + 1]], number: sorted[i].number, type: 'COUPLE' });
-        i++;
-      }
-    }
-    return pairs;
-  };
-
-  const allRows = map.rows;
-  const maxNumber = Math.max(...map.seats.map((s) => s.number));
-  const need = wantCouple ? quantity / 2 : quantity;
-  const candidates = [];
-  for (const row of allRows) {
-    const list = units(rowsOf.get(row) ?? []);
-    for (let i = 0; i + need <= list.length; i++) {
-      const window = list.slice(i, i + need);
-      const contiguous = window.every((u, k) => k === 0 || u.number === window[k - 1].number + (wantCouple ? 2 : 1));
-      const sameType = window.every((u) => u.type === window[0].type);
-      if (!contiguous || !sameType) continue;
-      const seats = window.flatMap((u) => u.seats);
-      const first = seats[0].number; const last = seats[seats.length - 1].number;
-      const rowIndex = allRows.indexOf(row);
-      const colDist = Math.abs((first + last) / 2 - (maxNumber + 1) / 2);
-      const idealRow = 0.6 * (allRows.length - 1);
-      const score = preference === 'BACK' ? (allRows.length - 1 - rowIndex) * 3 + colDist
-        : preference === 'AISLE' ? (first === 1 || last === maxNumber ? 0 : 1 + Math.min(first - 1, maxNumber - last)) * 3 + Math.abs(rowIndex - idealRow)
-          : colDist + 1.5 * Math.abs(rowIndex - idealRow);
-      candidates.push({ row, seats, score });
-    }
-  }
-  candidates.sort((a, b) => a.score - b.score || a.row.localeCompare(b.row));
-
-  // Ưu tiên các hàng KHÁC NHAU để khách có lựa chọn thật sự; còn thiếu thì lấy thêm phương án cùng hàng.
-  const picked = [];
-  const usedRows = new Set();
-  const max = Math.min(Math.max(1, limit), 10); // trần 10 phương án để không tràn ngữ cảnh của LLM
-  for (const c of candidates) if (!usedRows.has(c.row) && picked.length < max) { picked.push(c); usedRows.add(c.row); }
-  for (const c of candidates) if (picked.length < max && !picked.includes(c)) picked.push(c);
-
-  const [{ basePrice }, surcharges] = await Promise.all([
-    getShowtimeBasePrice(showtimeId),
-    getSurcharges(),
-  ]);
-  return picked.map((c) => ({
-    seatIds: c.seats.map((s) => s.id),
-    labels: c.seats.map((s) => s.label),
-    row: c.row,
-    seatType: c.seats[0].type,
-    totalPrice: calcSeatPrices({ basePrice, surcharges, seats: c.seats.map((s) => ({ id: s.id, type: s.type, pairCode: s.pairCode })) }).total,
-  }));
-}
-
-/**
- * Xem trước một yêu cầu giữ ghế (KHÔNG ghi gì vào database): ghế nào, giá bao nhiêu, suất nào — đọc từ DB.
- * Trợ lý AI dùng để dựng phần tóm tắt trong hộp xác nhận bằng dữ liệu THẬT, và để báo lỗi sớm
- * (ghế đã bị lấy, quá 8 ghế, ghế đôi lẻ, suất đóng bán) thay vì mời khách xác nhận một việc chắc chắn thất bại.
- * Chỉ là xem trước: `holdSeats` vẫn kiểm tra lại và là trọng tài khi giữ thật.
- * @param {{ showtimeId: string, seatIds: string[] }} params
- * @returns {Promise<{ showtime: { id: string, movieTitle: string, cinemaName: string, roomName: string, startTime: Date,
- *   startTimeLocal: string, dateLocal: string, format: string, audio: string }, seats: Array<{ id: string, label: string, type: string }>,
- *   totalPrice: number }>}
- * @throws {AppError} NOT_FOUND | SHOWTIME_CLOSED | SEAT_LIMIT_EXCEEDED | SEAT_UNAVAILABLE | COUPLE_SEAT_INCOMPLETE | VALIDATION_ERROR
- */
-export async function previewHold({ showtimeId, seatIds }) {
-  if (!Array.isArray(seatIds) || seatIds.length === 0) throw fieldError('seatIds', 'Cần ít nhất một ghế.');
-  if (new Set(seatIds).size !== seatIds.length) throw fieldError('seatIds', 'Có ghế bị chọn trùng.');
-  if (seatIds.length > 8) throw new AppError('SEAT_LIMIT_EXCEEDED'); // BR-02
-
-  const map = await getSeatMap({ showtimeId });
-  if (!map.showtime.isOpenForSale) throw new AppError('SHOWTIME_CLOSED'); // BR-04
-  const byId = new Map(map.seats.map((s) => [s.id, s]));
-  if (seatIds.some((id) => !byId.has(id))) throw new AppError('NOT_FOUND', { message: 'Có ghế không thuộc phòng chiếu của suất này.' });
-  const chosen = seatIds.map((id) => byId.get(id));
-
-  const taken = chosen.filter((s) => s.status !== 'AVAILABLE');
-  if (taken.length) {
-    throw new AppError('SEAT_UNAVAILABLE', {
-      message: `Ghế ${taken.map((s) => s.label).join(', ')} không còn trống, vui lòng chọn ghế khác.`,
-      details: { seatIds: taken.map((s) => s.id), seatLabels: taken.map((s) => s.label) },
-    });
-  }
-  const perPair = {};
-  for (const s of chosen) if (s.type === 'COUPLE') perPair[s.pairCode] = (perPair[s.pairCode] ?? 0) + 1;
-  if (Object.values(perPair).some((n) => n !== 2)) throw new AppError('COUPLE_SEAT_INCOMPLETE'); // BR-05
-
-  const [{ basePrice }, surcharges] = await Promise.all([
-    getShowtimeBasePrice(showtimeId),
-    getSurcharges(),
-  ]);
-  const local = toVnClock(map.showtime.startTime).toISOString();
-  const d = map.showtime;
-  return {
-    showtime: {
-      id: d.id, movieTitle: d.movie.title, cinemaName: d.cinema.name, roomName: d.room.name, startTime: d.startTime,
-      startTimeLocal: local.slice(11, 16), dateLocal: local.slice(0, 10), format: d.format, audio: d.audio,
-    },
-    seats: chosen.map((s) => ({ id: s.id, label: s.label, type: s.type })),
-    totalPrice: calcSeatPrices({ basePrice, surcharges, seats: chosen.map((s) => ({ id: s.id, type: s.type, pairCode: s.pairCode })) }).total,
-  };
 }

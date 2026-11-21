@@ -6,7 +6,7 @@ import { getLlm } from '../ai/llm/index.js';
 import { runAgentTurn } from '../ai/agent.js';
 import { getTool } from '../ai/tools.js';
 import { buildSystemPrompt } from '../ai/prompt.js';
-import { getOrder } from './booking.service.js';
+import { getOrder } from './order.service.js';
 
 /**
  * Trợ lý AI đặt vé — phần lưu trữ và điều phối (docs/07). Đây là chỗ DUY NHẤT đụng ChatSession / ChatMessage;

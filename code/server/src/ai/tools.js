@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import * as catalog from '../services/catalog.service.js';
 import * as showtimes from '../services/showtime.service.js';
-import * as booking from '../services/booking.service.js';
+import * as seats from '../services/seat.service.js';
+import * as orders from '../services/order.service.js';
 import * as payment from '../services/payment.service.js';
 import { toVnClock } from '../lib/time.js';
 import { AppError } from '../utils/AppError.js';
@@ -27,7 +28,7 @@ const orderIdField = uuid('orderId của đơn đang giữ');
 
 /** Đơn của CHÍNH người dùng (service tự kiểm quyền: người khác -> FORBIDDEN) và còn ở trạng thái chờ thanh toán. */
 async function pendingOrderOf(userId, orderId) {
-  const order = await booking.getOrder({ userId, orderId });
+  const order = await orders.getOrder({ userId, orderId });
   if (order.status !== 'PENDING') throw new AppError('ORDER_NOT_PENDING');
   return order;
 }
@@ -91,7 +92,7 @@ export const TOOLS = [
     description: 'Xem tóm tắt ghế của một suất: còn bao nhiêu ghế mỗi loại, giá từng loại, danh sách ghế trống theo hàng. Để gợi ý chỗ ngồi hãy ưu tiên suggest_seats.',
     schema: z.object({ showtimeId: uuid('id của suất chiếu') }).strict(),
     run: async ({ input }) => {
-      const map = await showtimes.getSeatMap(input);
+      const map = await seats.getSeatMap(input);
       const free = map.seats.filter((s) => s.status === 'AVAILABLE');
       const byType = {}; const price = {}; const byRow = {};
       for (const s of map.seats) price[s.type] ??= s.price;
@@ -115,7 +116,7 @@ export const TOOLS = [
       preference: z.enum(['CENTER', 'BACK', 'AISLE']).optional().describe('CENTER = giữa phòng, BACK = hàng sau, AISLE = sát lối đi'),
       seatType: z.enum(['STANDARD', 'VIP', 'COUPLE']).optional().describe('Chỉ đặt khi khách muốn loại ghế cụ thể'),
     }).strict(),
-    run: ({ input }) => showtimes.suggestSeats(input),
+    run: ({ input }) => seats.suggestSeats(input),
   },
   {
     name: 'list_combos', kind: 'read',
@@ -128,7 +129,7 @@ export const TOOLS = [
     description: 'Xem một đơn hàng của chính khách (trạng thái, ghế, combo, tổng tiền, hạn giữ ghế).',
     schema: z.object({ orderId: orderIdField }).strict(),
     run: async ({ userId, input }) => {
-      const o = await booking.getOrder({ userId, orderId: input.orderId });
+      const o = await orders.getOrder({ userId, orderId: input.orderId });
       return {
         id: o.id, code: o.code, status: o.status, expiresAt: o.expiresAt, total: o.total, discount: o.discount,
         movie: o.showtime.movie.title, cinema: o.showtime.cinema.name, startTime: o.showtime.startTime,
@@ -141,7 +142,7 @@ export const TOOLS = [
     description: 'Liệt kê các đơn / vé của chính khách (mặc định các vé đã thanh toán), mới nhất trước.',
     schema: z.object({ status: z.enum(['PAID', 'PENDING', 'CANCELLED', 'EXPIRED', 'REFUND_PENDING', 'REFUNDED']).optional() }).strict(),
     run: async ({ userId, input }) => {
-      const { items } = await booking.listMyOrders({ userId, ...input, page: 1, pageSize: 10 });
+      const { items } = await orders.listMyOrders({ userId, ...input, page: 1, pageSize: 10 });
       return items;
     },
   },
@@ -152,14 +153,14 @@ export const TOOLS = [
     description: 'Đề xuất GIỮ GHẾ (10 phút) cho khách. Dùng ids lấy từ suggest_seats hoặc get_seat_map. Khách sẽ phải bấm xác nhận.',
     schema: z.object({ showtimeId: uuid('id của suất chiếu'), seatIds: z.array(uuid('id ghế')).min(1).max(8) }).strict(),
     preview: async ({ input }) => {
-      const p = await showtimes.previewHold(input);
+      const p = await seats.previewHold(input);
       const s = p.showtime;
       return {
         summary: `Giữ ghế ${p.seats.map((x) => x.label).join(', ')} — ${s.movieTitle}, ${s.cinemaName}, ${s.roomName}, ${s.startTimeLocal} ngày ${s.dateLocal.split('-').reverse().join('/')}. Tổng: ${vnd(p.totalPrice)}. Ghế được giữ 10 phút.`,
       };
     },
     execute: async ({ userId, input }) => {
-      const order = await booking.holdSeats({ userId, ...input, source: 'AI_CHAT' });
+      const order = await orders.holdSeats({ userId, ...input, source: 'AI_CHAT' });
       return {
         order, orderId: order.id,
         text: `Đã giữ ghế ${seatLabels(order)} — ${order.showtime.movie.title} lúc ${hhmm(order.showtime.startTime)}. Tổng ${vnd(order.total)}. Ghế được giữ đến ${hhmm(order.expiresAt)}. Bạn muốn thêm combo, nhập mã giảm giá hay tạo link thanh toán?`,
@@ -186,7 +187,7 @@ export const TOOLS = [
       return { summary: `Chọn combo cho đơn ${order.code}: ${lines.join(', ')}. Tiền combo: ${vnd(total)}.` };
     },
     execute: async ({ userId, input }) => {
-      const order = await booking.setCombos({ userId, ...input });
+      const order = await orders.setCombos({ userId, ...input });
       return { order, orderId: order.id, text: `Đã cập nhật combo. Tổng đơn hiện tại: ${vnd(order.total)}.` };
     },
   },
@@ -199,7 +200,7 @@ export const TOOLS = [
       return { summary: `Áp mã ${input.code.toUpperCase()} cho đơn ${order.code} (hiện ${vnd(order.total)}).` };
     },
     execute: async ({ userId, input }) => {
-      const order = await booking.applyPromotion({ userId, ...input });
+      const order = await orders.applyPromotion({ userId, ...input });
       return { order, orderId: order.id, text: `Đã áp mã ${input.code.toUpperCase()}: giảm ${vnd(order.discount)}. Tổng đơn: ${vnd(order.total)}.` };
     },
   },
@@ -228,7 +229,7 @@ export const TOOLS = [
       return { summary: `Hủy đơn ${order.code} (ghế ${seatLabels(order)}, ${vnd(order.total)}). Ghế sẽ được nhả ngay.` };
     },
     execute: async ({ userId, input }) => {
-      const order = await booking.cancelOrder({ userId, orderId: input.orderId });
+      const order = await orders.cancelOrder({ userId, orderId: input.orderId });
       return { order, orderId: order.id, text: 'Đã hủy đơn và nhả ghế.' };
     },
   },

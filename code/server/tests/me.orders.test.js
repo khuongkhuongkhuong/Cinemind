@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 
 process.env.NODE_ENV = 'test';
 const { prisma } = await import('../src/config/prisma.js');
-const { holdSeats, listMyOrders, getMyOrderByCode } = await import('../src/services/booking.service.js');
+const { holdSeats, listMyOrders, getMyOrderByCode } = await import('../src/services/order.service.js');
 const { default: app } = await import('../src/app.js');
 const { signAccessToken } = await import('../src/lib/jwt.js');
 

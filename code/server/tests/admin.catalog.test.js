@@ -8,6 +8,7 @@ const { prisma } = await import('../src/config/prisma.js');
 const { findPromotionByCode, assertPromotionUsable } = await import('../src/services/promotion.service.js');
 const { default: app } = await import('../src/app.js');
 const { createRoleUsers } = await import('./helpers/role-users.js');
+const { createOrder } = await import('./helpers/orders.js');
 
 const RUN = Date.now();
 const DAY = 86_400_000;
@@ -125,7 +126,7 @@ test('combo: dữ liệu sai bị 400 (giá âm / lẻ, URL javascript:, trườ
 
 test('⭐ đổi giá combo KHÔNG ảnh hưởng đơn đã tạo (giá đã chốt, BR-14); combo đã bán thì không xóa được (409), chưa bán xóa được (204)', async () => {
   const combo = (await call('POST', '/admin/combos', { name: `TestCombo ${RUN} bán`, price: 50_000 })).json.data;
-  const order = await prisma.order.create({
+  const order = await createOrder({
     data: { code: `${String(RUN).slice(-8)}CB`, userId: customer.id, showtimeId: showtime.id, expiresAt: new Date(Date.now() + 60_000), seatTotal: 0, total: 100_000 },
   });
   await prisma.orderCombo.create({ data: { orderId: order.id, comboId: combo.id, quantity: 2, unitPrice: 50_000 } });
@@ -192,7 +193,7 @@ test('⭐ mã do admin tạo dùng được ở luồng đặt vé (tra không p
 
 test('⭐ xóa mã: đã gắn vào đơn -> 409 RESOURCE_IN_USE (hãy tắt mã); chưa dùng -> 204', async () => {
   const used = (await call('POST', '/admin/promotions', promoBody({ code: `T${RUN}D` }))).json.data;
-  await prisma.order.create({
+  await createOrder({
     data: { code: `${String(RUN).slice(-8)}DB`, userId: customer.id, showtimeId: showtime.id, expiresAt: new Date(Date.now() + 60_000), seatTotal: 0, total: 0, promotionId: used.id },
   });
   const blocked = await call('DELETE', `/admin/promotions/${used.id}`);

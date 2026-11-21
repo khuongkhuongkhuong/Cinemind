@@ -7,6 +7,7 @@ process.env.NODE_ENV = 'test';
 const { prisma } = await import('../src/config/prisma.js');
 const { default: app } = await import('../src/app.js');
 const { createRoleUsers } = await import('./helpers/role-users.js');
+const { createOrder } = await import('./helpers/orders.js');
 
 const minute = 60_000;
 const RUN = Date.now();
@@ -41,7 +42,7 @@ before(async () => {
       startTime: new Date(Date.now() + 5 * minute), endTime: new Date(Date.now() + 120 * minute),
     },
   });
-  order = await prisma.order.create({
+  order = await createOrder({
     data: { code: `U${RUN}${process.pid}`.slice(-10).toUpperCase(), userId: customer.id, showtimeId: nearShowtime.id, status: 'PAID', paidAt: new Date(), expiresAt: new Date(Date.now() + 10 * minute), seatTotal: 0, total: 0 },
   });
   server = app.listen(0);

@@ -1,9 +1,5 @@
-import { runInTransaction } from '../dao/transaction.js';
-import { findUserById, findUserRoleState, setPasswordHash, updateUserById } from '../dao/user.dao.js';
-import { revokeAllOfUser } from '../dao/refreshToken.dao.js';
+import { addPoints as addPointsToUser, findUserByEmail as findByEmail, findUserById, findUserRoleState, insertUser, setPasswordHash, updateUserById } from '../dao/user.dao.js';
 import { AppError } from '../utils/AppError.js';
-import { hashPassword, verifyPassword } from '../lib/password.js';
-import { issueTokens } from './auth.service.js';
 
 /** Chỉ các trường an toàn — tuyệt đối không có passwordHash. */
 const publicUser = (u) => ({ id: u.id, email: u.email, fullName: u.fullName, phone: u.phone, role: u.role, points: u.points });
@@ -30,32 +26,42 @@ export async function updateProfile({ userId, fullName, phone }) {
 }
 
 /**
- * Đổi mật khẩu. Yêu cầu mật khẩu hiện tại (người lỡ để quên máy mở / lấy được access token cũng không đổi được).
- * Đổi xong THU HỒI MỌI refresh token của user (đăng xuất mọi thiết bị khác), rồi cấp một refresh token mới cho
- * thiết bị đang thao tác để người dùng không bị văng. Access token cũ vẫn dùng được tới khi hết hạn (tối đa 15 phút).
- * Sai mật khẩu hiện tại trả VALIDATION_ERROR (400), KHÔNG phải 401: client dùng 401 để hiểu là "hết phiên".
- * @param {{ userId: string, currentPassword: string, newPassword: string }} params
- * @returns {Promise<{ refreshToken: string }>} refresh token mới cho thiết bị hiện tại
- * @throws {AppError} UNAUTHORIZED | ACCOUNT_DISABLED | VALIDATION_ERROR
+ * Người dùng theo email (đăng nhập). Service phụ trách thực thể User; auth gọi hàm này thay vì import `user.dao`.
+ * @param {string} email
+ * @returns {Promise<object|null>} dòng User (có passwordHash — chỉ dùng nội bộ để kiểm mật khẩu), hoặc null
  */
-export async function changePassword({ userId, currentPassword, newPassword }) {
-  const user = await loadActiveUser(userId);
-  const fieldError = (field, message) => new AppError('VALIDATION_ERROR', { details: { fields: { [field]: message } } });
+export const findUserByEmail = (email) => findByEmail(email);
 
-  if (!(await verifyPassword(currentPassword, user.passwordHash))) {
-    throw fieldError('currentPassword', 'Mật khẩu hiện tại không đúng.');
-  }
-  if (currentPassword === newPassword) throw fieldError('newPassword', 'Mật khẩu mới phải khác mật khẩu hiện tại.');
+/**
+ * Người dùng theo id.
+ * @param {string} userId
+ * @returns {Promise<object|null>} dòng User hoặc null
+ */
+export const getUserById = (userId) => findUserById(userId);
 
-  const passwordHash = await hashPassword(newPassword);
-  // Đổi mật khẩu + thu hồi mọi refresh token trong MỘT transaction: hoặc cả hai, hoặc không gì cả.
-  await runInTransaction(async (tx) => {
-    await setPasswordHash(userId, passwordHash, tx);
-    await revokeAllOfUser({ userId, now: new Date() }, tx);
-  });
-  const { refreshToken } = await issueTokens(user);
-  return { refreshToken };
-}
+/**
+ * Tạo người dùng mới. Không kiểm tra trùng email trước: UNIQUE(email) là trọng tài, lỗi Prisma P2002 đi xuyên ra ngoài
+ * để người gọi (auth.register) dịch sang EMAIL_EXISTS.
+ * @param {{ email: string, passwordHash: string, fullName: string, phone: string|null }} data
+ * @returns {Promise<object>} User vừa tạo
+ */
+export const createUser = (data) => insertUser(data);
+
+/**
+ * Ghi mật khẩu đã băm mới. Gọi trong transaction của auth (đổi mật khẩu kèm thu hồi refresh token).
+ * @param {{ userId: string, passwordHash: string }} params
+ * @param {object} [db]
+ * @returns {Promise<object>} User sau khi cập nhật
+ */
+export const setPassword = ({ userId, passwordHash }, db) => setPasswordHash(userId, passwordHash, db);
+
+/**
+ * Cộng điểm thưởng (BR-25). Gọi trong transaction thanh toán (truyền `tx`).
+ * @param {{ userId: string, points: number }} params
+ * @param {object} [db]
+ * @returns {Promise<object>} User sau khi cập nhật
+ */
+export const addPoints = ({ userId, points }, db) => addPointsToUser(userId, points, db);
 
 /**
  * Vai trò và trạng thái HIỆN TẠI của tài khoản trong DB (không tin vai trò ghi trong access token).

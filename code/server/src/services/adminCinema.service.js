@@ -72,10 +72,11 @@ export async function createCinema({ cityId, name, address, phone, isActive }) {
 
 /** Rạp có suất CHƯA chiếu, còn mở, đã có người mua/giữ vé không? (cùng định nghĩa "đã bán" với sửa/hủy suất) */
 async function hasUpcomingSales(cinemaId) {
-  const n = await prisma.order.count({
+  // Đếm VÉ (suất nằm ở vé): SOLD, HELD còn hạn, hoặc thuộc đơn chờ hoàn tiền.
+  const n = await prisma.ticket.count({
     where: {
       showtime: { status: 'OPEN', startTime: { gt: new Date() }, room: { cinemaId } },
-      OR: [{ status: { in: ['PAID', 'REFUND_PENDING'] } }, { status: 'PENDING', expiresAt: { gt: new Date() } }],
+      OR: [{ status: 'SOLD' }, { status: 'HELD', order: { expiresAt: { gt: new Date() } } }, { order: { status: 'REFUND_PENDING' } }],
     },
   });
   return n > 0;

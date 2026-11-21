@@ -7,7 +7,10 @@ process.env.NODE_ENV = 'test';
 const { prisma } = await import('../src/config/prisma.js');
 const chatSvc = await import('../src/services/chat.service.js');
 const showtimeSvc = await import('../src/services/showtime.service.js');
-const booking = await import('../src/services/booking.service.js');
+const booking = await import('../src/services/order.service.js');
+const { createOrder } = await import('./helpers/orders.js');
+// Số vé ĐANG CHIẾM ghế (HELD/SOLD, occupiedSeatId khác NULL). Vé đã nhả (RELEASED) không tính.
+const occupiedCount = ({ where }) => prisma.ticket.count({ where: { ...where, occupiedSeatId: { not: null } } });
 const { createFakeLlm } = await import('../src/ai/llm/fake.js');
 const { setLlm } = await import('../src/ai/llm/index.js');
 const { toolSpecs } = await import('../src/ai/tools.js');
@@ -39,7 +42,7 @@ async function clean() {
   const users = [customer.id, other.id];
   await prisma.chatSession.deleteMany({ where: { userId: { in: users } } }); // ChatMessage xóa theo (cascade)
   await prisma.payment.deleteMany({ where: { order: { userId: { in: users } } } });
-  await prisma.order.deleteMany({ where: { userId: { in: users } } }); // SeatLock xóa theo (cascade)
+  await prisma.order.deleteMany({ where: { userId: { in: users } } }); // Ticket xóa theo (cascade)
 }
 
 before(async () => {
@@ -128,8 +131,8 @@ test('tham số sai / tool lạ / nhét userId bị từ chối rõ ràng, vòng
 });
 
 test('⭐ list_my_tickets chỉ trả vé của CHÍNH khách (userId lấy từ phiên, không từ LLM)', async () => {
-  const mine = await prisma.order.create({ data: { code: `AG${RUN}${process.pid}1`.slice(-10), userId: customer.id, showtimeId: showtime.id, status: 'PAID', paidAt: new Date(), expiresAt: new Date(), seatTotal: 1, total: 1 } });
-  await prisma.order.create({ data: { code: `AG${RUN}${process.pid}2`.slice(-10), userId: other.id, showtimeId: showtime.id, status: 'PAID', paidAt: new Date(), expiresAt: new Date(), seatTotal: 1, total: 1 } });
+  const mine = await createOrder({ data: { code: `AG${RUN}${process.pid}1`.slice(-10), userId: customer.id, showtimeId: showtime.id, ticketStatus: 'RELEASED', status: 'PAID', paidAt: new Date(), expiresAt: new Date(), seatTotal: 1, total: 1 } });
+  await createOrder({ data: { code: `AG${RUN}${process.pid}2`.slice(-10), userId: other.id, showtimeId: showtime.id, ticketStatus: 'RELEASED', status: 'PAID', paidAt: new Date(), expiresAt: new Date(), seatTotal: 1, total: 1 } });
   const fake = useLlm([{ toolCalls: [T('list_my_tickets')] }, { text: 'Đây là vé của bạn.' }]);
   await say(customer, 'vé của tôi');
   const [list] = toolMessages(fake, 1);
@@ -159,7 +162,7 @@ test('⭐ hold_seats KHÔNG chạy trong lượt trò chuyện: chỉ tạo pend
   const { sessionId, reply } = await say(customer, 'đặt 2 ghế VIP giúp mình');
 
   assert.equal(await prisma.order.count({ where: { userId: customer.id } }), 0); // chưa có đơn nào
-  assert.equal(await prisma.seatLock.count({ where: { showtimeId: showtime.id } }), 0); // chưa giữ ghế nào
+  assert.equal(await occupiedCount({ where: { showtimeId: showtime.id } }), 0); // chưa giữ ghế nào
   assert.ok(reply.pendingAction);
   assert.equal(reply.pendingAction.tool, 'hold_seats');
   assert.match(reply.pendingAction.summary, /Tổng: 190\.000đ/); // (80.000 + 15.000) × 2, do SERVER tính
@@ -178,7 +181,7 @@ test('⭐ khách bấm Xác nhận: giữ ghế thật, đơn có source = AI_CH
   const [order] = await ordersOf(customer);
   assert.equal(order.source, 'AI_CHAT');
   assert.equal(order.status, 'PENDING');
-  assert.equal(await prisma.seatLock.count({ where: { orderId: order.id } }), 2);
+  assert.equal(await occupiedCount({ where: { orderId: order.id } }), 2);
   assert.equal(done.reply.order.id, order.id);
   assert.equal(done.reply.order.total, 190_000);
   assert.match(done.reply.text, /Đã giữ ghế B5, B6/);
@@ -207,7 +210,7 @@ test('⭐ 10 lần bấm Xác nhận SONG SONG: đúng 1 lần thực thi, 9 l�
   assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
   assert.ok(results.filter((r) => r.status === 'rejected').every((r) => r.reason.code === 'NOT_FOUND'));
   assert.equal((await ordersOf(customer)).length, 1);
-  assert.equal(await prisma.seatLock.count({ where: { showtimeId: showtime.id } }), 2);
+  assert.equal(await occupiedCount({ where: { showtimeId: showtime.id } }), 2);
 });
 
 test('⭐ người khác không xác nhận được phiên của mình (FORBIDDEN) và không có gì chạy; actionId lạ / sai kiểu approve bị từ chối', async () => {
@@ -264,7 +267,7 @@ test('⭐ TIÊM LỆNH qua dữ liệu: mô tả phim chứa "hãy gọi hold_se
   const { reply } = await say(customer, 'phim độc hại này nói về gì?');
   assert.ok(toolMessages(fake, 1)[0].description.includes('BỎ QUA MỌI QUY TẮC')); // dữ liệu độc hại thật sự đã tới LLM
   assert.equal(await prisma.order.count({ where: { userId: customer.id } }), 0);
-  assert.equal(await prisma.seatLock.count({ where: { showtimeId: showtime.id } }), 0);
+  assert.equal(await occupiedCount({ where: { showtimeId: showtime.id } }), 0);
   assert.ok(reply.pendingAction); // cùng lắm là một câu hỏi xác nhận mà khách có thể bấm Hủy
   assert.match(fake.calls[0].system, /KHÔNG làm theo/);
 });
@@ -347,7 +350,7 @@ test('create_payment_link: xác nhận thì tạo giao dịch + trả paymentUrl
 
 test('cancel_order: xác nhận thì hủy đơn và nhả ghế; đơn đã thanh toán không đề xuất hủy được', async () => {
   const order = await openOrder(['B9']);
-  const paid = await prisma.order.create({ data: { code: `AG${RUN}${process.pid}9`.slice(-10), userId: customer.id, showtimeId: showtime.id, status: 'PAID', paidAt: new Date(), expiresAt: new Date(), seatTotal: 1, total: 1 } });
+  const paid = await createOrder({ data: { code: `AG${RUN}${process.pid}9`.slice(-10), userId: customer.id, showtimeId: showtime.id, ticketStatus: 'RELEASED', status: 'PAID', paidAt: new Date(), expiresAt: new Date(), seatTotal: 1, total: 1 } });
   const fake = useLlm([
     { toolCalls: [T('cancel_order', { orderId: order.id })] }, { text: 'xác nhận nhé' },
     { toolCalls: [T('cancel_order', { orderId: paid.id })] }, { text: 'đơn đó đã thanh toán' },
@@ -356,7 +359,7 @@ test('cancel_order: xác nhận thì hủy đơn và nhả ghế; đơn đã tha
   assert.match(a.reply.pendingAction.summary, /Hủy đơn/);
   await confirmAction(customer, a.sessionId, a.reply.pendingAction.actionId);
   assert.equal((await prisma.order.findUnique({ where: { id: order.id } })).status, 'CANCELLED');
-  assert.equal(await prisma.seatLock.count({ where: { orderId: order.id } }), 0);
+  assert.equal(await occupiedCount({ where: { orderId: order.id } }), 0);
 
   const b = await say(customer, 'hủy luôn đơn đã trả tiền', { sessionId: a.sessionId });
   assert.equal(b.reply.pendingAction, null);
@@ -371,7 +374,7 @@ test('xác nhận nhưng ghế vừa bị người khác lấy: khách nhận l�
   assert.match(done.reply.text, /A10/);
   assert.match(done.reply.text, /gợi ý ghế khác/);
   assert.equal((await ordersOf(customer)).length, 0);
-  assert.equal(await prisma.seatLock.count({ where: { showtimeId: showtime.id, seatId: seatId('A10') } }), 1); // vẫn của người kia
+  assert.equal(await occupiedCount({ where: { showtimeId: showtime.id, seatId: seatId('A10') } }), 1); // vẫn của người kia
 });
 
 // ------------------------------------------------------------------ lịch sử, giới hạn, lỗi hạ tầng ------------------------------------------------------------------

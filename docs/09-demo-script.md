@@ -42,7 +42,7 @@
 
 | Câu hỏi | Trả lời ngắn | Chỉ ở đâu |
 |---|---|---|
-| Hai người đặt cùng một ghế thì sao? | Khóa chính `(showtimeId, seatId)` của `SeatLock` — DB chỉ cho một transaction thắng; người thua nhận `SEAT_UNAVAILABLE` và transaction của họ rollback (không giữ nửa chừng). | docs/03 mục 5; `booking.service.js`; `tests/booking.concurrency.test.js` |
+| Hai người đặt cùng một ghế thì sao? | Ràng buộc UNIQUE `(showtimeId, occupiedSeatId)` của bảng `Ticket` (mỗi ghế của một suất chỉ có một vé còn hiệu lực) — DB chỉ cho một transaction thắng; người thua nhận `SEAT_UNAVAILABLE` và transaction của họ rollback (không giữ nửa chừng). | docs/03 mục 5; `booking.service.js`; `tests/booking.concurrency.test.js` |
 | Sao không "kiểm tra ghế trống rồi mới chèn"? | Giữa hai bước đó người khác có thể chèn xen vào (race condition). Ràng buộc của DB là nơi duy nhất đảm bảo tuyệt đối. | docs/03 mục 5.8 |
 | Ghế giữ quá hạn xử lý thế nào? | "Dọn lười": lượt giữ quá hạn coi như trống ngay khi đọc/giữ; cron chỉ dọn dữ liệu. Không có khoảng hở nếu cron chậm. | docs/03 mục 5.6 |
 | Sao tin được là khách đã trả tiền? | Chỉ IPN của VNPay (kiểm chữ ký HMAC + số tiền khớp + idempotent) được đổi trạng thái; trang return và client không thể giả mạo. | `payment.service.js`; `tests/payment.ipn.test.js` |

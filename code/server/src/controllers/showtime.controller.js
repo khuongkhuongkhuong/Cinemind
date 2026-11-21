@@ -1,4 +1,5 @@
 import * as showtimeService from '../services/showtime.service.js';
+import * as seatService from '../services/seat.service.js';
 import { ok } from '../utils/response.js';
 
 export async function listByMovie(req, res) {
@@ -10,7 +11,7 @@ export async function detail(req, res) {
 }
 
 export async function seats(req, res) {
-  ok(res, await showtimeService.getSeatMap({ showtimeId: req.params.id }));
+  ok(res, await seatService.getSeatMap({ showtimeId: req.params.id }));
 }
 
 export async function listByCinema(req, res) {

@@ -40,7 +40,7 @@ flowchart LR
 
 | Tool | Service | Tham số | Kết quả | Lỗi có thể gặp |
 |---|---|---|---|---|
-| `hold_seats` | `bookingService.holdSeats` | `showtimeId`, `seatIds` | `Order` PENDING + `expiresAt` | `SEAT_UNAVAILABLE`, `SEAT_LIMIT_EXCEEDED`, `COUPLE_SEAT_INCOMPLETE`, `SHOWTIME_CLOSED` |
+| `hold_seats` | `orderService.holdSeats` | `showtimeId`, `seatIds` | `Order` PENDING + `expiresAt` | `SEAT_UNAVAILABLE`, `SEAT_LIMIT_EXCEEDED`, `COUPLE_SEAT_INCOMPLETE`, `SHOWTIME_CLOSED` |
 | `set_combos` | `bookingService.setCombos` | `orderId`, `items: [{ comboId, quantity }]` | `Order` | `ORDER_EXPIRED` |
 | `apply_promotion` | `bookingService.applyPromotion` | `orderId`, `code` | `Order` | `PROMO_INVALID` |
 | `create_payment_link` | `paymentService.createPayment` | `orderId` | `{ paymentUrl, expiresAt }` | `ORDER_EXPIRED` |
@@ -195,7 +195,7 @@ Một số tool trong mục 2 chưa có service tương ứng, hoặc tên khác
 | `list_combos` | `catalogService.listCombos` | — |
 | `get_order` | `bookingService.getOrder` | — |
 | `list_my_tickets` | `bookingService.listMyOrders` | — |
-| `hold_seats` | `bookingService.holdSeats` | Thêm tham số `source` (`WEB` mặc định, `AI_CHAT`) |
+| `hold_seats` | `orderService.holdSeats` | Thêm tham số `source` (`WEB` mặc định, `AI_CHAT`) |
 | `set_combos` | `bookingService.setCombos` | — |
 | `apply_promotion` | `bookingService.applyPromotion` | — |
 | `create_payment_link` | `paymentService.createPayment` | — |

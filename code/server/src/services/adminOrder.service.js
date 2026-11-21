@@ -1,7 +1,7 @@
 import { prisma } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
 import { buildMeta, toSkipTake } from '../utils/pagination.js';
-import { orderInclude, toOrderDto } from './booking.service.js';
+import { orderInclude, toOrderDto } from './order.service.js';
 import { vnDayRange } from './showtime.service.js';
 
 /**
@@ -33,16 +33,21 @@ export async function listAdminOrders({ status, from, to, q, page, pageSize }) {
       select: {
         id: true, code: true, status: true, total: true, createdAt: true, paidAt: true, checkedInAt: true,
         user: { select: { id: true, email: true, fullName: true } },
-        tickets: { select: { seatLabel: true }, orderBy: { seatLabel: 'asc' } },
-        showtime: { select: { startTime: true, movie: { select: { title: true } }, room: { select: { cinema: { select: { name: true } } } } } },
+        tickets: {
+          select: { seatLabel: true, showtime: { select: { startTime: true, movie: { select: { title: true } }, room: { select: { cinema: { select: { name: true } } } } } } },
+          orderBy: { seatLabel: 'asc' },
+        },
       },
     }),
   ]);
-  const items = rows.map(({ tickets, showtime, ...o }) => ({
-    ...o,
-    seatLabels: tickets.map((s) => s.seatLabel),
-    showtime: { startTime: showtime.startTime, movieTitle: showtime.movie.title, cinemaName: showtime.room.cinema.name },
-  }));
+  const items = rows.map(({ tickets, ...o }) => {
+    const { showtime } = tickets[0]; // suất lấy từ vé đầu (mọi vé của một đơn cùng một suất)
+    return {
+      ...o,
+      seatLabels: tickets.map((s) => s.seatLabel),
+      showtime: { startTime: showtime.startTime, movieTitle: showtime.movie.title, cinemaName: showtime.room.cinema.name },
+    };
+  });
   return { items, meta: buildMeta({ page, pageSize }, total) };
 }
 

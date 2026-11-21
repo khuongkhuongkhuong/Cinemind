@@ -1,4 +1,4 @@
-// DAO của lịch chiếu và ghế (showtime / seat / seatLock / movie / room / cinema / order.countActiveSalesOfShowtime).
+// DAO của lịch chiếu và ghế (showtime / seat / movie / room / cinema).
 // Mỗi hàm DAO là một thao tác truy vấn: test kiểm ĐÚNG điều kiện của từng câu. Cần dữ liệu mẫu: chạy `npm run db:seed` trước.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,11 +7,9 @@ process.env.NODE_ENV = 'test';
 const { prisma } = await import('../src/config/prisma.js');
 const showtimeDao = await import('../src/dao/showtime.dao.js');
 const seatDao = await import('../src/dao/seat.dao.js');
-const seatLockDao = await import('../src/dao/seatLock.dao.js');
 const movieDao = await import('../src/dao/movie.dao.js');
 const roomDao = await import('../src/dao/room.dao.js');
 const cinemaDao = await import('../src/dao/cinema.dao.js');
-const orderDao = await import('../src/dao/order.dao.js');
 
 const minute = 60_000;
 const DAY = 24 * 60 * minute;
@@ -36,7 +34,7 @@ before(async () => {
   base = new Date(Math.ceil((Date.now() + 90 * DAY) / (60 * minute)) * 60 * minute);
 });
 after(async () => {
-  await prisma.order.deleteMany({ where: { userId: user.id } }); // SeatLock xóa theo (cascade)
+  await prisma.order.deleteMany({ where: { userId: user.id } }); // Ticket xóa theo (cascade)
   await prisma.showtime.deleteMany({ where: { roomId: room.id } });
   await prisma.seat.deleteMany({ where: { roomId: room.id } });
   await prisma.room.delete({ where: { id: room.id } });
@@ -61,12 +59,11 @@ test('insertShowtime / updateShowtimeById trả đúng dạng ADMIN_SELECT (kèm
 
   const upd = await showtimeDao.updateShowtimeById(s.id, { basePrice: 99_000, audio: 'DUBBED' });
   assert.deepEqual([upd.basePrice, upd.audio], [99_000, 'DUBBED']);
-  assert.deepEqual(await showtimeDao.getShowtimeBasePrice(s.id), { basePrice: 99_000 });
   assert.deepEqual(await showtimeDao.getShowtimeRoomAndStatus(s.id), { roomId: room.id, status: 'OPEN' });
   assert.equal((await showtimeDao.getShowtimeWithMovie(s.id)).movie.id, movie.id);
   assert.equal((await showtimeDao.getShowtimeDetail(s.id)).room.cinema.name, cinema.name);
   assert.equal((await showtimeDao.getAdminShowtime(s.id)).id, s.id);
-  for (const fn of ['getShowtimeDetail', 'getShowtimeBasePrice', 'getShowtimeWithMovie', 'getShowtimeRoomAndStatus', 'getAdminShowtime']) {
+  for (const fn of ['getShowtimeDetail', 'getShowtimeWithMovie', 'getShowtimeRoomAndStatus', 'getAdminShowtime']) {
     assert.equal(await showtimeDao[fn](NOEXIST), null, fn);
   }
 });
@@ -124,49 +121,11 @@ test('countAdminShowtimes + findAdminShowtimes: cùng một bộ lọc nên kh�
   assert.equal(await showtimeDao.countAdminShowtimes({ cinemaId: cinema.id, roomId: room.id, from: at(4900), to: at(5100) }), 1);
 });
 
-test('seat / seatLock DAO: ghế theo hàng rồi số; đếm ghế dùng được bỏ ghế hỏng; đếm lượt chiếm bỏ lượt giữ QUÁ HẠN (dọn lười)', async () => {
+test('seat DAO: ghế theo hàng rồi số; đếm ghế dùng được bỏ ghế hỏng (trạng thái chiếm ghế do ticket.dao lo — xem dao.ticket.test.js)', async () => {
   const seats = await seatDao.getSeatsOfRoom(room.id);
   assert.deepEqual(seats.map((s) => `${s.row}${s.number}`), ['A1', 'A2', 'A3', 'A4', 'B1', 'B2']);
   const counts = await seatDao.countActiveSeatsByRoom([room.id, NOEXIST]);
   assert.deepEqual(counts.map((c) => [c.roomId, c._count._all]), [[room.id, 5]]); // A4 hỏng không tính
-
-  const s = await mk(7000);
-  const order = await prisma.order.create({ data: { code: `DS${RUN}${process.pid}`.slice(-10), userId: user.id, showtimeId: s.id, status: 'PENDING', expiresAt: at(7000), seatTotal: 1, total: 1 } });
-  const seatBy = Object.fromEntries(seats.map((x) => [`${x.row}${x.number}`, x.id]));
-  const future = new Date(Date.now() + 10 * minute); const past = new Date(Date.now() - minute);
-  await prisma.seatLock.createMany({
-    data: [
-      { showtimeId: s.id, seatId: seatBy.A1, orderId: order.id, status: 'HELD', expiresAt: future }, // chiếm
-      { showtimeId: s.id, seatId: seatBy.A2, orderId: order.id, status: 'SOLD', expiresAt: null }, // chiếm
-      { showtimeId: s.id, seatId: seatBy.A3, orderId: order.id, status: 'HELD', expiresAt: past }, // quá hạn: KHÔNG chiếm
-    ],
-  });
-  assert.equal((await seatLockDao.getLocksOfShowtime(s.id)).length, 3); // lấy cả ba, service tự xét hạn
-  const taken = await seatLockDao.countTakenLocksByShowtime({ showtimeIds: [s.id, NOEXIST], now: new Date() });
-  assert.deepEqual(taken.map((c) => [c.showtimeId, c._count._all]), [[s.id, 2]]);
-  assert.deepEqual(await seatLockDao.getLocksOfShowtime(NOEXIST), []);
-  await prisma.order.delete({ where: { id: order.id } });
-});
-
-test('⭐ countActiveSalesOfShowtime: PAID / REFUND_PENDING / PENDING còn hạn tính; PENDING hết hạn, CANCELLED, EXPIRED, REFUNDED không tính', async () => {
-  const s = await mk(9000);
-  const now = new Date();
-  let n = 0;
-  const mkOrder = (status, expiresAt) => prisma.order.create({
-    data: { code: `SA${RUN}${process.pid}${n++}`.slice(-10), userId: user.id, showtimeId: s.id, status, expiresAt, seatTotal: 1, total: 1 },
-  }).then((o) => { created.orders.push(o.id); return o; });
-  const future = new Date(now.getTime() + 10 * minute); const past = new Date(now.getTime() - minute);
-  const count = () => orderDao.countActiveSalesOfShowtime({ showtimeId: s.id, now });
-
-  assert.equal(await count(), 0);
-  for (const status of ['CANCELLED', 'EXPIRED', 'REFUNDED']) await mkOrder(status, future);
-  await mkOrder('PENDING', past);
-  assert.equal(await count(), 0); // không đơn nào chiếm chỗ
-  await mkOrder('PENDING', future);
-  assert.equal(await count(), 1);
-  await mkOrder('PAID', past);
-  await mkOrder('REFUND_PENDING', past);
-  assert.equal(await count(), 3);
 });
 
 test('⭐ lọc rạp / phòng / khoảng thời gian: rạp hoặc phòng đã TẮT không hiện; suất đúng bằng `to` bị loại (khoảng nửa mở); suất rạp khác không lẫn vào', async () => {

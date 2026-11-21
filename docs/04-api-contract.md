@@ -1,6 +1,6 @@
 # 04 — Hợp đồng API (API Contract)
 
-> Phiên bản: 1.1 — cập nhật 02/10/2026 · Hệ thống: **Cinemind**
+> Phiên bản: 1.25 — cập nhật 21/11/2026 (xem mục 6) · Hệ thống: **Cinemind**
 > Đây là **bản cam kết** giữa Backend (Người A) và Frontend (Người B). Muốn đổi bất kỳ điều gì: thống nhất với người kia → sửa file này **trước** → rồi mới sửa code.
 
 ## 1. Quy ước chung
@@ -489,7 +489,7 @@ flowchart LR
 | `routes/` | Khai báo method + path, gắn middleware (`requireAuth`, `requireRole`, `validate`) | Viết logic |
 | `controllers/` | Lấy `req.params / body / query / user`, gọi **một** hàm service, trả `res` theo định dạng chuẩn | Import Prisma; tính toán nghiệp vụ |
 | `services/` | Logic nghiệp vụ, mở transaction (qua `dao/transaction.js`), kiểm tra luật BR, gọi **hàm DAO**; nhận **tham số thuần** (`userId`, `showtimeId`…), trả **object thuần**, lỗi thì `throw new AppError(code)` | Đụng tới `req`, `res`, cookie, header; gọi `prisma.<bảng>` / `tx.<bảng>` trực tiếp (với các service đã chuyển — xem bên dưới) |
-| `dao/` (v1.23) | **Chỉ truy vấn**: mỗi file một bảng, mỗi hàm một thao tác đọc / ghi có tên rõ nghĩa (`insertHeldLocks`, `findTakenLocks`…), trả nguyên đối tượng Prisma (= đối tượng thực thể) hoặc `count` | `throw new AppError`; chứa luật nghiệp vụ (giá, hạn giữ, quyền…); đụng `req`/`res`; import service |
+| `dao/` (v1.23) | **Chỉ truy vấn**: mỗi file một bảng, mỗi hàm một thao tác đọc / ghi có tên rõ nghĩa (`insertTickets`, `findOccupiedTickets`…), trả nguyên đối tượng Prisma (= đối tượng thực thể) hoặc `count` | `throw new AppError`; chứa luật nghiệp vụ (giá, hạn giữ, quyền…); đụng `req`/`res`; import service |
 | `entity` (mô hình Prisma) | Chỉ **chứa dữ liệu** (các cột của bảng) | Có hàm truy vấn CSDL — mọi truy vấn nằm ở `dao/` |
 | `lib/` | Tiện ích kỹ thuật không chứa luật nghiệp vụ | Truy cập DB |
 
@@ -497,14 +497,34 @@ flowchart LR
 - Tên hàm theo động từ: `get*` (đọc theo khóa, có thể trả `null`), `find*` (tìm theo điều kiện), `list*` (nhiều dòng), `insert*`, `mark*` / `set*` (cập nhật), `delete*`, `count*`. Tên DAO **không trùng** tên hàm của service (vd DAO là `insertPayment`, service là `createPayment`) để biểu đồ lớp / tuần tự không nhầm hai tầng.
 - **Tham số cuối của mọi hàm DAO là `db = prisma`**: truyền `tx` khi chạy trong transaction, nên mọi bước của một nghiệp vụ nhiều bước (giữ ghế, xác nhận IPN, tạo suất) dùng **cùng một `tx`**.
 - Cập nhật có điều kiện (`updateMany` + kiểm `count`: soát vé, giành giao dịch IPN, hủy đơn) trả về `count`; **service** quyết định nghĩa của `count = 0`.
-- Lỗi của CSDL (vd `P2002` khi trùng khóa chính `SeatLock`) **đi xuyên qua DAO** và được service bắt để dịch sang `AppError`.
+- Lỗi của CSDL (vd `P2002` khi vi phạm UNIQUE `Ticket(showtimeId, occupiedSeatId)`) **đi xuyên qua DAO** và được service bắt để dịch sang `AppError`.
 - `dao/transaction.js` có `runInTransaction(work, options)` và `lockRoom(tx, roomId)` (khóa tư vấn theo phòng) — service không gọi `prisma.$transaction` trực tiếp.
-- Phạm vi chuyển sang DAO ở v1.23: `pricing`, `auth`, `ticket`, `showtime`, `booking`, `payment`, `chat` (và `user` khi cần). Các service quản trị (`admin*`), `report`, `catalog` có thể chuyển dần sau; `controllers/`, `routes/`, `ai/` **không** import `dao/` (chỉ gọi service).
+- Phạm vi chuyển sang DAO ở v1.23 (tên ở v1.24): `pricing`, `auth`, `ticket`, `showtime`, `seat`, `order`, `payment`, `chat`, `user`, `promotion`, `movie`, `room`. Các service quản trị (`admin*`), `report`, `catalog` có thể chuyển dần sau; `controllers/`, `routes/`, `ai/` **không** import `dao/` (chỉ gọi service).
 
-> Vì service không phụ thuộc HTTP, sau này AI Agent gọi thẳng `bookingService.holdSeats({ userId, showtimeId, seatIds })` y như controller (NFR-18).
+**Quy tắc trách nhiệm của service (v1.24 — theo nhận xét GVHD 18/11: "lớp showtime gọi nhiều hàm không liên quan showtime"):**
+- Mỗi service **phụ trách một thực thể** (kèm thành phần hợp thành nếu có) và **tên service = tên thực thể**. Chỉ service đó được import DAO của thực thể ấy.
+- Cần dữ liệu / thao tác trên thực thể khác → **gọi service phụ trách thực thể đó**, không import DAO của nó. Hàm service được gọi bên trong transaction của service khác nhận thêm tham số cuối `db` (truyền `tx`), giống DAO.
+- Bảng phân công (các service còn lại dùng `prisma` trực tiếp như v1.23 — `admin*`, `report`, `catalog` — chưa bắt buộc):
+
+| Service | Phụ trách thực thể → DAO được import | Gọi service khác |
+|---|---|---|
+| `showtime.service` | Showtime → `showtime.dao` | `movie`, `room`, `pricing`, `ticket`, `seat`, `catalog` |
+| `seat.service` (mới) | Seat → `seat.dao` — sơ đồ ghế, kiểm tra ghế khi giữ, gợi ý ghế, xem trước giữ ghế | `showtime`, `ticket`, `pricing` |
+| `ticket.service` (đổi vai trò) | Ticket → `ticket.dao` — trạng thái ghế theo suất, giữ / nhả / bán vé | — |
+| `order.service` (đổi tên từ `booking.service`) | Order, OrderCombo → `order.dao`, `orderCombo.dao` — giữ ghế, hủy, chọn combo, mã, **soát vé** (chuyển từ `ticket.service` cũ). OrderCombo là thành phần hợp thành của Order (Cascade) nên ở lại đây | `showtime`, `seat`, `ticket`, `pricing`, `promotion`, `user`, `combo` |
+| `combo.service` (mới, v1.25) | Combo (danh mục) → `combo.dao` — `getActiveCombos(comboIds)` lấy giá combo đang bán | — |
+| `payment.service` | Payment → `payment.dao` | `order` |
+| `pricing.service` | PriceRule, SeatTypeSurcharge → `priceRule.dao`, `seatTypeSurcharge.dao` | — |
+| `auth.service` | RefreshToken → `refreshToken.dao` | `user` |
+| `user.service` | User → `user.dao` | — |
+| `promotion.service` | Promotion → `promotion.dao` | — |
+| `movie.service` (mới), `room.service` (mới) | Movie → `movie.dao`; Room → `room.dao` | — |
+| `chat.service` | ChatSession, ChatMessage → `chatSession.dao`, `chatMessage.dao` | `order` (qua `ai/tools.js`: `showtime`, `seat`, `order`, `payment`) |
+
+> Vì service không phụ thuộc HTTP, AI Agent gọi thẳng `orderService.holdSeats({ userId, showtimeId, seatIds })` y như controller (NFR-18).
 
 **Ví dụ luồng `POST /orders`:**
-`order.routes.js` → `requireAuth` → `validate(createOrderSchema)` → `orderController.create` → `bookingService.holdSeats({ userId, showtimeId, seatIds })` → trả `Order` → controller trả `201`.
+`order.routes.js` → `requireAuth` → `validate(createOrderSchema)` → `orderController.create` → `orderService.holdSeats({ userId, showtimeId, seatIds })` → trả `Order` → controller trả `201`.
 
 ### 5.3 Server — cây thư mục
 
@@ -531,17 +551,20 @@ server/
 │   ├── services/
 │   │   ├── auth.service.js
 │   │   ├── catalog.service.js      # phim, thể loại, rạp, combo
-│   │   ├── showtime.service.js     # lịch chiếu, sơ đồ ghế, tạo suất (chặn trùng giờ)
+│   │   ├── showtime.service.js     # lịch chiếu, tạo / sửa / hủy suất (chặn trùng giờ)
+│   │   ├── seat.service.js         # (v1.24) sơ đồ ghế, kiểm tra ghế khi giữ, gợi ý ghế
+│   │   ├── ticket.service.js   ⭐  # (v1.24) vé: trạng thái ghế theo suất, giữ / nhả / bán vé
 │   │   ├── pricing.service.js      # BR-11 → BR-13
-│   │   ├── booking.service.js  ⭐  # holdSeats, cancelOrder, setCombos, getOrder
+│   │   ├── order.service.js    ⭐  # (v1.24, đổi tên từ booking.service) holdSeats, cancelOrder, setCombos, getOrder, soát vé
 │   │   ├── promotion.service.js    # validate + áp mã
 │   │   ├── payment.service.js  ⭐  # createPayment, confirmPayment (IPN)
-│   │   ├── ticket.service.js       # tra cứu, check-in
+│   │   ├── movie.service.js  room.service.js   # (v1.24) đọc phim / phòng cho tạo suất
+│   │   ├── combo.service.js        # (v1.25) danh mục combo (giá combo đang bán)
 │   │   ├── user.service.js
 │   │   └── report.service.js
 │   ├── dao/                  # (v1.23) mỗi file một bảng, chỉ truy vấn
 │   │   ├── transaction.js          # runInTransaction, lockRoom
-│   │   ├── seat.dao.js  showtime.dao.js  seatLock.dao.js ⭐  order.dao.js  payment.dao.js ⭐
+│   │   ├── seat.dao.js  showtime.dao.js  ticket.dao.js ⭐  order.dao.js  payment.dao.js ⭐
 │   │   └── promotion.dao.js  user.dao.js  refreshToken.dao.js  movie.dao.js  room.dao.js
 │   │       priceRule.dao.js  seatTypeSurcharge.dao.js  chatSession.dao.js  chatMessage.dao.js
 │   ├── validators/           # schema kiểm tra body/query: auth.schema.js, order.schema.js, ...
@@ -655,3 +678,5 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 02/10/2026 | 1.21 | Mục 2.7: nhật ký thao tác quản trị `GET /admin/audit-logs` (FR-39; bảng `AuditLog`, docs/03) — bổ sung | Người A |
 | 29/10/2026 | 1.22 | Mục 1.2, 2.8, 3.9: kênh trợ lý AI (`/ai/chat`, `/ai/confirm`, `/ai/sessions/:id`), mã lỗi `AI_UNAVAILABLE` (503), xác nhận do server cưỡng chế (docs/07 v2.0) — bổ sung | Người A |
 | 14/11/2026 | 1.23 | Mục 5.2, 5.3: thêm tầng `dao/` (services → dao → Prisma); DAO chỉ truy vấn, tham số cuối `db = prisma`; thực thể không chứa hàm truy vấn (theo nhận xét của giảng viên về biểu đồ lớp / tuần tự). **Không đổi API** — bổ sung kiến trúc | Người A |
+| 21/11/2026 | 1.24 | Mục 5.2, 5.3: quy tắc trách nhiệm service (mỗi service một thực thể); `booking.service` → `order.service` (nhận cả soát vé), thêm `seat.service`, `movie.service`, `room.service`, `ticket.service` phụ trách vé; `seatLock.dao` → `ticket.dao` (docs/03 v1.3: bỏ `SeatLock`, vé là lớp trung gian Suất chiếu – Ghế). **Không đổi endpoint, request, response** | Theo nhận xét GVHD 18/11 |
+| 21/11/2026 | 1.25 | Mục 5.2, 5.3: thêm `combo.service` (chỉ phụ trách `Combo`, import `combo.dao`); `order.service` giữ Order + OrderCombo + soát vé, gọi `combo.service` để lấy giá combo (một chiều `order → combo`, không vòng). Sửa lỗi ở bảng v1.24: `combo.dao` không thuộc `order.service`. **Không đổi endpoint** | Theo trả lời của bên báo cáo (TraLoi_TachService_Tuan8) |

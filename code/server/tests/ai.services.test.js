@@ -7,7 +7,8 @@ process.env.NODE_ENV = 'test';
 const { prisma } = await import('../src/config/prisma.js');
 const catalog = await import('../src/services/catalog.service.js');
 const showtimeSvc = await import('../src/services/showtime.service.js');
-const booking = await import('../src/services/booking.service.js');
+const seatSvc = await import('../src/services/seat.service.js');
+const booking = await import('../src/services/order.service.js');
 const { getSurcharges } = await import('../src/services/pricing.service.js');
 const { default: app } = await import('../src/app.js');
 const { signAccessToken } = await import('../src/lib/jwt.js');
@@ -37,24 +38,27 @@ async function buildRoom() {
   seatsByLabel = Object.fromEntries(seats.map((s) => [`${s.row}${s.number}`, s]));
 }
 
-/** Chiếm ghế bằng một đơn thật (SeatLock cần orderId). `held` = đang giữ còn hạn; `expired` = giữ đã quá hạn; `sold` = đã bán. */
+/**
+ * Chiếm ghế bằng một đơn thật (vé cần orderId). `held` = đang giữ còn hạn; `expired` = đơn đã quá hạn giữ (vé HELD coi như trống);
+ * `sold` = đã bán. Hạn giữ ghế nằm ở ĐƠN (docs/03 v1.3).
+ */
 async function occupy(labels, kind = 'held') {
   const order = await prisma.order.create({
     data: {
-      code: `AI${RUN}${orderIds.length}${Math.floor(Math.random() * 1e3)}`.slice(-10), userId: other.id, showtimeId: showtime.id,
-      status: kind === 'sold' ? 'PAID' : 'PENDING', expiresAt: new Date(Date.now() + 10 * minute), seatTotal: 0, total: 0,
+      code: `AI${RUN}${orderIds.length}${Math.floor(Math.random() * 1e3)}`.slice(-10), userId: other.id,
+      status: kind === 'sold' ? 'PAID' : 'PENDING', expiresAt: new Date(Date.now() + (kind === 'expired' ? -minute : 10 * minute)), seatTotal: 0, total: 0,
+      tickets: {
+        create: labels.map((l) => ({
+          showtimeId: showtime.id, seatId: seatsByLabel[l].id, seatLabel: l, seatType: seatsByLabel[l].type, price: 0,
+          status: kind === 'sold' ? 'SOLD' : 'HELD', occupiedSeatId: seatsByLabel[l].id,
+        })),
+      },
     },
   });
   orderIds.push(order.id);
-  await prisma.seatLock.createMany({
-    data: labels.map((l) => ({
-      showtimeId: showtime.id, seatId: seatsByLabel[l].id, orderId: order.id,
-      status: kind === 'sold' ? 'SOLD' : 'HELD',
-      expiresAt: kind === 'sold' ? null : new Date(Date.now() + (kind === 'expired' ? -minute : 10 * minute)),
-    })),
-  });
 }
-const release = async () => { await prisma.seatLock.deleteMany({ where: { showtimeId: showtime.id } }); };
+// Xóa mọi đơn (kéo theo vé) của hai user test: ghế của suất trở lại trống hoàn toàn.
+const release = async () => { await prisma.order.deleteMany({ where: { userId: { in: [customer.id, other.id] } } }); };
 
 before(async () => {
   await buildRoom();
@@ -68,7 +72,7 @@ before(async () => {
 });
 after(async () => {
   server.close();
-  await prisma.order.deleteMany({ where: { userId: { in: [customer.id, other.id] } } }); // SeatLock xóa theo (cascade)
+  await prisma.order.deleteMany({ where: { userId: { in: [customer.id, other.id] } } }); // Ticket xóa theo (cascade)
   await prisma.showtime.deleteMany({ where: { roomId: room.id } });
   await prisma.seat.deleteMany({ where: { roomId: room.id } });
   await prisma.room.delete({ where: { id: room.id } });
@@ -182,7 +186,7 @@ test('findShowtimes: suất đã hủy và suất đã đóng bán (< 15 phút) 
 
 // ------------------------------------------------------------------ suggestSeats ------------------------------------------------------------------
 
-const suggest = (extra) => showtimeSvc.suggestSeats({ showtimeId: showtime.id, ...extra });
+const suggest = (extra) => seatSvc.suggestSeats({ showtimeId: showtime.id, ...extra });
 const nums = (labels) => labels.map((l) => Number(l.slice(1)));
 
 test('suggestSeats: tối đa 3 phương án, mỗi phương án là ghế LIỀN NHAU cùng hàng cùng loại, đủ số lượng, hàng khác nhau', async () => {
@@ -300,13 +304,13 @@ test('suggestSeats: kiểm tra đầu vào — > 8 ghế SEAT_LIMIT_EXCEEDED; 0 
   for (const bad of [{ quantity: 0 }, { quantity: 1.5 }, { quantity: '2' }, { quantity: 2, preference: 'FRONT' }, { quantity: 2, seatType: 'GOLD' }]) {
     assert.equal((await failErr(suggest(bad))).code, 'VALIDATION_ERROR', JSON.stringify(bad));
   }
-  assert.equal((await failErr(showtimeSvc.suggestSeats({ showtimeId: '00000000-0000-4000-8000-000000000000', quantity: 2 }))).code, 'NOT_FOUND');
+  assert.equal((await failErr(seatSvc.suggestSeats({ showtimeId: '00000000-0000-4000-8000-000000000000', quantity: 2 }))).code, 'NOT_FOUND');
   const movie = await prisma.movie.findFirst({ where: { status: 'NOW_SHOWING', description: { not: 'Mô tả thử' } } });
   const soon = new Date(Date.now() + 5 * minute);
   const closing = await prisma.showtime.create({
     data: { movieId: movie.id, roomId: room.id, startTime: soon, endTime: new Date(soon.getTime() + 60 * minute), format: 'F2D', audio: 'SUBTITLE', basePrice: 80_000 },
   });
-  assert.equal((await failErr(showtimeSvc.suggestSeats({ showtimeId: closing.id, quantity: 2 }))).code, 'SHOWTIME_CLOSED');
+  assert.equal((await failErr(seatSvc.suggestSeats({ showtimeId: closing.id, quantity: 2 }))).code, 'SHOWTIME_CLOSED');
 });
 
 // ------------------------------------------------------------------ source ------------------------------------------------------------------

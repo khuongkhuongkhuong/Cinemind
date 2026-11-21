@@ -3,10 +3,10 @@
 //                              npm run db:demo -- --live  (thêm một suất bắt đầu sau ~25 phút + vé của user mẫu, để demo SOÁT VÉ)
 //                              npm run db:demo -- --only-live  (chỉ bước trên, không tạo thêm đơn hàng loạt — chạy lại ngay trước buổi demo)
 //
-// Mọi đơn đi qua ĐÚNG các service thật (holdSeats -> setCombos -> createPayment -> simulateIpn): giữ ghế bằng khóa chính SeatLock,
+// Mọi đơn đi qua ĐÚNG các service thật (holdSeats -> setCombos -> createPayment -> simulateIpn): giữ ghế bằng UNIQUE Ticket(showtimeId, occupiedSeatId),
 // IPN có chữ ký và kiểm số tiền. Chỉ có MỘT bước "đạo cụ": lùi `createdAt` / `paidAt` về quá khứ để biểu đồ doanh thu có nhiều ngày.
 import { prisma } from '../src/config/prisma.js';
-import { holdSeats, setCombos, cancelOrder } from '../src/services/booking.service.js';
+import { holdSeats, setCombos, cancelOrder } from '../src/services/order.service.js';
 import { createPayment, simulateIpn } from '../src/services/payment.service.js';
 import { createShowtime } from '../src/services/showtime.service.js';
 
@@ -39,7 +39,7 @@ async function ensureCustomers() {
 
 /** Chọn ngẫu nhiên `count` ghế đơn (không phải ghế đôi) còn trống của suất. */
 async function freeSeats(showtime, count) {
-  const locked = new Set((await prisma.seatLock.findMany({ where: { showtimeId: showtime.id }, select: { seatId: true } })).map((l) => l.seatId));
+  const locked = new Set((await prisma.ticket.findMany({ where: { showtimeId: showtime.id, occupiedSeatId: { not: null } }, select: { seatId: true } })).map((t) => t.seatId));
   const seats = await prisma.seat.findMany({ where: { roomId: showtime.roomId, isActive: true, type: { not: 'COUPLE' } }, select: { id: true } });
   const free = seats.filter((s) => !locked.has(s.id));
   const chosen = [];
@@ -79,7 +79,8 @@ async function ensureDemoRoom(templateRoomId) {
 
 const customers = await ensureCustomers();
 const combos = await prisma.combo.findMany({ where: { isActive: true } });
-const showtimes = await prisma.showtime.findMany({ where: { status: 'OPEN', startTime: { gt: new Date(Date.now() + 2 * 3600_000) } }, orderBy: { startTime: 'asc' } });
+// Bỏ 12 suất XA NHẤT: các test tự động (booking / combo / thanh toán...) đặt ghế cố định trên chính những suất đó, không để dữ liệu demo chiếm trước.
+const showtimes = (await prisma.showtime.findMany({ where: { status: 'OPEN', startTime: { gt: new Date(Date.now() + 2 * 3600_000) } }, orderBy: { startTime: 'asc' } })).slice(0, -12);
 if (!showtimes.length) throw new Error('Không có suất chiếu sắp tới: chạy `npm run db:seed` trước.');
 
 let paid = 0;
@@ -98,7 +99,9 @@ if (!ONLY_LIVE) {
   for (let i = 0; i < 3; i++) {
     const st = pick(showtimes);
     const user = pick(customers);
-    const order = await holdSeats({ userId: user.id, showtimeId: st.id, seatIds: await freeSeats(st, 2) });
+    const seatIds = await freeSeats(st, 2);
+    if (seatIds.length === 0) continue; // suất đã kín ghế
+    const order = await holdSeats({ userId: user.id, showtimeId: st.id, seatIds });
     await cancelOrder({ userId: user.id, orderId: order.id });
   }
   const refundCandidate = await prisma.order.findFirst({ where: { status: 'PAID' }, orderBy: { paidAt: 'desc' } });

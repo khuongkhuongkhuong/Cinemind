@@ -1,15 +1,9 @@
 import { runInTransaction } from '../dao/transaction.js';
-import { countPaymentsOfOrder, claimPaymentSuccess, findPaymentByTxnRef, findPaymentWithOrder, insertPayment, markPaymentFailedIfPending } from '../dao/payment.dao.js';
-import { getOrderById, getOrderWithTickets, markOrderPaid, setOrderStatus } from '../dao/order.dao.js';
-import { deleteExpiredHeldLocks, deleteLocksOfOrder, insertSoldLock, markLockSold } from '../dao/seatLock.dao.js';
-import { incrementUsedCount } from '../dao/promotion.dao.js';
-import { addPoints } from '../dao/user.dao.js';
+import { countPaymentsOfOrder, claimPaymentSuccess, findPaymentByTxnRef, insertPayment, markPaymentFailedIfPending } from '../dao/payment.dao.js';
 import { env } from '../config/env.js';
 import { AppError } from '../utils/AppError.js';
 import { buildPaymentUrl, formatVnpDate, sign, verifySignature } from '../lib/vnpay.js';
-
-// Điểm thưởng (BR-25, Could): 1 điểm / 10.000đ thực trả.
-const POINT_UNIT = 10_000;
+import * as orderService from './order.service.js';
 
 const requireVnpConfig = () => {
   if (!env.VNP_TMN_CODE || !env.VNP_HASH_SECRET || !env.VNP_URL || !env.VNP_RETURN_URL) {
@@ -25,11 +19,7 @@ const requireVnpConfig = () => {
  */
 export async function createPayment({ userId, orderId, bankCode, ipAddr = '127.0.0.1' }) {
   requireVnpConfig();
-  const order = await getOrderById(orderId);
-  if (!order) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy đơn hàng.' });
-  if (order.userId !== userId) throw new AppError('FORBIDDEN');
-  if (order.status !== 'PENDING') throw new AppError('ORDER_NOT_PENDING');
-  if (order.expiresAt <= new Date()) throw new AppError('ORDER_EXPIRED');
+  const order = await orderService.getPayableOrder({ userId, orderId }); // chủ đơn, PENDING, còn hạn
 
   // Mỗi lần bấm "Thanh toán" là một giao dịch mới: txnRef = <mã đơn>-<lần thứ n>. UNIQUE chặn trùng.
   let payment;
@@ -106,14 +96,14 @@ export async function confirmPayment({ query }) {
 
   // 5. Thành công: transaction xác nhận. P2002 (ghế đã bị người khác lấy) -> rollback rồi chuyển REFUND_PENDING.
   try {
-    const confirmed = await runInTransaction((tx) => markPaid(tx, payment, query), { maxWait: 10_000, timeout: 15_000 });
+    const confirmed = await runInTransaction((tx) => confirmInTransaction(tx, payment, query), { maxWait: 10_000, timeout: 15_000 });
     return confirmed ? RSP.ok : RSP.already;
   } catch (err) {
     if (err.code !== 'P2002') throw err;
     // 6. Ghế đã mất (chỉ xảy ra khi IPN đến muộn, BR-31): tiền đã thu nên ghi SUCCESS, đơn chờ hoàn tiền.
     const marked = await runInTransaction(async (tx) => {
       const claimed = await claimPaymentSuccess({ id: payment.id, paidAt: new Date(), fields: { ...paymentFields(query), rawData } }, tx);
-      if (claimed === 1) await setOrderStatus(payment.orderId, 'REFUND_PENDING', tx);
+      if (claimed === 1) await orderService.markRefundPending(payment.orderId, tx);
       return claimed === 1;
     });
     return marked ? RSP.ok : RSP.already;
@@ -126,43 +116,16 @@ const paymentFields = (query) => ({
   bankCode: query.vnp_BankCode ?? undefined,
 });
 
-/** Phần ruột của transaction xác nhận. Trả false nếu một IPN khác đã xử lý trước (idempotent). */
-async function markPaid(tx, payment, query) {
+/**
+ * Phần ruột của transaction xác nhận. Trả false nếu một IPN khác đã xử lý trước (idempotent).
+ * Việc chuyển đơn sang PAID (bán vé, mã khuyến mãi, điểm) do `orderService.markPaid` làm trong CÙNG transaction.
+ */
+async function confirmInTransaction(tx, payment, query) {
   // "Giành" giao dịch: PENDING -> SUCCESS trong MỘT câu lệnh có điều kiện. Hai IPN trùng nhau chạy cùng lúc:
   // cái thứ hai bị chặn chờ cái đầu commit rồi thấy status đã SUCCESS => count = 0 => dừng. Đây là idempotency.
   const claimed = await claimPaymentSuccess({ id: payment.id, paidAt: new Date(), fields: { ...paymentFields(query), rawData: query } }, tx);
   if (claimed === 0) return false;
-
-  const order = await getOrderWithTickets(payment.orderId, tx);
-  // Chỉ đơn PENDING/EXPIRED/CANCELLED mới đi tiếp. Đơn đã PAID/REFUND_*: giao dịch này là khoản thu thừa,
-  // chỉ ghi nhận SUCCESS (đã làm ở trên), admin xử lý hoàn tiền thủ công.
-  if (!['PENDING', 'EXPIRED', 'CANCELLED'].includes(order.status)) return true;
-
-  // Số tiền đã thu phải KHỚP tổng đơn hiện tại. Khách tạo link thanh toán rồi đổi combo/mã giảm giá thì tổng đổi;
-  // trả theo link cũ sẽ thu sai số tiền => KHÔNG ghi PAID. Ghi nhận khoản thu, nhả ghế, chờ admin hoàn tiền.
-  if (order.total !== payment.amount) {
-    await deleteLocksOfOrder(order.id, tx);
-    await setOrderStatus(order.id, 'REFUND_PENDING', tx);
-    return true;
-  }
-
-  // Xóa lượt giữ HELD đã quá hạn của NGƯỜI KHÁC trên các ghế của đơn, để ta có thể chiếm chỗ.
-  const seatIds = order.tickets.map((s) => s.seatId);
-  await deleteExpiredHeldLocks({ showtimeId: order.showtimeId, seatIds, now: new Date(), exceptOrderId: order.id }, tx);
-
-  for (const s of order.tickets) {
-    // Lượt giữ của chính đơn còn -> chuyển SOLD. Mất rồi (cron đã dọn / đơn đã hết hạn) -> chèn mới;
-    // nếu ghế đã thuộc người khác thì khóa chính báo P2002 và ta rollback (bước 6).
-    const own = await markLockSold({ showtimeId: order.showtimeId, seatId: s.seatId, orderId: order.id }, tx);
-    if (own === 0) {
-      await insertSoldLock({ showtimeId: order.showtimeId, seatId: s.seatId, orderId: order.id }, tx);
-    }
-  }
-
-  await markOrderPaid(order.id, new Date(), tx);
-  if (order.promotionId) await incrementUsedCount(order.promotionId, tx); // BR-24
-  const points = Math.floor(order.total / POINT_UNIT); // BR-25
-  if (points > 0) await addPoints(order.userId, points, tx);
+  await orderService.markPaid({ orderId: payment.orderId, amount: payment.amount, now: new Date() }, tx);
   return true;
 }
 
@@ -173,9 +136,10 @@ async function markPaid(tx, payment, query) {
  * @throws {AppError} NOT_FOUND (cả khi không phải chủ giao dịch, để không lộ sự tồn tại của mã)
  */
 export async function getPaymentStatus({ userId, txnRef }) {
-  const payment = await findPaymentWithOrder(txnRef);
-  if (!payment || payment.order.userId !== userId) throw new AppError('NOT_FOUND');
-  return { orderId: payment.orderId, orderStatus: payment.order.status, paymentStatus: payment.status };
+  const payment = await findPaymentByTxnRef(txnRef);
+  const order = payment && (await orderService.getOrderStatus({ orderId: payment.orderId }));
+  if (!payment || !order || order.userId !== userId) throw new AppError('NOT_FOUND');
+  return { orderId: payment.orderId, orderStatus: order.status, paymentStatus: payment.status };
 }
 
 /**

@@ -12,8 +12,8 @@ export const insertRefreshToken = ({ userId, tokenHash, expiresAt }, db = prisma
 export const revokeIfValid = async ({ tokenHash, now }, db = prisma) =>
   (await db.refreshToken.updateMany({ where: { tokenHash, revokedAt: null, expiresAt: { gt: now } }, data: { revokedAt: now } })).count;
 
-/** @returns {Promise<(object & { user: object })|null>} bản ghi token kèm user */
-export const findTokenWithUser = (tokenHash, db = prisma) => db.refreshToken.findUnique({ where: { tokenHash }, include: { user: true } });
+/** @returns {Promise<object|null>} bản ghi RefreshToken (không kèm user: user thuộc `user.service`) */
+export const findToken = (tokenHash, db = prisma) => db.refreshToken.findUnique({ where: { tokenHash } });
 
 /** Thu hồi một token (đăng xuất). Không có / đã thu hồi thì không làm gì. @returns {Promise<number>} số dòng đã thu hồi */
 export const revokeToken = async ({ tokenHash, now }, db = prisma) =>

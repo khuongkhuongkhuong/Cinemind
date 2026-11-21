@@ -10,6 +10,7 @@ const { getBasePrice } = await import('../src/services/pricing.service.js');
 const { default: app } = await import('../src/app.js');
 const { signAccessToken } = await import('../src/lib/jwt.js');
 const { createRoleUsers } = await import('./helpers/role-users.js');
+const { createOrder } = await import('./helpers/orders.js');
 
 const minute = 60_000;
 const DAY = 24 * 60 * minute;
@@ -22,7 +23,7 @@ const at = (day, offsetMin = 0) => new Date(T0.getTime() + day * DAY + offsetMin
 const base = (day, offsetMin, extra = {}) => ({ movieId: movie.id, roomId: room.id, startTime: at(day, offsetMin), format: 'F2D', audio: 'SUBTITLE', ...extra });
 const failErr = (p) => p.then(() => null, (e) => e);
 const create = async (data) => { const s = await svc.createShowtime(data); createdIds.add(s.id); return s; };
-const makeOrder = (showtimeId, data) => prisma.order.create({
+const makeOrder = (showtimeId, data) => createOrder({
   data: { code: `A${RUN}${createdIds.size}${Math.floor(Math.random() * 1e4)}`.slice(-10), userId: customer.id, showtimeId, expiresAt: new Date(Date.now() + 10 * minute), seatTotal: 0, total: 0, ...data },
 });
 
@@ -40,8 +41,9 @@ before(async () => {
 
 after(async () => {
   const ids = [...createdIds];
-  await prisma.order.deleteMany({ where: { showtimeId: { in: ids } } });
+  await prisma.order.deleteMany({ where: { tickets: { some: { showtimeId: { in: ids } } } } });
   await prisma.showtime.deleteMany({ where: { OR: [{ id: { in: ids } }, { roomId: { in: [room.id, otherRoom.id] } }] } });
+  await prisma.seat.deleteMany({ where: { roomId: { in: [room.id, otherRoom.id] } } });
   await prisma.room.deleteMany({ where: { id: { in: [room.id, otherRoom.id] } } });
   await prisma.user.delete({ where: { id: customer.id } });
   await roles.cleanup();
