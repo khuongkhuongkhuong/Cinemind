@@ -146,6 +146,7 @@ export async function getPaymentStatus({ userId, txnRef }) {
  * CHỈ DÙNG KHI PHÁT TRIỂN/DEMO: giả lập VNPay gọi IPN. Tự dựng một IPN có chữ ký hợp lệ rồi đi qua
  * ĐÚNG hàm confirmPayment như IPN thật, nên kiểm thử luồng này cũng kiểm thử cả phần kiểm chữ ký.
  * @param {{ txnRef: string, result: 'SUCCESS' | 'FAILED' }} params
+ * @returns {Promise<{ RspCode: string, Message: string } >} phản hồi như IPN thật
  */
 export async function simulateIpn({ txnRef, result }) {
   requireVnpConfig();

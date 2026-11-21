@@ -48,7 +48,10 @@ export async function assertPromotionUsable({ promotion, userId, subtotal, order
   return promotion;
 }
 
-/** Tìm mã theo chuỗi người dùng nhập (không phân biệt hoa/thường, bỏ khoảng trắng). */
+/**
+ * Tìm mã theo chuỗi người dùng nhập (không phân biệt hoa/thường, bỏ khoảng trắng).
+ * @returns {Promise<object>} dòng Promotion
+ */
 export const findPromotionByCode = ({ code, db = prisma }) =>
   db.promotion.findUnique({ where: { code: code.trim().toUpperCase() } });
 

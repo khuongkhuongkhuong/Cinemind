@@ -47,7 +47,10 @@ export const checkInIfNotUsed = async ({ orderId, staffId, now }, db = prisma) =
 export const findActivePendingOrderIds = async ({ userId, now }, db = prisma) =>
   (await db.order.findMany({ where: { userId, status: 'PENDING', expiresAt: { gt: now } }, select: { id: true } })).map((o) => o.id);
 
-/** Chuyển các đơn sang CANCELLED (không kiểm điều kiện: service đã chọn đúng các đơn cần hủy). */
+/**
+ * Chuyển các đơn sang CANCELLED (không kiểm điều kiện: service đã chọn đúng các đơn cần hủy).
+ * @returns {Promise<{ count: number } >}
+ */
 export const markOrdersCancelled = (orderIds, db = prisma) =>
   db.order.updateMany({ where: { id: { in: orderIds } }, data: { status: 'CANCELLED' } });
 
@@ -94,10 +97,16 @@ export const markOrderExpiredIfStale = async ({ orderId, now }, db = prisma) =>
 export const touchPendingOrder = async ({ orderId, now }, db = prisma) =>
   (await db.order.updateMany({ where: { id: orderId, status: 'PENDING', expiresAt: { gt: now } }, data: { updatedAt: now } })).count;
 
-/** Số đơn + một trang đơn của một user theo trạng thái, mới nhất trước (cho "vé của tôi"). */
+/**
+ * Số đơn + một trang đơn của một user theo trạng thái, mới nhất trước (cho "vé của tôi").
+ * @returns {Promise<number>}
+ */
 export const countOrdersOfUser = ({ userId, status }, db = prisma) => db.order.count({ where: { userId, status } });
 
-/** @param {{ userId: string, status: string }} filter @param {{ skip: number, take: number }} page */
+/**
+ * @param {{ userId: string, status: string }} filter @param {{ skip: number, take: number }} page
+ * @returns {Promise<object[]>} một trang Order kèm vé (mỗi vé kèm suất)
+ */
 export const findOrdersOfUser = ({ userId, status }, { skip, take }, db = prisma) =>
   db.order.findMany({
     where: { userId, status },
@@ -117,15 +126,27 @@ export const getOrderForRecalc = (orderId, db = prisma) =>
 /** Đơn kèm dòng vé và combo (để tính tạm tính khi áp mã). @returns {Promise<object|null>} */
 export const getOrderLines = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, include: { tickets: true, combos: true } });
 
-/** Ghi lại các khoản tiền đã tính lại. @param {{ seatTotal: number, comboTotal: number, discount: number, promotionId: string|null, total: number }} totals */
+/**
+ * Ghi lại các khoản tiền đã tính lại. @param {{ seatTotal: number, comboTotal: number, discount: number, promotionId: string|null, total: number }} totals
+ * @returns {Promise<object>} Order sau khi cập nhật
+ */
 export const updateOrderTotals = (orderId, { seatTotal, comboTotal, discount, promotionId, total }, db = prisma) =>
   db.order.update({ where: { id: orderId }, data: { seatTotal, comboTotal, discount, promotionId, total } });
 
-/** Gắn mã khuyến mãi vào đơn (`null` = gỡ mã). */
+/**
+ * Gắn mã khuyến mãi vào đơn (`null` = gỡ mã).
+ * @returns {Promise<object>} Order sau khi cập nhật
+ */
 export const setOrderPromotion = (orderId, promotionId, db = prisma) => db.order.update({ where: { id: orderId }, data: { promotionId } });
 
-/** Đổi trạng thái đơn (không kiểm điều kiện: service đã quyết định trong transaction). */
+/**
+ * Đổi trạng thái đơn (không kiểm điều kiện: service đã quyết định trong transaction).
+ * @returns {Promise<object>} Order sau khi cập nhật
+ */
 export const setOrderStatus = (orderId, status, db = prisma) => db.order.update({ where: { id: orderId }, data: { status } });
 
-/** Ghi nhận đơn ĐÃ THANH TOÁN. Chỉ được gọi từ luồng xác nhận IPN. */
+/**
+ * Ghi nhận đơn ĐÃ THANH TOÁN. Chỉ được gọi từ luồng xác nhận IPN.
+ * @returns {Promise<object>} Order sau khi cập nhật
+ */
 export const markOrderPaid = (orderId, paidAt, db = prisma) => db.order.update({ where: { id: orderId }, data: { status: 'PAID', paidAt } });

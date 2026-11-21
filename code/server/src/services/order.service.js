@@ -161,6 +161,7 @@ export async function holdSeats({ userId, showtimeId, seatIds, source = 'WEB' })
  * Xem một đơn của chính mình.
  * @param {{ userId: string, orderId: string }} params
  * @throws {AppError} NOT_FOUND | FORBIDDEN
+ * @returns {Promise<object>} `Order` (04-api-contract mục 3.4)
  */
 export async function getOrder({ userId, orderId }) {
   const order = await getOrderDetail(orderId);

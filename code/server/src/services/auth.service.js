@@ -15,6 +15,7 @@ const toPublicUser = (u) => ({
   id: u.id, email: u.email, fullName: u.fullName, phone: u.phone, role: u.role, points: u.points,
 });
 
+/** @returns {Promise<{ accessToken: string, refreshToken: string } >} */
 export async function issueTokens(user) {
   const refreshToken = generateRefreshToken();
   await insertRefreshToken({

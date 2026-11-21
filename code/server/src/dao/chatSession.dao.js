@@ -3,10 +3,16 @@ import { prisma } from '../config/prisma.js';
 /** @returns {Promise<object|null>} ChatSession */
 export const getSessionById = (sessionId, db = prisma) => db.chatSession.findUnique({ where: { id: sessionId } });
 
-/** Mở phiên trò chuyện mới của một user (trạng thái ACTIVE, state rỗng theo schema). */
+/**
+ * Mở phiên trò chuyện mới của một user (trạng thái ACTIVE, state rỗng theo schema).
+ * @returns {Promise<object>} ChatSession vừa tạo
+ */
 export const insertSession = (userId, db = prisma) => db.chatSession.create({ data: { userId } });
 
-/** Ghi lại trạng thái phiên (việc chờ xác nhận, đơn đang giữ…) và thời điểm hoạt động. */
+/**
+ * Ghi lại trạng thái phiên (việc chờ xác nhận, đơn đang giữ…) và thời điểm hoạt động.
+ * @returns {Promise<object>} ChatSession sau khi cập nhật
+ */
 export const updateSessionState = ({ sessionId, state, lastActiveAt }, db = prisma) =>
   db.chatSession.update({ where: { id: sessionId }, data: { state, ...(lastActiveAt && { lastActiveAt }) } });
 
@@ -19,6 +25,9 @@ export const updateSessionState = ({ sessionId, state, lastActiveAt }, db = pris
 export const claimPendingAction = async ({ sessionId, expectedLastActiveAt, state, lastActiveAt }, db = prisma) =>
   (await db.chatSession.updateMany({ where: { id: sessionId, lastActiveAt: expectedLastActiveAt }, data: { state, lastActiveAt } })).count;
 
-/** Đóng phiên (CLOSED) và ghi state mới (đã gỡ việc chờ). */
+/**
+ * Đóng phiên (CLOSED) và ghi state mới (đã gỡ việc chờ).
+ * @returns {Promise<object>} ChatSession sau khi cập nhật
+ */
 export const markSessionClosed = ({ sessionId, state }, db = prisma) =>
   db.chatSession.update({ where: { id: sessionId }, data: { status: 'CLOSED', state } });

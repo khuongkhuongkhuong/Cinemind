@@ -13,13 +13,21 @@ export const findUserRoleState = (userId, db = prisma) =>
 /**
  * Tạo user. Trùng email -> lỗi Prisma P2002 đi xuyên qua DAO (UNIQUE(email) là trọng tài); service dịch sang EMAIL_EXISTS.
  * @param {{ email: string, passwordHash: string, fullName: string, phone: string|null }} data
+ * @returns {Promise<object>} User vừa tạo
  */
 export const insertUser = (data, db = prisma) => db.user.create({ data });
 
-/** Cập nhật một phần các trường của user (service quyết định trường nào được phép). */
+/**
+ * Cập nhật một phần các trường của user (service quyết định trường nào được phép).
+ * @returns {Promise<object>} User sau khi cập nhật
+ */
 export const updateUserById = (userId, data, db = prisma) => db.user.update({ where: { id: userId }, data });
 
+/** @returns {Promise<object>} User sau khi cập nhật */
 export const setPasswordHash = (userId, passwordHash, db = prisma) => db.user.update({ where: { id: userId }, data: { passwordHash } });
 
-/** Cộng điểm thưởng (BR-25) bằng `increment` nguyên tử của CSDL. */
+/**
+ * Cộng điểm thưởng (BR-25) bằng `increment` nguyên tử của CSDL.
+ * @returns {Promise<object>} User sau khi cập nhật
+ */
 export const addPoints = (userId, points, db = prisma) => db.user.update({ where: { id: userId }, data: { points: { increment: points } } });

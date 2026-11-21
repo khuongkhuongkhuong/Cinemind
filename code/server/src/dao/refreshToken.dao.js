@@ -1,6 +1,9 @@
 import { prisma } from '../config/prisma.js';
 
-/** Lưu refresh token (chỉ bản BĂM, không bao giờ lưu token gốc). */
+/**
+ * Lưu refresh token (chỉ bản BĂM, không bao giờ lưu token gốc).
+ * @returns {Promise<object>} RefreshToken vừa tạo
+ */
 export const insertRefreshToken = ({ userId, tokenHash, expiresAt }, db = prisma) =>
   db.refreshToken.create({ data: { userId, tokenHash, expiresAt } });
 

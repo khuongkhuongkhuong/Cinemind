@@ -1,11 +1,15 @@
 import { prisma } from '../config/prisma.js';
 
-/** Số giao dịch đã tạo cho đơn (để đặt `txnRef` = <mã đơn>-<lần thứ n>). */
+/**
+ * Số giao dịch đã tạo cho đơn (để đặt `txnRef` = <mã đơn>-<lần thứ n>).
+ * @returns {Promise<number>}
+ */
 export const countPaymentsOfOrder = (orderId, db = prisma) => db.payment.count({ where: { orderId } });
 
 /**
  * Tạo giao dịch ở trạng thái PENDING. `txnRef` là UNIQUE: trùng thì lỗi Prisma P2002 đi xuyên DAO và service thử số kế tiếp.
  * @param {{ orderId: string, txnRef: string, amount: number, bankCode: string|null }} data
+ * @returns {Promise<object>} Payment vừa tạo
  */
 export const insertPayment = ({ orderId, txnRef, amount, bankCode }, db = prisma) => db.payment.create({ data: { orderId, txnRef, amount, bankCode } });
 

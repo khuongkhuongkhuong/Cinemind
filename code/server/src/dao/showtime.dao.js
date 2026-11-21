@@ -16,17 +16,26 @@ export const ADMIN_SELECT = {
 /** @returns {Promise<object|null>} suất kèm phim + phòng + rạp */
 export const getShowtimeDetail = (showtimeId, db = prisma) => db.showtime.findUnique({ where: { id: showtimeId }, include: SHOWTIME_INCLUDE });
 
-/** Suất kèm bản ghi phim (cho sửa suất). */
+/**
+ * Suất kèm bản ghi phim (cho sửa suất).
+ * @returns {Promise<object|null>} Showtime kèm movie
+ */
 export const getShowtimeWithMovie = (showtimeId, db = prisma) => db.showtime.findUnique({ where: { id: showtimeId }, include: { movie: true } });
 
 /** Chỉ phòng + trạng thái (cho hủy suất). @returns {Promise<{ roomId: string, status: string }|null>} */
 export const getShowtimeRoomAndStatus = (showtimeId, db = prisma) =>
   db.showtime.findUnique({ where: { id: showtimeId }, select: { roomId: true, status: true } });
 
-/** Suất theo `ADMIN_SELECT`. */
+/**
+ * Suất theo `ADMIN_SELECT`.
+ * @returns {Promise<object|null>} Showtime kèm phim, phòng, rạp
+ */
 export const getAdminShowtime = (showtimeId, db = prisma) => db.showtime.findUnique({ where: { id: showtimeId }, select: ADMIN_SELECT });
 
-/** Các suất OPEN của MỘT PHIM trong khoảng [from, to) ở các rạp đang hoạt động của một thành phố, sắp theo giờ. */
+/**
+ * Các suất OPEN của MỘT PHIM trong khoảng [from, to) ở các rạp đang hoạt động của một thành phố, sắp theo giờ.
+ * @returns {Promise<object[]>} Showtime
+ */
 export const listOpenShowtimesOfMovie = ({ movieId, from, to, cityId }, db = prisma) =>
   db.showtime.findMany({
     where: {
@@ -42,7 +51,10 @@ export const listOpenShowtimesOfMovie = ({ movieId, from, to, cityId }, db = pri
     },
   });
 
-/** Các suất OPEN của MỘT RẠP trong khoảng [from, to), kèm phim, sắp theo giờ. */
+/**
+ * Các suất OPEN của MỘT RẠP trong khoảng [from, to), kèm phim, sắp theo giờ.
+ * @returns {Promise<object[]>} Showtime
+ */
 export const listOpenShowtimesOfCinema = ({ cinemaId, from, to }, db = prisma) =>
   db.showtime.findMany({
     where: { status: 'OPEN', startTime: { gte: from, lt: to }, room: { cinemaId } },
@@ -56,6 +68,7 @@ export const listOpenShowtimesOfCinema = ({ cinemaId, from, to }, db = prisma) =
 /**
  * Tìm các suất OPEN trong khoảng [from, to) theo nhiều điều kiện tùy chọn, dạng dữ liệu phẳng (cho trợ lý AI).
  * @param {{ from: Date, to: Date, movieId?: string, format?: string, cinemaId?: string, cityIds?: string[] }} filter
+ * @returns {Promise<object[]>} Showtime
  */
 export const searchOpenShowtimes = ({ from, to, movieId, format, cinemaId, cityIds }, db = prisma) =>
   db.showtime.findMany({
@@ -81,9 +94,13 @@ const adminWhere = ({ roomId, cinemaId, from, to }) => ({
   ...(from && { startTime: { gte: from, lt: to } }),
 });
 
+/** @returns {Promise<number>} */
 export const countAdminShowtimes = (filter, db = prisma) => db.showtime.count({ where: adminWhere(filter) });
 
-/** @param {{ roomId?: string, cinemaId?: string, from?: Date, to?: Date }} filter @param {{ skip: number, take: number }} page */
+/**
+ * @param {{ roomId?: string, cinemaId?: string, from?: Date, to?: Date }} filter @param {{ skip: number, take: number }} page
+ * @returns {Promise<object[]>} một trang Showtime
+ */
 export const findAdminShowtimes = (filter, { skip, take }, db = prisma) =>
   db.showtime.findMany({ where: adminWhere(filter), orderBy: { startTime: 'asc' }, skip, take, select: ADMIN_SELECT });
 

@@ -17,5 +17,6 @@ export const runInTransaction = (work, options) => prisma.$transaction(work, opt
  * trong cùng một phòng để "kiểm tra trùng giờ rồi mới ghi" không bị race.
  * @param {import('@prisma/client').Prisma.TransactionClient} tx
  * @param {string} roomId
+ * @returns {Promise<void>}
  */
 export const lockRoom = (tx, roomId) => tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${roomId}))`;

@@ -20,6 +20,7 @@ const SALE_CUTOFF_MS = 15 * 60_000; // BR-04: ngừng bán online 15 phút trư�
  * Suất còn mở bán không? (BR-04) — hàm thuần, order.service dùng lại khi giữ ghế.
  * @param {{ status: string, startTime: Date }} showtime
  * @param {Date} [now]
+ * @returns {boolean
  */
 export const isOpenForSale = (showtime, now = new Date()) =>
   showtime.status === 'OPEN' && showtime.startTime.getTime() - now.getTime() > SALE_CUTOFF_MS;
@@ -31,7 +32,10 @@ export function vnDayRange(dateStr) {
   return { from, to: new Date(from.getTime() + 24 * 3600_000) };
 }
 
-/** Dòng Prisma -> ShowtimeDetail (04-api-contract mục 3.3). */
+/**
+ * Dòng Prisma -> ShowtimeDetail (04-api-contract mục 3.3).
+ * @returns {object} ShowtimeDetail (04-api-contract mục 3.3
+ */
 export const toDetail = (s, now) => ({
   id: s.id,
   startTime: s.startTime,
@@ -77,6 +81,7 @@ export async function listShowtimesByMovie({ movieId, date, cityId }) {
  * Chi tiết một suất chiếu.
  * @param {{ showtimeId: string }} params
  * @throws {AppError} NOT_FOUND
+ * @returns {Promise<object>} ShowtimeDetail
  */
 export async function getShowtime({ showtimeId }) {
   return toDetail(await loadShowtime({ showtimeId, withDetail: true }), new Date());
@@ -146,6 +151,7 @@ const fieldError = (field, message) => new AppError('VALIDATION_ERROR', { detail
 /**
  * Danh sách suất chiếu cho trang quản trị.
  * @param {{ cinemaId?: string, roomId?: string, date?: string, page: number, pageSize: number }} params date: YYYY-MM-DD (giờ VN)
+ * @returns {Promise<{ items: object[], meta: object } >}
  */
 export async function listAdminShowtimes({ cinemaId, roomId, date, page, pageSize }) {
   const range = date ? vnDayRange(date) : {};
@@ -188,6 +194,7 @@ export async function createShowtime({ movieId, roomId, startTime, format, audio
  * Đổi giờ hoặc định dạng mà không gửi `basePrice` thì giá gốc được tính lại từ bảng giá.
  * @param {{ showtimeId: string, movieId?: string, roomId?: string, startTime?: Date, format?: string, audio?: string, basePrice?: number }} params
  * @throws {AppError} NOT_FOUND | VALIDATION_ERROR | RESOURCE_IN_USE | SHOWTIME_OVERLAP
+ * @returns {Promise<object>} suất sau khi sửa
  */
 export async function updateShowtime({ showtimeId, ...changes }) {
   const current = await getShowtimeWithMovie(showtimeId);
@@ -229,6 +236,7 @@ export async function updateShowtime({ showtimeId, ...changes }) {
  * Gọi lại trên suất đã hủy: trả nguyên suất đó (idempotent).
  * @param {{ showtimeId: string }} params
  * @throws {AppError} NOT_FOUND | RESOURCE_IN_USE
+ * @returns {Promise<object>} suất đã hủy (CANCELLED)
  */
 export async function cancelShowtime({ showtimeId }) {
   const current = await getShowtimeRoomAndStatus(showtimeId);
