@@ -15,14 +15,14 @@
 - Thanh toán: VNPay sandbox. Chưa dùng Redis.
 
 ## Quy tắc kiến trúc (bắt buộc)
-- Server: `routes → controllers → services → dao → Prisma`. Controller chỉ đọc `req`, gọi **một** service, trả `res`; **không import Prisma**. **DAO (`server/src/dao/`) chỉ truy vấn**: mỗi hàm một thao tác đọc/ghi CSDL, không ném `AppError`, không chứa luật nghiệp vụ, tham số cuối `db = prisma` (truyền `tx` khi trong transaction). Service gọi hàm DAO, không gọi `prisma.<bảng>` trực tiếp (các service đã chuyển); mở transaction qua `dao/transaction.js`. Entity (mô hình Prisma) chỉ chứa dữ liệu.
+- Server: `routes → controllers → services → dao → Prisma`. Controller chỉ đọc `req`, gọi **một** service, trả `res`; **không import Prisma**. **DAO (`server/src/dao/`) chỉ truy vấn**: mỗi hàm một thao tác đọc/ghi CSDL, không ném `AppError`, không chứa luật nghiệp vụ, tham số cuối `db = prisma` (truyền `tx` khi trong transaction). Service gọi hàm DAO, không gọi `prisma.<bảng>` trực tiếp (các service đã chuyển); mở transaction qua `dao/transaction.js`. Entity (mô hình Prisma) chỉ chứa dữ liệu. **Mỗi service phụ trách một thực thể, tên service = tên thực thể; chỉ service đó import DAO của thực thể ấy — cần thực thể khác thì gọi service của nó** (docs/04 mục 5.2, v1.25).
 - **Toàn bộ logic nghiệp vụ ở `services/`**: nhận một object tham số (`{ userId, showtimeId, seatIds }`), trả object thuần, lỗi bằng `throw new AppError(CODE)`; không đụng `req`/`res`. Có JSDoc cho hàm public — AI Agent sẽ gọi service như tool.
 - Client: `page → hook (TanStack Query) → api/*.api.js`; page không gọi Axios trực tiếp. Rẽ nhánh lỗi theo `error.code`, không theo `message`.
 - Response: `{ success, data, meta? }` / `{ success: false, error: { code, message, details } }` — đúng `04-api-contract.md`.
 
 ## Bất biến cốt lõi — không được phá
-- Chống trùng ghế bằng **PK/UNIQUE `SeatLock(showtimeId, seatId)`** trong transaction; giữ ghế "tất cả hoặc không". **Không** check-then-insert, **không** `createMany({ skipDuplicates: true })` cho SeatLock.
-- Lượt giữ quá hạn coi như trống (dọn lười) — cron chỉ để dọn dữ liệu.
+- Chống trùng ghế bằng **UNIQUE `Ticket(showtimeId, occupiedSeatId)`** (docs/03 v1.3: vé HELD/SOLD có `occupiedSeatId = seatId`, vé RELEASED để NULL; chỉ `ticket.dao.js` ghi cột này) trong transaction; giữ ghế "tất cả hoặc không". **Không** check-then-insert, **không** `createMany({ skipDuplicates: true })` cho Ticket.
+- Vé HELD của đơn đã quá hạn coi như ghế trống (dọn lười: nhả ngay trong transaction giữ ghế) — cron chỉ để dọn dữ liệu.
 - **Chỉ IPN VNPay** (đã kiểm chữ ký + số tiền, idempotent) được chuyển đơn sang `PAID`; trang return chỉ đọc trạng thái.
 - Server tự tính mọi khoản tiền; giá chốt vào `Ticket`/`OrderCombo`. Tiền = `Int` VND; thời gian lưu UTC.
 - Mật khẩu băm bcrypt; `userId` luôn lấy từ token, không lấy từ body.
