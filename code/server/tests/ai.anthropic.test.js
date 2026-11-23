@@ -63,14 +63,14 @@ test('toAnthropicTools: inputSchema -> input_schema', () => {
   assert.deepEqual(toAnthropicTools([TOOL]), [{ name: 'list_combos', description: 'Danh sách combo', input_schema: TOOL.inputSchema }]);
 });
 
-test('⭐ tham số gửi đi (Opus 5.5): đúng model, effort, system, tools, fallback; KHÔNG có thinking / temperature / tool_choice ép buộc (API từ chối)', async () => {
+test('⭐ tham số gửi đi (mô hình mặc định Sonnet 5.5): đúng model, effort, system, tools, fallback; KHÔNG có thinking / temperature / tool_choice ép buộc (API từ chối)', async () => {
   const client = fakeClient([reply([{ type: 'text', text: 'ok' }])]);
   const llm = createAnthropicLlm({ client });
   await llm.complete({ system: 'SYS', messages: [{ role: 'user', content: 'hi' }], tools: [TOOL], maxTokens: 1234 });
   assert.equal(client.calls.beta.length, 1);
   const p = client.calls.beta[0];
   assert.equal(p.model, DEFAULT_MODEL);
-  assert.equal(DEFAULT_MODEL, 'claude-opus-5-5');
+  assert.equal(DEFAULT_MODEL, 'claude-sonnet-5-5'); // quyết định D1 trong docs/07
   assert.deepEqual([p.max_tokens, p.system], [1234, 'SYS']);
   assert.deepEqual(p.output_config, { effort: 'low' });
   assert.deepEqual([p.betas, p.fallbacks], [['server-side-fallback-2026-07-01'], 'default']);
@@ -80,11 +80,11 @@ test('⭐ tham số gửi đi (Opus 5.5): đúng model, effort, system, tools, f
 
 test('tắt fallback / đổi model + effort: dùng endpoint thường, không có betas / fallbacks', async () => {
   const client = fakeClient([reply([{ type: 'text', text: 'ok' }])]);
-  await createAnthropicLlm({ client, model: 'claude-sonnet-5-5', effort: 'medium', refusalFallback: false })
+  await createAnthropicLlm({ client, model: 'claude-opus-5-5', effort: 'medium', refusalFallback: false })
     .complete({ system: 's', messages: [{ role: 'user', content: 'hi' }], tools: [], maxTokens: 100 });
   assert.equal(client.calls.beta.length, 0);
   const p = client.calls.plain[0];
-  assert.deepEqual([p.model, p.output_config.effort], ['claude-sonnet-5-5', 'medium']);
+  assert.deepEqual([p.model, p.output_config.effort], ['claude-opus-5-5', 'medium']);
   assert.equal('betas' in p || 'fallbacks' in p, false);
 });
 
@@ -161,15 +161,16 @@ test('lỗi API giữa chừng: khách nhận AI_UNAVAILABLE, không lộ chi ti
 // ------------------------------------------------------------------ cấu hình ------------------------------------------------------------------
 const BASE_ENV = { DATABASE_URL: 'postgresql://x', JWT_ACCESS_SECRET: 'a'.repeat(32), JWT_REFRESH_SECRET: 'b'.repeat(32) };
 
-test('cấu hình: không có ANTHROPIC_API_KEY vẫn hợp lệ (trợ lý tắt); mặc định claude-opus-5-5, effort low, fallback bật', () => {
+test('cấu hình: không có ANTHROPIC_API_KEY vẫn hợp lệ (trợ lý tắt); mặc định claude-sonnet-5-5, effort low, fallback bật, trần toàn hệ thống 2000 tin / ngày', () => {
   const r = parseEnv(BASE_ENV);
   assert.equal(r.success, true);
-  assert.deepEqual([r.data.ANTHROPIC_API_KEY, r.data.AI_MODEL, r.data.AI_EFFORT, r.data.AI_REFUSAL_FALLBACK], [undefined, 'claude-opus-5-5', 'low', true]);
+  assert.deepEqual([r.data.ANTHROPIC_API_KEY, r.data.AI_MODEL, r.data.AI_EFFORT, r.data.AI_REFUSAL_FALLBACK, r.data.AI_GLOBAL_DAILY_LIMIT], [undefined, 'claude-sonnet-5-5', 'low', true, 2000]);
 });
 
 test('cấu hình: đổi được model / effort / tắt fallback; effort sai hoặc khóa rỗng bị từ chối', () => {
-  const ok = parseEnv({ ...BASE_ENV, ANTHROPIC_API_KEY: 'k', AI_MODEL: 'claude-sonnet-5-5', AI_EFFORT: 'high', AI_REFUSAL_FALLBACK: 'false' });
-  assert.deepEqual([ok.data.AI_MODEL, ok.data.AI_EFFORT, ok.data.AI_REFUSAL_FALLBACK], ['claude-sonnet-5-5', 'high', false]);
+  const ok = parseEnv({ ...BASE_ENV, ANTHROPIC_API_KEY: 'k', AI_MODEL: 'claude-opus-5-5', AI_EFFORT: 'high', AI_REFUSAL_FALLBACK: 'false', AI_GLOBAL_DAILY_LIMIT: '0' });
+  assert.deepEqual([ok.data.AI_MODEL, ok.data.AI_EFFORT, ok.data.AI_REFUSAL_FALLBACK, ok.data.AI_GLOBAL_DAILY_LIMIT], ['claude-opus-5-5', 'high', false, 0]);
   assert.equal(parseEnv({ ...BASE_ENV, AI_EFFORT: 'extreme' }).success, false);
   assert.equal(parseEnv({ ...BASE_ENV, ANTHROPIC_API_KEY: '' }).success, false);
+  assert.equal(parseEnv({ ...BASE_ENV, AI_GLOBAL_DAILY_LIMIT: '-1' }).success, false);
 });

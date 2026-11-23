@@ -217,7 +217,7 @@ Một số tool trong mục 2 chưa có service tương ứng, hoặc tên khác
 
 **Ghi chú thực hiện bước 5 (bộ chuyển Anthropic, 23/11/2026) — phần code ✅, hội thoại thật ⏳ chờ khóa API:**
 - `ai/llm/anthropic.js` dùng SDK chính thức `@anthropic-ai/sdk`, cài đúng giao diện `complete({ system, messages, tools, maxTokens })`. Mỗi lần gọi là MỘT `messages.create`; vòng lặp công cụ vẫn do `ai/agent.js` điều khiển (tool ghi vẫn chỉ tạo đề xuất chờ xác nhận). Kết quả công cụ của cùng một lượt gọi song song được gộp vào MỘT tin `user`.
-- Mô hình mặc định **`claude-opus-5-5`** (đổi bằng `AI_MODEL`, vd `claude-sonnet-5-5` rẻ hơn khoảng một nửa). `effort` mặc định `low` (`AI_EFFORT`): trò chuyện + gọi công cụ ngắn không cần suy nghĩ sâu, nhanh và rẻ hơn. Không gửi `thinking`, `temperature`, `tool_choice` ép buộc vì Opus 5.5 từ chối các tham số này (có test khóa lại).
+- Mô hình mặc định **`claude-sonnet-5-5`** (đúng quyết định D1; đổi bằng `AI_MODEL`, vd `claude-opus-5-5` mạnh hơn nhưng đắt gấp đôi). `effort` mặc định `low` (`AI_EFFORT`): trò chuyện + gọi công cụ ngắn không cần suy nghĩ sâu, nhanh và rẻ hơn. Không gửi `thinking`, `temperature`, `tool_choice` ép buộc vì Opus 5.5 từ chối các tham số này (có test khóa lại).
 - Bật `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`, `AI_REFUSAL_FALLBACK=true`): bộ lọc an toàn từ chối thì API tự chạy lại trên mô hình dự phòng; nếu cả chuỗi từ chối, khách nhận câu trả lời lịch sự, không có lỗi.
 - Cắt cụt (`max_tokens`) giữa lúc viết lời gọi công cụ thì KHÔNG chạy tham số dở dang (ném lỗi → khách thấy `AI_UNAVAILABLE`).
 - Nối lúc khởi động (`server.js`) chỉ khi có `ANTHROPIC_API_KEY` trong `.env`; không có khóa thì trợ lý tắt và phần còn lại hoạt động bình thường. Khóa chỉ đọc ở `config/env.js` và `server.js`, không bao giờ in ra log (test kiến trúc kiểm); log lỗi LLM chỉ ghi tên / mã / thông điệp.
@@ -246,3 +246,36 @@ Một số tool trong mục 2 chưa có service tương ứng, hoặc tên khác
 - Đơn đang giữ của phiên (`state.currentOrderId`) được **hệ thống đọc từ DB** rồi đưa vào system prompt ở lượt sau, để Agent biết `orderId` mà không phải tin vào ký ức của LLM.
 - Sau khi khách xác nhận, câu trả lời do **server tạo từ kết quả thật** (không gọi LLM thêm): rẻ, xác định, dễ kiểm thử; lượt chat kế tiếp LLM đã biết kết quả qua ngữ cảnh đơn.
 - Lịch sử gửi LLM: 20 tin gần nhất, cắt đến tin khách đầu tiên để không có kết quả tool "mồ côi" (LLM từ chối chuỗi tin không hợp lệ).
+
+## 12. Rà soát bảo mật trợ lý AI (bước 7, 23/11/2026)
+
+Rà từng mối đe dọa ở mục 5 và 8 với code và test hiện có. Cột "Bằng chứng" là tên test (tìm bằng `grep` trong `code/server/tests`); mọi tên đều đã được kiểm là tồn tại.
+
+| # | Mối đe dọa | Biện pháp | Bằng chứng (test) |
+|---|---|---|---|
+| 1 | LLM (hoặc nội dung độc) tự thực thi thao tác ghi | Tool ghi chỉ tạo `pendingAction`; chỉ `POST /ai/confirm` có JWT của chủ phiên mới thực thi; tóm tắt do server sinh | `ai.agent`: "hold_seats KHÔNG chạy trong lượt trò chuyện"; `ai.http`: "luồng đặt vé trọn vẹn qua HTTP" |
+| 2 | Phát lại / bấm đúp xác nhận | Mỗi `actionId` một lần (cập nhật có điều kiện `lastActiveAt`), hết hạn 5 phút | `ai.agent`: "mỗi việc chờ chỉ chạy ĐÚNG MỘT LẦN", "10 lần bấm Xác nhận SONG SONG" |
+| 3 | Tiêm lệnh qua dữ liệu (mô tả phim…) | Kết quả công cụ là dữ liệu; luật chặn nằm ở server nên mô hình làm theo cũng không giữ ghế | `ai.agent`: "TIÊM LỆNH qua dữ liệu" |
+| 4 | Xem / hủy đơn của người khác | `userId` lấy từ phiên; service kiểm quyền sở hữu như trên web | `ai.agent`: "LLM đòi hủy / xem đơn của NGƯỜI KHÁC", "list_my_tickets chỉ trả vé của CHÍNH khách" |
+| 5 | Dùng phiên chat của người khác | Chỉ chủ phiên đọc / chat / xác nhận / đóng được (403) | `ai.http`: "phiên của người khác" |
+| 6 | Giả danh qua body (`userId`, `role`) | zod `.strict()`, danh tính chỉ từ token | `ai.http`: "danh tính chỉ từ token" |
+| 7 | Tài khoản bị khóa vẫn chat | Trạng thái đọc lại từ DB mỗi request | `ai.http`: "tài khoản bị khóa không chat được NGAY" |
+| 8 | Đốt chi phí bằng MỘT tài khoản | 20 tin / phút, 200 tin / ngày, 60 yêu cầu / phút / IP, tin ≤ 1000 ký tự, lịch sử gửi ≤ 20 tin, tối đa `MAX_STEPS` vòng công cụ | `ai.agent`: "giới hạn tần suất: 20 tin / phút", "giới hạn 200 tin / ngày", "giới hạn vòng lặp"; `ai.http`: "giới hạn: tin thứ 21" |
+| 9 | Đốt chi phí bằng NHIỀU tài khoản (đăng ký tự do) | **Mới:** trần toàn hệ thống `AI_GLOBAL_DAILY_LIMIT` (mặc định 2000 tin / ngày giờ VN); hết trần thì khách thấy "trợ lý tạm nghỉ", đặt vé vẫn bình thường | `ai.agent`: "trần chi phí TOÀN hệ thống" |
+| 10 | Lộ khóa API | Khóa chỉ nằm trong `.env` (git bỏ qua), chỉ đọc ở `config/env.js` và `server.js`, không bao giờ in ra; lỗi LLM không lộ chi tiết | `architecture`: "SDK Anthropic chỉ được nhập trong ai/llm/anthropic.js"; `ai.http`: "chưa cấu hình LLM / LLM lỗi -> 503" |
+| 11 | Mô hình có thêm quyền ngoài thiết kế | Danh sách công cụ bị khóa: 9 đọc + 5 ghi, không có xác nhận thanh toán, soát vé, quản trị, đổi vai trò | `ai.agent`: "danh sách công cụ của AI bị KHÓA đúng thiết kế" |
+| 12 | Tham số công cụ sai / độc do LLM tạo | zod `.strict()` cho từng công cụ, tool lạ bị từ chối | `ai.agent`: "tham số sai / tool lạ / nhét userId bị từ chối" |
+| 13 | XSS qua nội dung AI hoặc link thanh toán | Giao diện hiển thị dạng chữ thuần; link chỉ nhận http(s) | `chat-widget.test.jsx`: "nội dung có HTML / script chỉ hiện dạng chữ", "link thanh toán có scheme lạ" |
+| 14 | Bộ lọc an toàn từ chối / bị cắt cụt giữa lời gọi công cụ | Trả lời lịch sự; KHÔNG chạy tham số dở dang | `ai.anthropic`: "bộ lọc an toàn từ chối", "bị cắt cụt (max_tokens)" |
+| 15 | Hội thoại lọt vào nhật ký quản trị | Endpoint `/ai/*` không nằm dưới `/admin`, không ghi nội dung chat vào AuditLog | `ai.http`: "nhật ký thao tác (AuditLog) không ghi hội thoại AI" |
+
+**Rủi ro còn lại (đã biết, chấp nhận ở quy mô đồ án):**
+- Bộ đếm giới hạn nằm trong bộ nhớ của tiến trình (quyết định D4: không Redis): mất khi khởi động lại và không dùng chung khi chạy nhiều tiến trình. Triển khai nhiều bản sao thì phải chuyển sang kho dùng chung.
+- Hội thoại lưu lâu dài trong `ChatMessage` (chứa dữ liệu cá nhân người dùng tự gõ), chưa có tác vụ xóa tin cũ. Nếu cần tuân thủ lưu trữ, thêm tác vụ xóa phiên quá hạn (vd sau 90 ngày).
+- Hai yêu cầu `/ai/chat` song song trong cùng một phiên có thể xen kẽ; thứ tự tin vẫn đúng và việc xác nhận vẫn an toàn (cập nhật có điều kiện), chỉ có thể làm mất một đề xuất chờ.
+- **Chưa kiểm bằng mô hình thật** (chưa có khóa): thử tiêm lệnh thật, kiểm lịch sử không kèm khối `thinking` của lượt trước, chỉnh prompt.
+
+**Việc vận hành khi bật AI thật (không nằm trong code):**
+1. Đặt **hạn mức chi tiêu** (spend limit) trong trang quản lý tài khoản Anthropic; đây là lớp bảo vệ chi phí cuối cùng, nằm ngoài ứng dụng.
+2. Dùng **khóa riêng** cho phát triển và cho triển khai; lộ khóa thì thu hồi ngay trên trang Anthropic rồi tạo khóa mới.
+3. Giữ `AI_GLOBAL_DAILY_LIMIT` ở mức phù hợp ngân sách (mỗi tin ước tính vài trăm đến vài nghìn token; đo thực tế khi có khóa rồi chỉnh).

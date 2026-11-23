@@ -1,4 +1,6 @@
 import { prisma, runInTransaction } from '../config/prisma.js';
+import { env } from '../config/env.js';
+import { toVnClock } from '../lib/time.js';
 import { AppError } from '../utils/AppError.js';
 import { getLlm } from '../ai/llm/index.js';
 import { runAgentTurn } from '../ai/agent.js';
@@ -28,6 +30,26 @@ const PROMO_REASONS = {
 // ------------------------------------------------------------------ giới hạn tần suất (trong bộ nhớ, theo tài khoản) ------------------------------------------------------------------
 
 const usage = new Map(); // userId -> [mốc thời gian (ms) của các tin trong 24 giờ gần nhất]
+
+// Trần TOÀN hệ thống theo ngày giờ Việt Nam: nhiều tài khoản cộng lại không được vượt AI_GLOBAL_DAILY_LIMIT (bảo vệ chi phí LLM).
+const globalUsage = { day: '', count: 0 };
+let globalDailyLimit = env.AI_GLOBAL_DAILY_LIMIT;
+const vnDay = (nowMs) => toVnClock(new Date(nowMs)).toISOString().slice(0, 10);
+
+/** Đặt lại trần / bộ đếm toàn hệ thống (dành cho test). */
+export function setGlobalDailyLimit(limit) {
+  globalDailyLimit = limit;
+  globalUsage.day = '';
+  globalUsage.count = 0;
+}
+
+/** @throws {AppError} AI_UNAVAILABLE khi cả hệ thống đã dùng hết trần trong ngày (khách thấy "trợ lý tạm nghỉ", vẫn đặt vé bình thường) */
+function assertGlobalBudget(nowMs) {
+  if (globalDailyLimit === 0) return;
+  const day = vnDay(nowMs);
+  if (globalUsage.day !== day) { globalUsage.day = day; globalUsage.count = 0; }
+  if (globalUsage.count >= globalDailyLimit) throw new AppError('AI_UNAVAILABLE');
+}
 
 /** @throws {AppError} RATE_LIMITED khi quá 20 tin / phút hoặc 200 tin / ngày */
 function checkRateLimit(userId, nowMs) {
@@ -116,7 +138,9 @@ export async function chat({ userId, sessionId, text, now = new Date() }) {
   const clean = String(text ?? '').trim();
   if (!clean) throw fieldError('text', 'Vui lòng nhập nội dung tin nhắn.');
   if (clean.length > MAX_TEXT_LENGTH) throw fieldError('text', `Tin nhắn tối đa ${MAX_TEXT_LENGTH} ký tự.`);
+  assertGlobalBudget(now.getTime()); // hết trần toàn hệ thống: không tốn gì thêm, không tính vào lượt của khách
   checkRateLimit(userId, now.getTime());
+  globalUsage.count += 1;
   const llm = getLlm(); // AI_UNAVAILABLE nếu chưa cấu hình
 
   const session = sessionId ? await loadOwnedSession({ sessionId, userId }) : null;

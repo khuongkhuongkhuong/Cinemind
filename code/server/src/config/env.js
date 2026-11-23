@@ -23,7 +23,9 @@ const schema = z.object({
   // Trợ lý AI (docs/07): không có ANTHROPIC_API_KEY thì trợ lý TẮT (AI_UNAVAILABLE), phần còn lại của hệ thống vẫn chạy bình thường.
   // Khóa chỉ nằm trong .env (không bao giờ commit / in ra log).
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
-  AI_MODEL: z.string().min(1).default('claude-opus-5-5'),
+  AI_MODEL: z.string().min(1).default('claude-sonnet-5-5'),
+  // Trần số tin nhắn / ngày của TOÀN hệ thống (mọi tài khoản cộng lại), chặn chi phí LLM vượt kiểm soát khi bị lạm dụng bằng nhiều tài khoản. 0 = không giới hạn.
+  AI_GLOBAL_DAILY_LIMIT: z.coerce.number().int().min(0).default(2000),
   AI_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('low'),
   AI_REFUSAL_FALLBACK: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
 }).superRefine((env, ctx) => {
