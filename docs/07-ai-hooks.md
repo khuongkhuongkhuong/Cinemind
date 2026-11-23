@@ -215,6 +215,14 @@ Một số tool trong mục 2 chưa có service tương ứng, hoặc tên khác
 
 **Tiến độ (29/10/2026):** bước 1 ✅ · bước 2 ✅ (`findShowtimes`, `suggestSeats`, `previewHold`, `holdSeats(source)`, tìm phim / rạp theo tên) · bước 3 ✅ (`ai/tools.js`, `ai/agent.js`, `ai/prompt.js`, `ai/llm/` kèm mô hình giả, `services/chat.service.js`) · bước 4 ✅ (HTTP `/ai/chat`, `/ai/confirm`, `/ai/sessions/:id`) · bước 5–7 chưa làm (bước 5 cần khóa `ANTHROPIC_API_KEY`).
 
+**Ghi chú thực hiện bước 6 (giao diện chat, 23/11/2026) ✅:**
+- Bong bóng nổi ở góc phải (`components/chat/ChatWidget.jsx`), chỉ hiện khi đã đăng nhập (server yêu cầu đăng nhập cho mọi `/ai/*`); khung chat chỉ dựng khi mở nên **không gọi API nào cho tới khi người dùng bấm**. Gắn vào `MainLayout` (khu khách hàng, không có ở khu quản trị).
+- Luồng đúng quy ước: `ChatWidget → hook useChat → api/chat.api.js`. Hook giữ danh sách tin, `pendingAction`, `sessionId` (nhớ trong `sessionStorage` để tải lại trang nạp lại phiên qua `GET /ai/sessions/:id`).
+- ⭐ Hộp xác nhận (`PendingActionCard`) hiển thị phần tóm tắt **do server sinh**; chỉ nút "Xác nhận" của người dùng mới gửi `POST /ai/confirm { approve: true }`; có đếm ngược theo hạn 5 phút và khóa nút khi hết hạn. Nhắn tin mới làm hộp cũ biến mất ngay (server cũng thay thế nó).
+- Nội dung tin hiển thị dạng chữ thuần (không dựng HTML từ nội dung do mô hình / người dùng viết); link thanh toán chỉ nhận http(s) (`safeExternalUrl`); thẻ đơn (`OrderCard`) dùng dữ liệu `order` do server trả.
+- Lỗi rẽ nhánh theo `code`: `AI_UNAVAILABLE` → "Trợ lý đang tạm nghỉ…" (không lộ chi tiết), `RATE_LIMITED`, `NOT_FOUND` / `FORBIDDEN` → quên phiên cũ.
+- Test: `components/chat/chat-widget.test.jsx` (23 ca, Vitest + MSW, gọi API không khai báo = đỏ). Kiểm tra đột biến 14 chỗ (XSS, approve, actionId, sessionId, hết hạn, lọc scheme…), tất cả bị bắt. Bộ MSW dev (`mocks/handlers.js`) có trợ lý giả để xem giao diện khi chưa có khóa API.
+
 **Ghi chú thực hiện bước 4 (HTTP):**
 - Cả 4 endpoint dùng `requireAuth` + `requireFreshRole('USER','STAFF','ADMIN')`: trợ lý tốn chi phí LLM nên **trạng thái tài khoản được đọc lại từ DB mỗi request** — khóa tài khoản có hiệu lực ngay, không chờ access token hết hạn 15 phút.
 - Hai lớp giới hạn: **theo tài khoản** trong `chat.service` (20 tin / phút, 200 tin / ngày → `RATE_LIMITED`) và **theo IP** ở route (60 yêu cầu / phút, tắt khi chạy test).
