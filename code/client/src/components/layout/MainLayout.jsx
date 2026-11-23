@@ -1,8 +1,9 @@
 import { Outlet, ScrollRestoration } from 'react-router-dom';
 import Header from './Header';
 import Footer from './Footer';
+import ChatWidget from '@/components/chat/ChatWidget';
 
-/** Khung chung của khách hàng: Header, nội dung, Footer. Có liên kết "bỏ qua điều hướng" cho người dùng bàn phím. */
+/** Khung chung của khách hàng: Header, nội dung, Footer, bong bóng trợ lý (khi đã đăng nhập). Có liên kết "bỏ qua điều hướng" cho người dùng bàn phím. */
 export default function MainLayout() {
   return (
     <div className="flex min-h-screen flex-col">
@@ -14,6 +15,7 @@ export default function MainLayout() {
         <Outlet />
       </main>
       <Footer />
+      <ChatWidget />
       <ScrollRestoration />
     </div>
   );

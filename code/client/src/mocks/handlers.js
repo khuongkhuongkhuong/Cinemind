@@ -32,4 +32,39 @@ export const handlers = [
   http.post(`${BASE}/auth/logout`, () => new HttpResponse(null, { status: 204 })),
   http.get(`${BASE}/auth/me`, ({ request }) =>
     request.headers.get('authorization') === 'Bearer mock-access-token' ? ok(user) : fail(401, 'UNAUTHORIZED', 'Bạn cần đăng nhập.')),
+
+  // ----- Trợ lý AI giả (chỉ để xem giao diện khi chưa có khóa API; MSW không phải LLM) -----
+  http.post(`${BASE}/ai/chat`, async ({ request }) => {
+    const { text, sessionId } = await request.json();
+    const wantsHold = /giữ|đặt/i.test(text);
+    return ok({
+      sessionId: sessionId ?? 'mock-session',
+      reply: wantsHold
+        ? {
+          text: 'Mình chuẩn bị giữ ghế G7, G8 cho suất 19:45. Bạn xác nhận nhé?',
+          pendingAction: {
+            actionId: 'mock-action', tool: 'hold_seats', expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+            summary: 'Giữ ghế G7, G8 (VIP) — Vùng Tối, Cinemind Cầu Giấy, Phòng 2, 19:45. Tổng: 210.000đ. Ghế được giữ 10 phút.',
+          },
+        }
+        : { text: 'Mình có thể tìm suất chiếu, gợi ý ghế liền nhau và giữ ghế giúp bạn. Bạn muốn xem phim nào?', pendingAction: null },
+    });
+  }),
+  http.post(`${BASE}/ai/confirm`, async ({ request }) => {
+    const { approve } = await request.json();
+    if (!approve) return ok({ reply: { text: 'Mình đã hủy yêu cầu đó. Bạn cần mình giúp gì tiếp không?' } });
+    return ok({
+      reply: {
+        text: 'Đã giữ ghế G7, G8. Bạn thanh toán trong 10 phút nhé.',
+        order: {
+          id: 'mock-order', code: 'K7Q2M9XA', status: 'PENDING', expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+          showtime: { id: 'st', startTime: new Date(Date.now() + 86_400_000).toISOString(), format: 'F2D', audio: 'SUBTITLE', movie: { title: 'Vùng Tối' }, cinema: { name: 'Cinemind Cầu Giấy' }, room: { name: 'Phòng 2' } },
+          seats: [{ seatId: 'g7', label: 'G7', type: 'VIP', price: 105_000 }, { seatId: 'g8', label: 'G8', type: 'VIP', price: 105_000 }],
+          combos: [], promotion: null, seatTotal: 210_000, comboTotal: 0, discount: 0, total: 210_000, paidAt: null, checkedInAt: null,
+        },
+      },
+    });
+  }),
+  http.get(`${BASE}/ai/sessions/:id`, () => fail(404, 'NOT_FOUND', 'Không tìm thấy phiên.')),
+  http.delete(`${BASE}/ai/sessions/:id`, ({ params }) => ok({ sessionId: params.id, status: 'CLOSED' })),
 ];
