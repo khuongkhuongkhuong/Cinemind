@@ -1,6 +1,4 @@
-import { runInTransaction } from '../dao/transaction.js';
-import { claimPendingAction, getSessionById, insertSession, markSessionClosed, updateSessionState } from '../dao/chatSession.dao.js';
-import { getLastMessage, getRecentMessages, insertMessage, insertMessages, listVisibleMessages } from '../dao/chatMessage.dao.js';
+import { prisma, runInTransaction } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
 import { getLlm } from '../ai/llm/index.js';
 import { runAgentTurn } from '../ai/agent.js';
@@ -246,3 +244,77 @@ export async function closeSession({ userId, sessionId }) {
   await markSessionClosed({ sessionId: session.id, state: { ...readState(session), pendingAction: null } });
   return { sessionId: session.id, status: 'CLOSED' };
 }
+
+// =============================================================================================
+// TRUY VẤN NỘI BỘ (@internal) — bảng ChatSession, ChatMessage. Mỗi hàm MỘT thao tác đọc / ghi; chỉ file này gọi chúng (docs/04 v1.26).
+// Tham số cuối `db = prisma`: truyền `tx` khi chạy trong transaction. Lỗi CSDL (vd P2002) đi xuyên ra cho hàm nghiệp vụ xử lý.
+// =============================================================================================
+
+/**
+ * @returns {Promise<object|null>} ChatSession
+ * @internal
+ */
+export const getSessionById = (sessionId, db = prisma) => db.chatSession.findUnique({ where: { id: sessionId } });
+
+/**
+ * Mở phiên trò chuyện mới của một user (trạng thái ACTIVE, state rỗng theo schema).
+ * @internal
+ */
+export const insertSession = (userId, db = prisma) => db.chatSession.create({ data: { userId } });
+
+/**
+ * Ghi lại trạng thái phiên (việc chờ xác nhận, đơn đang giữ…) và thời điểm hoạt động.
+ * @internal
+ */
+export const updateSessionState = ({ sessionId, state, lastActiveAt }, db = prisma) =>
+  db.chatSession.update({ where: { id: sessionId }, data: { state, ...(lastActiveAt && { lastActiveAt }) } });
+
+/**
+ * ⭐ "Nhận phần" việc chờ xác nhận bằng MỘT câu cập nhật có điều kiện: chỉ ghi khi `lastActiveAt` còn đúng giá trị đã đọc.
+ * 10 request xác nhận song song thì chỉ một request có count = 1 và được thực thi thao tác; các request còn lại count = 0.
+ * @internal
+ * @param {{ sessionId: string, expectedLastActiveAt: Date, state: object, lastActiveAt: Date }} params
+ * @returns {Promise<number>} 1 nếu nhận phần được, 0 nếu đã có request khác nhận trước
+ */
+export const claimPendingAction = async ({ sessionId, expectedLastActiveAt, state, lastActiveAt }, db = prisma) =>
+  (await db.chatSession.updateMany({ where: { id: sessionId, lastActiveAt: expectedLastActiveAt }, data: { state, lastActiveAt } })).count;
+
+/**
+ * Đóng phiên (CLOSED) và ghi state mới (đã gỡ việc chờ).
+ * @internal
+ */
+export const markSessionClosed = ({ sessionId, state }, db = prisma) =>
+  db.chatSession.update({ where: { id: sessionId }, data: { status: 'CLOSED', state } });
+
+/**
+ * `take` tin MỚI NHẤT của phiên, theo thứ tự mới -> cũ (service đảo lại thành cũ -> mới).
+ * @internal
+ */
+export const getRecentMessages = ({ sessionId, take }, db = prisma) =>
+  db.chatMessage.findMany({ where: { sessionId }, orderBy: { createdAt: 'desc' }, take });
+
+/**
+ * Thời điểm của tin mới nhất (để tin kế tiếp luôn SAU nó). @returns {Promise<{ createdAt: Date }|null>}
+ * @internal
+ */
+export const getLastMessage = (sessionId, db = prisma) =>
+  db.chatMessage.findFirst({ where: { sessionId }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
+
+/**
+ * Ghi nhiều tin trong MỘT câu lệnh (tin của khách, các lượt gọi tool, câu trả lời).
+ * @internal
+ */
+export const insertMessages = (rows, db = prisma) => db.chatMessage.createMany({ data: rows });
+
+/**
+ * Ghi một tin. @param {{ sessionId: string, role: string, content: string, createdAt: Date }} data
+ * @internal
+ */
+export const insertMessage = (data, db = prisma) => db.chatMessage.create({ data });
+
+/**
+ * Chỉ các tin KHÁCH nhìn thấy (USER và ASSISTANT; lượt gọi tool ẩn), cũ -> mới.
+ * @internal
+ */
+export const listVisibleMessages = (sessionId, db = prisma) =>
+  db.chatMessage.findMany({ where: { sessionId, role: { in: ['USER', 'ASSISTANT'] } }, orderBy: { createdAt: 'asc' } });

@@ -63,55 +63,106 @@ test('services có import Prisma là bình thường, nhưng KHÔNG import từ 
   assert.deepEqual(offenders, []);
 });
 
-// ------------------------------------------------------------------ Tầng DAO (docs/04 mục 5.2, v1.23 / v1.25) ------------------------------------------------------------------
+// ------------------------------------------------------------------ Truy vấn nằm trong service (docs/04 mục 5.2, v1.26) ------------------------------------------------------------------
 
-// Các service ĐÃ chuyển sang DAO. Danh sách này chỉ TĂNG khi chuyển thêm service (không bao giờ bớt đi).
-const DAO_SERVICES = ['pricing', 'auth', 'user', 'ticket', 'showtime', 'seat', 'order', 'payment', 'chat', 'movie', 'room', 'combo'];
-// Service CHƯA chuyển (docs/04 v1.23: admin*, report, catalog… chưa bắt buộc). Thêm service mới => phải chọn: chuyển sang DAO hoặc ghi vào đây.
-const LEGACY_SERVICES = ['adminBanner', 'adminCatalog', 'adminCinema', 'adminMovie', 'adminOrder', 'adminPricing', 'adminPromotion', 'adminUser', 'audit', 'catalog', 'promotion', 'report'];
+// Mỗi service phụ trách MỘT thực thể và chỉ truy vấn bảng (model Prisma) của thực thể đó. Tên = tên accessor của Prisma Client (db.<tên>).
+const MODELS = {
+  showtime: ['showtime'], seat: ['seat'], ticket: ['ticket'], order: ['order', 'orderCombo'], payment: ['payment'],
+  pricing: ['priceRule', 'seatTypeSurcharge'], auth: ['refreshToken'], user: ['user'], promotion: ['promotion'],
+  movie: ['movie'], room: ['room'], combo: ['combo'], chat: ['chatSession', 'chatMessage'],
+};
+// Service còn truy vấn NHIỀU bảng bằng prisma trực tiếp (tồn đọng, docs/04 v1.26: admin*, report, audit, catalog). Thêm service mới => phải chọn một trong hai.
+const LEGACY_SERVICES = ['adminBanner', 'adminCatalog', 'adminCinema', 'adminMovie', 'adminOrder', 'adminPricing', 'adminPromotion', 'adminUser', 'audit', 'catalog', 'report'];
+const serviceName = (f) => basename(f).replace('.service.js', '');
+const serviceFiles = () => files(join(SRC, 'services'));
 
-test('mọi service đều được phân loại: đã chuyển DAO hoặc nằm trong danh sách tồn đọng (không có service mới nào lọt qua mà chưa quyết định)', () => {
-  const all = files(join(SRC, 'services')).map((f) => basename(f).replace('.service.js', '')).sort();
-  assert.deepEqual(all, [...DAO_SERVICES, ...LEGACY_SERVICES].sort());
+test('⭐ không còn thư mục src/dao/ (tầng DAO đã bỏ, truy vấn nằm trong service cùng thực thể)', () => {
+  assert.equal(existsSync(join(SRC, 'dao')), false);
+  assert.deepEqual(files(SRC).filter((f) => /\/dao\/|\.dao\.js/.test(read(f)) && !f.endsWith('architecture.test.js')).map(rel), []);
 });
 
-const DIRECT_QUERY = /\b(prisma|tx)\.[a-z]\w*\.(find|create|update|delete|upsert|count|group|aggregate)/;
-
-test('⭐ dao/ chỉ truy vấn: không ném AppError, không đụng req/res, không import service / controller', () => {
-  const dir = join(SRC, 'dao');
-  assert.ok(files(dir).length > 0, 'không thấy file nào trong dao/');
-  const offenders = files(dir)
-    .filter((f) => /AppError|from 'express'|\breq\.|\bres\.|from '\.\.\/(services|controllers|routes|ai)\//.test(code(f)))
-    .map(rel);
-  assert.deepEqual(offenders, []);
+test('mọi service đều được phân loại: có bảng sở hữu (MODELS) hoặc nằm trong danh sách tồn đọng (không có service mới nào lọt qua mà chưa quyết định)', () => {
+  const all = serviceFiles().map(serviceName).sort();
+  assert.deepEqual(all, [...Object.keys(MODELS), ...LEGACY_SERVICES].sort());
 });
 
-test('⭐ dao/: tham số cuối của mọi hàm xuất ra là `db = prisma` (trừ transaction.js, nơi tx là tham số bắt buộc)', () => {
+test('⭐ service chỉ truy vấn bảng của thực thể mình (cần thực thể khác thì gọi hàm public của service đó) và không gọi prisma.$transaction (dùng runInTransaction)', () => {
   const offenders = [];
-  for (const f of files(join(SRC, 'dao')).filter((x) => !x.endsWith('transaction.js'))) {
+  for (const f of serviceFiles()) {
+    const name = serviceName(f);
+    if (!MODELS[name]) continue;
     const src = code(f);
-    const exported = [...src.matchAll(/export const (\w+) = (?:async )?\(([^)]*)\)\s*=>/g)];
-    assert.ok(exported.length > 0, `${rel(f)}: không đọc được hàm xuất ra`);
-    for (const [, name, params] of exported) if (!/db = prisma\s*$/.test(params.trim())) offenders.push(`${rel(f)}: ${name}(${params})`);
+    for (const m of src.matchAll(/\b(?:prisma|db|tx)\.(\w+)\.(?:find\w*|create\w*|update\w*|delete\w*|upsert|count|groupBy|aggregate)\b/g)) {
+      if (!MODELS[name].includes(m[1])) offenders.push(name + '.service truy vấn bảng ' + m[1]);
+    }
+    if (/\$transaction/.test(src)) offenders.push(name + '.service gọi $transaction trực tiếp');
+  }
+  assert.deepEqual([...new Set(offenders)], []);
+});
+
+/** Các hàm có JSDoc @internal của một file service: [{ name, params }]. */
+function internalFunctions(file) {
+  const src = read(file);
+  const out = [];
+  for (const m of src.matchAll(/\/\*\*((?:(?!\*\/)[\s\S])*?)@internal((?:(?!\*\/)[\s\S])*?)\*\/\s*\nexport\s+(?:async\s+function\s+(\w+)\s*\(|const\s+(\w+)\s*=\s*(?:async\s+)?\()/g)) {
+    const open = m.index + m[0].length - 1;
+    let depth = 0; let close = open;
+    for (let i = open; i < src.length; i++) { if (src[i] === '(') depth++; else if (src[i] === ')' && --depth === 0) { close = i; break; } }
+    out.push({ name: m[3] || m[4], params: src.slice(open + 1, close).trim() });
+  }
+  return out;
+}
+
+test('⭐ có hàm @internal trong các service (đề phòng regex quét sai làm test "qua" vì không thấy hàm nào)', () => {
+  const total = serviceFiles().flatMap((f) => internalFunctions(f));
+  assert.ok(total.length >= 40, 'chỉ thấy ' + total.length + ' hàm @internal');
+  for (const n of ['insertTickets', 'releaseExpiredHeldTickets', 'insertOrder', 'claimPaymentSuccess', 'claimPendingAction', 'lockRoom']) {
+    assert.ok(total.some((f) => f.name === n), 'không thấy hàm @internal ' + n);
+  }
+});
+
+test('⭐ hàm @internal chỉ được gọi trong file khai báo: không file nào khác trong src/ import chúng (cần dữ liệu thì gọi hàm public của service phụ trách)', () => {
+  const offenders = [];
+  for (const declaring of serviceFiles()) {
+    const internal = internalFunctions(declaring).map((f) => f.name);
+    if (internal.length === 0) continue;
+    const base = basename(declaring);
+    for (const f of files(SRC)) {
+      if (f === declaring) continue;
+      const src = code(f);
+      for (const m of src.matchAll(new RegExp("import\\s*\\{([^}]*)\\}\\s*from\\s*'[^']*/" + base.replace('.', '\\.') + "'", 'g'))) {
+        for (const item of m[1].split(',')) {
+          const name = item.trim().split(/\s+as\s+/)[0];
+          if (internal.includes(name)) offenders.push(rel(f) + ' import ' + name + ' từ ' + base);
+        }
+      }
+      for (const m of src.matchAll(new RegExp("import\\s*\\*\\s*as\\s+(\\w+)\\s+from\\s*'[^']*/" + base.replace('.', '\\.') + "'", 'g'))) {
+        for (const name of internal) if (new RegExp('\\b' + m[1] + '\\.' + name + '\\b').test(src)) offenders.push(rel(f) + ' dùng ' + m[1] + '.' + name);
+      }
+    }
   }
   assert.deepEqual(offenders, []);
 });
 
-test('⭐ service đã chuyển KHÔNG còn gọi prisma.<bảng> / tx.<bảng> và không import config/prisma (mở transaction qua dao/transaction.js)', () => {
-  const offenders = DAO_SERVICES
-    .map((n) => join(SRC, 'services', `${n}.service.js`))
-    .filter((f) => DIRECT_QUERY.test(code(f)) || /config\/prisma|\$transaction|\$executeRaw/.test(code(f)))
-    .map(rel);
+test('⭐ mọi hàm @internal có tham số cuối db = prisma (truyền tx khi trong transaction), trừ lockRoom(tx, roomId) vì tx là bắt buộc', () => {
+  const offenders = [];
+  for (const f of serviceFiles()) {
+    for (const fn of internalFunctions(f)) {
+      if (fn.name === 'lockRoom') { assert.equal(fn.params, 'tx, roomId'); continue; }
+      if (!/db = prisma\s*$/.test(fn.params)) offenders.push(serviceName(f) + '.' + fn.name + '(' + fn.params + ')');
+    }
+  }
   assert.deepEqual(offenders, []);
 });
 
-test('⭐ bất biến giữ ghế: dao/ không bao giờ dùng `skipDuplicates` (nó lặng lẽ bỏ ghế trùng và gây bán trùng)', () => {
-  const offenders = files(join(SRC, 'dao')).filter((f) => /skipDuplicates/.test(code(f))).map(rel);
-  assert.deepEqual(offenders, []);
-  assert.match(code(join(SRC, 'dao', 'ticket.dao.js')), /createMany/); // đúng là đang dùng createMany (trọng tài là UNIQUE (showtimeId, occupiedSeatId))
+test('⭐ bất biến giữ ghế: không dùng skipDuplicates khi chèn vé (nó lặng lẽ bỏ ghế trùng và gây bán trùng); vé chỉ được chèn bằng MỘT createMany trong ticket.service', () => {
+  assert.deepEqual(serviceFiles().filter((f) => /skipDuplicates/.test(code(f)) && /ticket\.createMany/.test(code(f))).map(rel), []);
+  assert.doesNotMatch(code(join(SRC, 'services', 'ticket.service.js')), /skipDuplicates/);
+  assert.match(code(join(SRC, 'services', 'ticket.service.js')), /ticket\.createMany/); // đúng là đang dùng createMany (trọng tài là UNIQUE (showtimeId, occupiedSeatId))
+  assert.deepEqual(files(SRC).filter((f) => !f.endsWith('ticket.service.js') && /ticket\.(createMany|create)\b/.test(code(f))).map(rel), []); // không nơi nào khác chèn vé
 });
 
-test('⭐ bất biến giữ ghế: MỌI bước trong transaction giữ ghế (order.runHoldTransaction) gọi DAO / service với cùng `tx`', () => {
+test('⭐ bất biến giữ ghế: MỌI bước trong transaction giữ ghế (order.runHoldTransaction) gọi hàm truy vấn / service với cùng `tx`', () => {
   const src = code(join(SRC, 'services', 'order.service.js'));
   const start = src.indexOf('function runHoldTransaction');
   assert.ok(start >= 0, 'không thấy runHoldTransaction');
@@ -125,19 +176,19 @@ test('⭐ bất biến giữ ghế: MỌI bước trong transaction giữ ghế 
   assert.ok(statements.some((st) => /ticketService\.holdTickets\(/.test(st)), 'phải giữ ghế qua ticketService.holdTickets');
 });
 
-test('⭐ ticket.service: mọi lệnh DAO ghi trong holdTickets / sellTicketsOfOrder / releaseTicketsOfOrders truyền `db` (để chạy chung transaction của order.service)', () => {
+test('⭐ ticket.service: mọi lệnh truy vấn ghi trong holdTickets / sellTicketsOfOrder / releaseTicketsOfOrders truyền `db` (để chạy chung transaction của order.service)', () => {
   const src = code(join(SRC, 'services', 'ticket.service.js'));
   for (const name of ['holdTickets', 'sellTicketsOfOrder', 'releaseTicketsOfOrders', 'hasActiveSales']) {
     const start = src.indexOf(name);
     assert.ok(start >= 0, `không thấy ${name}`);
     const body = src.slice(start, src.indexOf('\n}\n', start) > 0 ? src.indexOf('\n}\n', start) : src.indexOf('\n', start + 200));
     const daoCalls = body.match(/(?:await )?(?:insertTickets|releaseExpiredHeldTickets|markTicketSold|listTicketsOfOrder|releaseHeldTicketsOfOrders|countActiveSalesOfShowtime)\([^;]*\);?/g) ?? [];
-    assert.ok(daoCalls.length > 0, `${name}: không thấy lệnh DAO`);
-    assert.deepEqual(daoCalls.filter((c) => !/\bdb\)/.test(c)), [], `${name}: có lệnh DAO không truyền db`);
+    assert.ok(daoCalls.length > 0, `${name}: không thấy lệnh truy vấn`);
+    assert.deepEqual(daoCalls.filter((c) => !/\bdb\)/.test(c)), [], `${name}: có lệnh truy vấn không truyền db`);
   }
 });
 
-test('⭐ chat: mọi bước trong MỖI transaction (ghi tin + cập nhật trạng thái phiên) gọi DAO với cùng `tx`', () => {
+test('⭐ chat: mọi bước trong MỖI transaction (ghi tin + cập nhật trạng thái phiên) gọi hàm truy vấn với cùng `tx`', () => {
   const src = code(join(SRC, 'services', 'chat.service.js'));
   const bodies = [...src.matchAll(/runInTransaction\(async \(tx\) => \{([\s\S]*?)\n  \}\);/g)].map((m) => m[1]);
   assert.equal(bodies.length, 2, 'chat.service phải có đúng 2 transaction (chat và confirm)');
@@ -175,8 +226,8 @@ test('⭐ bất biến IPN: MỌI bước của order.markPaid và của transac
   // (3) Chỉ order.service gọi markOrderPaid; chỉ payment.service gọi orderService.markPaid
   assert.deepEqual(files(join(SRC, 'services')).filter((f) => !f.endsWith('order.service.js') && /markOrderPaid/.test(code(f))).map(rel), []);
   assert.deepEqual(files(SRC).filter((f) => !f.endsWith('payment.service.js') && !f.endsWith('order.service.js') && /\bmarkPaid\(/.test(code(f))).map(rel), []);
-  // Không nơi nào ngoài order.dao.js được GHI trạng thái PAID (đọc / lọc theo PAID ở report... thì bình thường).
-  const writers = files(SRC).filter((f) => !f.endsWith('order.dao.js') && /data:\s*\{[^}]*status:\s*'PAID'/.test(code(f))).map(rel);
+  // Không nơi nào ngoài order.service.js được GHI trạng thái PAID (đọc / lọc theo PAID ở report... thì bình thường).
+  const writers = files(SRC).filter((f) => !f.endsWith('order.service.js') && /data:\s*\{[^}]*status:\s*'PAID'/.test(code(f))).map(rel);
   assert.deepEqual(writers, []);
 });
 
@@ -196,43 +247,9 @@ test('⭐ schema.prisma có UNIQUE (showtimeId, occupiedSeatId) trên Ticket —
   if (existsSync(docs)) assert.equal(readFileSync(docs, 'utf8').replace(/\r\n/g, '\n'), schema.replace(/\r\n/g, '\n'));
 });
 
-test('⭐ occupiedSeatId CHỈ do dao/ticket.dao.js ghi / đọc trong src/ (cột kỹ thuật, luôn cùng câu lệnh với status)', () => {
-  assert.deepEqual(files(SRC).filter((f) => !f.endsWith('ticket.dao.js') && /occupiedSeatId/.test(code(f))).map(rel), []);
-  assert.match(code(join(SRC, 'dao', 'ticket.dao.js')), /occupiedSeatId/);
-});
-
-// Bảng sở hữu (docs/04 mục 5.2, v1.25): mỗi service CHỈ được import DAO của thực thể nó phụ trách; cần thực thể khác thì gọi service của nó.
-const OWNERSHIP = {
-  showtime: ['showtime'], seat: ['seat'], ticket: ['ticket'], order: ['order', 'orderCombo'], payment: ['payment'],
-  pricing: ['priceRule', 'seatTypeSurcharge'], auth: ['refreshToken'], user: ['user'], promotion: ['promotion'],
-  movie: ['movie'], room: ['room'], combo: ['combo'], chat: ['chatSession', 'chatMessage'], catalog: ['cinema'],
-};
-
-test('⭐ bảng sở hữu: mỗi service chỉ import DAO của thực thể mình phụ trách (service khác -> không import DAO nào)', () => {
-  const offenders = [];
-  for (const f of files(join(SRC, 'services'))) {
-    const name = basename(f).replace('.service.js', '');
-    const imported = [...code(f).matchAll(/from '\.\.\/dao\/(\w+)\.dao\.js'/g)].map((m) => m[1]);
-    const allowed = OWNERSHIP[name] ?? [];
-    for (const dao of imported) if (!allowed.includes(dao)) offenders.push(`${name}.service import ${dao}.dao`);
-  }
-  assert.deepEqual(offenders, []);
-});
-
-test('mỗi DAO được ít nhất một service phụ trách import (không có DAO mồ côi) và không file nào ngoài services/ import DAO (trừ jobs / scripts không có)', () => {
-  const imported = new Set(files(join(SRC, 'services')).flatMap((f) => [...code(f).matchAll(/from '\.\.\/dao\/(\w+)\.dao\.js'/g)].map((m) => m[1])));
-  const daos = files(join(SRC, 'dao')).map((f) => basename(f).replace('.dao.js', '')).filter((n) => n !== 'transaction.js' && n !== 'transaction');
-  assert.deepEqual(daos.filter((n) => !imported.has(n)), []);
-});
-
-test('controllers / routes / validators / ai KHÔNG import dao/ (chỉ gọi service)', () => {
-  const offenders = ['controllers', 'routes', 'validators', 'ai']
-    .map((d) => join(SRC, d))
-    .filter((d) => existsSync(d))
-    .flatMap(files)
-    .filter((f) => /from '\.\.\/(\.\.\/)?dao\//.test(code(f)))
-    .map(rel);
-  assert.deepEqual(offenders, []);
+test('⭐ occupiedSeatId CHỈ do ticket.service.js ghi / đọc trong src/ (cột kỹ thuật, luôn cùng câu lệnh với status)', () => {
+  assert.deepEqual(files(SRC).filter((f) => !f.endsWith('ticket.service.js') && /occupiedSeatId/.test(code(f))).map(rel), []);
+  assert.match(code(join(SRC, 'services', 'ticket.service.js')), /occupiedSeatId/);
 });
 
 test('vòng import showtime.service <-> seat.service (docs/04 v1.25) an toàn: không dùng import của nhau ở mức module (chỉ trong thân hàm)', () => {

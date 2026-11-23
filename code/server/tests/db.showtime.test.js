@@ -1,15 +1,15 @@
-// DAO của lịch chiếu và ghế (showtime / seat / movie / room / cinema).
-// Mỗi hàm DAO là một thao tác truy vấn: test kiểm ĐÚNG điều kiện của từng câu. Cần dữ liệu mẫu: chạy `npm run db:seed` trước.
+// Truy vấn nội bộ của lịch chiếu và ghế (showtime / seat / movie / room / cinema).
+// Mỗi hàm (truy vấn nội bộ) là một thao tác truy vấn: test kiểm ĐÚNG điều kiện của từng câu. Cần dữ liệu mẫu: chạy `npm run db:seed` trước.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.NODE_ENV = 'test';
 const { prisma } = await import('../src/config/prisma.js');
-const showtimeDao = await import('../src/dao/showtime.dao.js');
-const seatDao = await import('../src/dao/seat.dao.js');
-const movieDao = await import('../src/dao/movie.dao.js');
-const roomDao = await import('../src/dao/room.dao.js');
-const cinemaDao = await import('../src/dao/cinema.dao.js');
+const showtimeSvc = await import('../src/services/showtime.service.js');
+const seatSvc = await import('../src/services/seat.service.js');
+const movieSvc = await import('../src/services/movie.service.js');
+const roomSvc = await import('../src/services/room.service.js');
+const catalogSvc = await import('../src/services/catalog.service.js');
 
 const minute = 60_000;
 const DAY = 24 * 60 * minute;
@@ -44,7 +44,7 @@ after(async () => {
 
 const at = (offsetMin) => new Date(base.getTime() + offsetMin * minute);
 const mk = async (offsetMin, extra = {}) => {
-  const s = await showtimeDao.insertShowtime({
+  const s = await showtimeSvc.insertShowtime({
     movieId: movie.id, roomId: room.id, startTime: at(offsetMin), endTime: at(offsetMin + 120), format: 'F2D', audio: 'SUBTITLE', basePrice: 80_000, ...extra,
   });
   created.showtimes.push(s.id);
@@ -57,75 +57,75 @@ test('insertShowtime / updateShowtimeById trả đúng dạng ADMIN_SELECT (kèm
   assert.equal(s.room.cinema.id, cinema.id);
   assert.equal(s.status, 'OPEN');
 
-  const upd = await showtimeDao.updateShowtimeById(s.id, { basePrice: 99_000, audio: 'DUBBED' });
+  const upd = await showtimeSvc.updateShowtimeById(s.id, { basePrice: 99_000, audio: 'DUBBED' });
   assert.deepEqual([upd.basePrice, upd.audio], [99_000, 'DUBBED']);
-  assert.deepEqual(await showtimeDao.getShowtimeRoomAndStatus(s.id), { roomId: room.id, status: 'OPEN' });
-  assert.equal((await showtimeDao.getShowtimeWithMovie(s.id)).movie.id, movie.id);
-  assert.equal((await showtimeDao.getShowtimeDetail(s.id)).room.cinema.name, cinema.name);
-  assert.equal((await showtimeDao.getAdminShowtime(s.id)).id, s.id);
+  assert.deepEqual(await showtimeSvc.getShowtimeRoomAndStatus(s.id), { roomId: room.id, status: 'OPEN' });
+  assert.equal((await showtimeSvc.getShowtimeWithMovie(s.id)).movie.id, movie.id);
+  assert.equal((await showtimeSvc.getShowtimeDetail(s.id)).room.cinema.name, cinema.name);
+  assert.equal((await showtimeSvc.getAdminShowtime(s.id)).id, s.id);
   for (const fn of ['getShowtimeDetail', 'getShowtimeWithMovie', 'getShowtimeRoomAndStatus', 'getAdminShowtime']) {
-    assert.equal(await showtimeDao[fn](NOEXIST), null, fn);
+    assert.equal(await showtimeSvc[fn](NOEXIST), null, fn);
   }
 });
 
 test('⭐ findOverlapInRoom: chồng lấn thật -> tìm thấy; nối đuôi (kết thúc = bắt đầu) KHÔNG trùng; suất đã hủy và excludeId bị bỏ qua; phòng khác không ảnh hưởng', async () => {
   const s = await mk(1000); // [1000, 1120)
-  const probe = (startMin, endMin, extra = {}) => showtimeDao.findOverlapInRoom({ roomId: room.id, startTime: at(startMin), endTime: at(endMin), ...extra });
+  const probe = (startMin, endMin, extra = {}) => showtimeSvc.findOverlapInRoom({ roomId: room.id, startTime: at(startMin), endTime: at(endMin), ...extra });
   assert.equal((await probe(1060, 1180)).id, s.id); // chồng một phần
   assert.equal((await probe(1010, 1020)).id, s.id); // nằm lọt bên trong
   assert.equal((await probe(900, 1200)).id, s.id); // bao trùm
   assert.equal(await probe(1120, 1240), null); // bắt đầu đúng lúc suất kia kết thúc
   assert.equal(await probe(880, 1000), null); // kết thúc đúng lúc suất kia bắt đầu
   assert.equal(await probe(1060, 1180, { excludeId: s.id }), null); // sửa chính nó
-  assert.equal(await showtimeDao.findOverlapInRoom({ roomId: NOEXIST, startTime: at(1060), endTime: at(1180) }), null);
-  await showtimeDao.updateShowtimeById(s.id, { status: 'CANCELLED' });
+  assert.equal(await showtimeSvc.findOverlapInRoom({ roomId: NOEXIST, startTime: at(1060), endTime: at(1180) }), null);
+  await showtimeSvc.updateShowtimeById(s.id, { status: 'CANCELLED' });
   assert.equal(await probe(1060, 1180), null); // suất đã hủy không chiếm phòng
 });
 
 test('searchOpenShowtimes / listOpenShowtimesOfMovie / listOpenShowtimesOfCinema: chỉ suất OPEN trong [from, to), lọc đúng phim / định dạng / rạp / thành phố, sắp theo giờ', async () => {
   const a = await mk(2000);
   const b = await mk(2200, { format: 'IMAX' });
-  const cancelled = await mk(2400); await showtimeDao.updateShowtimeById(cancelled.id, { status: 'CANCELLED' });
+  const cancelled = await mk(2400); await showtimeSvc.updateShowtimeById(cancelled.id, { status: 'CANCELLED' });
   const outside = await mk(5000);
   const from = at(1990); const to = at(2500);
   const cityId = (await prisma.cinema.findUnique({ where: { id: cinema.id } })).cityId;
 
-  const all = await showtimeDao.searchOpenShowtimes({ from, to, cinemaId: cinema.id, movieId: movie.id });
+  const all = await showtimeSvc.searchOpenShowtimes({ from, to, cinemaId: cinema.id, movieId: movie.id });
   assert.deepEqual(all.map((s) => s.id), [a.id, b.id]); // không có suất hủy / ngoài khoảng; đúng thứ tự giờ
   assert.ok(all[0].movie.title && all[0].room.cinema.name && Number.isInteger(all[0].basePrice) && all[0].roomId === room.id);
-  assert.deepEqual((await showtimeDao.searchOpenShowtimes({ from, to, cinemaId: cinema.id, format: 'IMAX' })).map((s) => s.id), [b.id]);
-  assert.deepEqual((await showtimeDao.searchOpenShowtimes({ from, to, cinemaId: cinema.id, cityIds: [NOEXIST] })), []);
-  assert.equal((await showtimeDao.searchOpenShowtimes({ from, to, cinemaId: cinema.id, cityIds: [cityId] })).length, 2);
+  assert.deepEqual((await showtimeSvc.searchOpenShowtimes({ from, to, cinemaId: cinema.id, format: 'IMAX' })).map((s) => s.id), [b.id]);
+  assert.deepEqual((await showtimeSvc.searchOpenShowtimes({ from, to, cinemaId: cinema.id, cityIds: [NOEXIST] })), []);
+  assert.equal((await showtimeSvc.searchOpenShowtimes({ from, to, cinemaId: cinema.id, cityIds: [cityId] })).length, 2);
 
-  const ofMovie = await showtimeDao.listOpenShowtimesOfMovie({ movieId: movie.id, from, to, cityId });
+  const ofMovie = await showtimeSvc.listOpenShowtimesOfMovie({ movieId: movie.id, from, to, cityId });
   assert.ok(ofMovie.some((s) => s.id === a.id) && ofMovie.every((s) => s.status === 'OPEN' && s.room.cinema.address));
-  assert.deepEqual(await showtimeDao.listOpenShowtimesOfMovie({ movieId: movie.id, from, to, cityId: NOEXIST }), []);
+  assert.deepEqual(await showtimeSvc.listOpenShowtimesOfMovie({ movieId: movie.id, from, to, cityId: NOEXIST }), []);
 
-  const ofCinema = await showtimeDao.listOpenShowtimesOfCinema({ cinemaId: cinema.id, from, to });
+  const ofCinema = await showtimeSvc.listOpenShowtimesOfCinema({ cinemaId: cinema.id, from, to });
   assert.deepEqual(ofCinema.filter((s) => [a.id, b.id, cancelled.id, outside.id].includes(s.id)).map((s) => s.id), [a.id, b.id]);
   assert.ok(ofCinema[0].movie.slug);
 });
 
 test('countAdminShowtimes + findAdminShowtimes: cùng một bộ lọc nên khớp nhau; phân trang skip/take; lọc phòng / khoảng thời gian; bao gồm cả suất đã hủy', async () => {
   const filter = { roomId: room.id, from: at(2000), to: at(2500) };
-  const total = await showtimeDao.countAdminShowtimes(filter);
+  const total = await showtimeSvc.countAdminShowtimes(filter);
   assert.equal(total, 3); // gồm suất đã hủy (trang quản trị thấy mọi suất)
-  const page1 = await showtimeDao.findAdminShowtimes(filter, { skip: 0, take: 2 });
-  const page2 = await showtimeDao.findAdminShowtimes(filter, { skip: 2, take: 2 });
+  const page1 = await showtimeSvc.findAdminShowtimes(filter, { skip: 0, take: 2 });
+  const page2 = await showtimeSvc.findAdminShowtimes(filter, { skip: 2, take: 2 });
   assert.equal(page1.length, 2);
   assert.equal(page2.length, 1);
   const times = [...page1, ...page2].map((s) => s.startTime.getTime());
   assert.deepEqual(times, [...times].sort((x, y) => x - y));
-  assert.equal(await showtimeDao.countAdminShowtimes({ roomId: room.id }), 6); // không giới hạn thời gian: 6 suất trong phòng (ở phút 0, 1000, 2000, 2200, 2400, 5000)
-  assert.equal(await showtimeDao.countAdminShowtimes({ roomId: NOEXIST }), 0);
-  assert.equal(await showtimeDao.countAdminShowtimes({ cinemaId: cinema.id, roomId: room.id, from: at(4900), to: at(5100) }), 1);
+  assert.equal(await showtimeSvc.countAdminShowtimes({ roomId: room.id }), 6); // không giới hạn thời gian: 6 suất trong phòng (ở phút 0, 1000, 2000, 2200, 2400, 5000)
+  assert.equal(await showtimeSvc.countAdminShowtimes({ roomId: NOEXIST }), 0);
+  assert.equal(await showtimeSvc.countAdminShowtimes({ cinemaId: cinema.id, roomId: room.id, from: at(4900), to: at(5100) }), 1);
 });
 
-test('seat DAO: ghế theo hàng rồi số; đếm ghế dùng được bỏ ghế hỏng (trạng thái chiếm ghế do ticket.dao lo — xem dao.ticket.test.js)', async () => {
-  const seats = await seatDao.getSeatsOfRoom(room.id);
+test('seat (truy vấn nội bộ): ghế theo hàng rồi số; đếm ghế dùng được bỏ ghế hỏng (trạng thái chiếm ghế do ticket.service lo — xem db.ticket.test.js)', async () => {
+  const seats = await seatSvc.getSeatsOfRoom(room.id);
   assert.deepEqual(seats.map((s) => `${s.row}${s.number}`), ['A1', 'A2', 'A3', 'A4', 'B1', 'B2']);
-  const counts = await seatDao.countActiveSeatsByRoom([room.id, NOEXIST]);
-  assert.deepEqual(counts.map((c) => [c.roomId, c._count._all]), [[room.id, 5]]); // A4 hỏng không tính
+  const counts = await seatSvc.countActiveSeatsByRoom([room.id, NOEXIST]);
+  assert.deepEqual([...counts], [[room.id, 5]]); // Map roomId -> số ghế; A4 hỏng không tính
 });
 
 test('⭐ lọc rạp / phòng / khoảng thời gian: rạp hoặc phòng đã TẮT không hiện; suất đúng bằng `to` bị loại (khoảng nửa mở); suất rạp khác không lẫn vào', async () => {
@@ -135,20 +135,20 @@ test('⭐ lọc rạp / phòng / khoảng thời gian: rạp hoặc phòng đã 
   const offRoom = await prisma.room.create({ data: { cinemaId: cinema.id, name: `TestRoom-${RUN}-daoff`, isActive: false } });
   const roomInOff = await prisma.room.create({ data: { cinemaId: offCinema.id, name: `TestRoom-${RUN}-daoff2` } });
   try {
-    const put = (roomId, offsetMin) => showtimeDao.insertShowtime({ movieId: movie.id, roomId, startTime: at(offsetMin), endTime: at(offsetMin + 60), format: 'F2D', audio: 'SUBTITLE', basePrice: 70_000 });
+    const put = (roomId, offsetMin) => showtimeSvc.insertShowtime({ movieId: movie.id, roomId, startTime: at(offsetMin), endTime: at(offsetMin + 60), format: 'F2D', audio: 'SUBTITLE', basePrice: 70_000 });
     const sOther = await put(room2.id, 11_000);
     const sOffRoom = await put(offRoom.id, 11_000);
     const sOffCinema = await put(roomInOff.id, 11_000);
     const sEdge = await put(room.id, 11_500); // đúng bằng `to`
     const from = at(10_900); const to = at(11_500);
 
-    assert.deepEqual((await showtimeDao.searchOpenShowtimes({ from, to, cinemaId: offCinema.id })), []); // rạp tắt
-    assert.deepEqual((await showtimeDao.searchOpenShowtimes({ from, to, cinemaId: cinema.id })), []); // phòng tắt + suất cạnh biên không lọt vào
-    const found = await showtimeDao.searchOpenShowtimes({ from, to, cinemaId: other.id });
+    assert.deepEqual((await showtimeSvc.searchOpenShowtimes({ from, to, cinemaId: offCinema.id })), []); // rạp tắt
+    assert.deepEqual((await showtimeSvc.searchOpenShowtimes({ from, to, cinemaId: cinema.id })), []); // phòng tắt + suất cạnh biên không lọt vào
+    const found = await showtimeSvc.searchOpenShowtimes({ from, to, cinemaId: other.id });
     assert.deepEqual(found.map((s) => s.id), [sOther.id]);
-    assert.equal((await showtimeDao.searchOpenShowtimes({ from, to: at(11_501), cinemaId: cinema.id })).some((s) => s.id === sEdge.id), true);
+    assert.equal((await showtimeSvc.searchOpenShowtimes({ from, to: at(11_501), cinemaId: cinema.id })).some((s) => s.id === sEdge.id), true);
 
-    const ofCinema = await showtimeDao.listOpenShowtimesOfCinema({ cinemaId: cinema.id, from, to: at(11_501) });
+    const ofCinema = await showtimeSvc.listOpenShowtimesOfCinema({ cinemaId: cinema.id, from, to: at(11_501) });
     assert.deepEqual(ofCinema.map((s) => s.id).sort(), [sEdge.id, sOffRoom.id].sort()); // đúng rạp (phòng tắt vẫn thuộc rạp này); KHÔNG có suất rạp khác
     assert.ok(!ofCinema.some((s) => s.id === sOther.id || s.id === sOffCinema.id));
     await prisma.showtime.deleteMany({ where: { roomId: { in: [room2.id, offRoom.id, roomInOff.id] } } });
@@ -179,20 +179,20 @@ test('⭐ service sửa suất: chuyển sang PHÒNG KHÁC mà trùng giờ vớ
   }
 });
 
-test('movie / room / cinema DAO: đọc đúng, trả null khi không có; rạp đã TẮT coi như không có', async () => {
-  assert.equal((await movieDao.getMovieById(movie.id)).title, movie.title);
-  assert.deepEqual(await movieDao.getMovieIdById(movie.id), { id: movie.id });
-  assert.equal(await movieDao.getMovieById(NOEXIST), null);
-  assert.equal(await movieDao.getMovieIdById(NOEXIST), null);
-  assert.equal((await roomDao.getRoomById(room.id)).name, room.name);
-  assert.equal(await roomDao.getRoomById(NOEXIST), null);
+test('movie / room / cinema (truy vấn nội bộ): đọc đúng, trả null khi không có; rạp đã TẮT coi như không có', async () => {
+  assert.equal((await movieSvc.getMovieById(movie.id)).title, movie.title);
+  assert.equal(await movieSvc.movieExists(movie.id), true);
+  assert.equal(await movieSvc.getMovieById(NOEXIST), null);
+  assert.equal(await movieSvc.movieExists(NOEXIST), false);
+  assert.equal((await roomSvc.getRoomById(room.id)).name, room.name);
+  assert.equal(await roomSvc.getRoomById(NOEXIST), null);
 
-  assert.deepEqual(Object.keys(await cinemaDao.findActiveCinemaSummary(cinema.id)).sort(), ['address', 'id', 'name']);
+  assert.deepEqual(Object.keys(await catalogSvc.getActiveCinemaSummary(cinema.id)).sort(), ['address', 'id', 'name']);
   const temp = await prisma.cinema.create({ data: { cityId: cinema.cityId, name: `TestCinema-${RUN}-dao`, address: 'x', isActive: false } });
   try {
-    assert.equal(await cinemaDao.findActiveCinemaSummary(temp.id), null);
+    assert.equal(await catalogSvc.getActiveCinemaSummary(temp.id), null);
     await prisma.cinema.update({ where: { id: temp.id }, data: { isActive: true } });
-    assert.equal((await cinemaDao.findActiveCinemaSummary(temp.id)).name, temp.name);
+    assert.equal((await catalogSvc.getActiveCinemaSummary(temp.id)).name, temp.name);
   } finally {
     await prisma.cinema.delete({ where: { id: temp.id } });
   }

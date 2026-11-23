@@ -1,5 +1,4 @@
-import { runInTransaction } from '../dao/transaction.js';
-import { findToken, insertRefreshToken, revokeAllOfUser, revokeIfValid, revokeToken } from '../dao/refreshToken.dao.js';
+import { prisma, runInTransaction } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import {
@@ -136,3 +135,44 @@ export async function changePassword({ userId, currentPassword, newPassword }) {
   const { refreshToken } = await issueTokens(user);
   return { refreshToken };
 }
+
+// =============================================================================================
+// TRUY VẤN NỘI BỘ (@internal) — bảng RefreshToken. Mỗi hàm MỘT thao tác đọc / ghi; chỉ file này gọi chúng (docs/04 v1.26).
+// Tham số cuối `db = prisma`: truyền `tx` khi chạy trong transaction. Lỗi CSDL (vd P2002) đi xuyên ra cho hàm nghiệp vụ xử lý.
+// =============================================================================================
+
+/**
+ * Lưu refresh token (chỉ bản BĂM, không bao giờ lưu token gốc).
+ * @internal
+ */
+export const insertRefreshToken = ({ userId, tokenHash, expiresAt }, db = prisma) =>
+  db.refreshToken.create({ data: { userId, tokenHash, expiresAt } });
+
+/**
+ * ⭐ Thu hồi token NẾU còn hiệu lực (chưa thu hồi, chưa hết hạn) trong MỘT câu cập nhật có điều kiện:
+ * hai request cùng lúc với cùng token thì chỉ một cái có count = 1 (mỗi refresh token dùng được đúng một lần).
+ * @internal
+ * @returns {Promise<number>} 1 nếu vừa thu hồi được, 0 nếu token không hợp lệ / đã bị dùng
+ */
+export const revokeIfValid = async ({ tokenHash, now }, db = prisma) =>
+  (await db.refreshToken.updateMany({ where: { tokenHash, revokedAt: null, expiresAt: { gt: now } }, data: { revokedAt: now } })).count;
+
+/**
+ * @returns {Promise<object|null>} bản ghi RefreshToken (không kèm user: user thuộc `user.service`)
+ * @internal
+ */
+export const findToken = (tokenHash, db = prisma) => db.refreshToken.findUnique({ where: { tokenHash } });
+
+/**
+ * Thu hồi một token (đăng xuất). Không có / đã thu hồi thì không làm gì. @returns {Promise<number>} số dòng đã thu hồi
+ * @internal
+ */
+export const revokeToken = async ({ tokenHash, now }, db = prisma) =>
+  (await db.refreshToken.updateMany({ where: { tokenHash, revokedAt: null }, data: { revokedAt: now } })).count;
+
+/**
+ * Thu hồi MỌI token còn hiệu lực của một user (đăng xuất mọi thiết bị). @returns {Promise<number>}
+ * @internal
+ */
+export const revokeAllOfUser = async ({ userId, now }, db = prisma) =>
+  (await db.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: now } })).count;

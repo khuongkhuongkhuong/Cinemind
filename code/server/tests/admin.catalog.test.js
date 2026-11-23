@@ -182,12 +182,15 @@ test('⭐ mã do admin tạo dùng được ở luồng đặt vé (tra không p
   const p = (await call('POST', '/admin/promotions', promoBody({ code: `T${RUN}C`, minOrderValue: 100_000 }))).json.data;
   const found = await findPromotionByCode({ code: `  t${RUN}c ` });
   assert.equal(found.id, p.id);
-  await assertPromotionUsable({ promotion: found, userId: customer.id, subtotal: 150_000 }); // hợp lệ
-  const small = await assertPromotionUsable({ promotion: found, userId: customer.id, subtotal: 50_000 }).catch((e) => e);
+  // assertPromotionUsable là hàm thuần (không đụng DB): số lượt tài khoản đã dùng mã do order.service đếm rồi truyền vào
+  const errorOf = (fn) => { try { fn(); return null; } catch (e) { return e; } };
+  assertPromotionUsable({ promotion: found, subtotal: 150_000, usedByUser: 0 }); // hợp lệ
+  const small = errorOf(() => assertPromotionUsable({ promotion: found, subtotal: 50_000, usedByUser: 0 }));
   assert.equal(small.details.reason, 'MIN_ORDER_NOT_MET');
 
   await call('PUT', `/admin/promotions/${p.id}`, { isActive: false });
-  const off = await assertPromotionUsable({ promotion: await findPromotionByCode({ code: `T${RUN}C` }), userId: customer.id, subtotal: 150_000 }).catch((e) => e);
+  const promotion = await findPromotionByCode({ code: `T${RUN}C` });
+  const off = errorOf(() => assertPromotionUsable({ promotion, subtotal: 150_000, usedByUser: 0 }));
   assert.equal(off.details.reason, 'NOT_FOUND');
 });
 

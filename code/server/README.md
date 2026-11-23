@@ -110,7 +110,8 @@ curl -s $B/orders -H "Authorization: Bearer $TOKEN" -H 'Content-Type: applicatio
 src/
   routes/        khai báo URL + middleware (requireAuth, requireRole, validate)
   controllers/   đọc req, gọi MỘT service, trả res — không import Prisma
-  services/      TOÀN BỘ logic nghiệp vụ (nhận object thuần, trả object thuần, lỗi bằng AppError)
+  services/      logic nghiệp vụ + truy vấn bảng của thực thể mình (hàm nội bộ @internal); nhận / trả object thuần, lỗi bằng AppError
+  config/        env, Prisma Client và runInTransaction
   validators/    schema kiểm tra dữ liệu vào (zod)
   middlewares/   auth, validate, rateLimit, errorHandler
   lib/           tiện ích kỹ thuật: jwt, password, vnpay, code, time, text
@@ -119,7 +120,7 @@ prisma/          schema, migrations, seed
 tests/           test tích hợp chạy trên DB thật
 ```
 
-Quy tắc kiến trúc và các bất biến cốt lõi (chống trùng ghế bằng khóa chính `SeatLock`, chỉ IPN mới đổi đơn sang `PAID`, server tự tính tiền...) nằm trong [`CLAUDE.md`](../../CLAUDE.md).
+Quy tắc kiến trúc và các bất biến cốt lõi (chống trùng ghế bằng UNIQUE `Ticket(showtimeId, occupiedSeatId)`, chỉ IPN mới đổi đơn sang `PAID`, server tự tính tiền...) nằm trong [`CLAUDE.md`](../../CLAUDE.md).
 
 ## 5. Lệnh hữu ích
 
@@ -132,7 +133,6 @@ Quy tắc kiến trúc và các bất biến cốt lõi (chống trùng ghế b�
 | `npm run db:demo` | Thêm khách hàng + 45 đơn đã bán (doanh thu 14 ngày) để demo; `-- --only-live` tạo suất soát vé sau ~25 phút (xem docs/09) |
 | `npm run db:studio` | Xem dữ liệu bằng giao diện web |
 | `npm run db:clean-test` | Dọn dữ liệu rác nếu test bị ngắt giữa chừng |
-| `npm run spike:seatlock` | Thí nghiệm chống trùng ghế bằng khóa chính |
 
 ## 6. Cấu hình bảo mật
 

@@ -1,4 +1,4 @@
-import { addPoints as addPointsToUser, findUserByEmail as findByEmail, findUserById, findUserRoleState, insertUser, setPasswordHash, updateUserById } from '../dao/user.dao.js';
+import { prisma } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
 
 /** Chỉ các trường an toàn — tuyệt đối không có passwordHash. */
@@ -6,7 +6,7 @@ const publicUser = (u) => ({ id: u.id, email: u.email, fullName: u.fullName, pho
 
 /** Lấy user đang đăng nhập và chắc chắn còn tồn tại / chưa bị khóa (requireAuth không hỏi DB). */
 async function loadActiveUser(userId) {
-  const user = await findUserById(userId);
+  const user = await getUserById(userId);
   if (!user) throw new AppError('UNAUTHORIZED');
   if (!user.isActive) throw new AppError('ACCOUNT_DISABLED');
   return user;
@@ -21,31 +21,37 @@ async function loadActiveUser(userId) {
  */
 export async function updateProfile({ userId, fullName, phone }) {
   await loadActiveUser(userId);
-  const user = await updateUserById(userId, { ...(fullName !== undefined && { fullName }), ...(phone !== undefined && { phone }) });
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { ...(fullName !== undefined && { fullName }), ...(phone !== undefined && { phone }) },
+  });
   return publicUser(user);
 }
 
 /**
- * Người dùng theo email (đăng nhập). Service phụ trách thực thể User; auth gọi hàm này thay vì import `user.dao`.
+ * Người dùng theo email (đăng nhập).
  * @param {string} email
- * @returns {Promise<object|null>} dòng User (có passwordHash — chỉ dùng nội bộ để kiểm mật khẩu), hoặc null
+ * @param {object} [db]
+ * @returns {Promise<object|null>} dòng User (có passwordHash — chỉ dùng nội bộ để kiểm mật khẩu, không trả ra ngoài), hoặc null
  */
-export const findUserByEmail = (email) => findByEmail(email);
+export const findUserByEmail = (email, db = prisma) => db.user.findUnique({ where: { email } });
 
 /**
  * Người dùng theo id.
  * @param {string} userId
+ * @param {object} [db]
  * @returns {Promise<object|null>} dòng User hoặc null
  */
-export const getUserById = (userId) => findUserById(userId);
+export const getUserById = (userId, db = prisma) => db.user.findUnique({ where: { id: userId } });
 
 /**
  * Tạo người dùng mới. Không kiểm tra trùng email trước: UNIQUE(email) là trọng tài, lỗi Prisma P2002 đi xuyên ra ngoài
  * để người gọi (auth.register) dịch sang EMAIL_EXISTS.
  * @param {{ email: string, passwordHash: string, fullName: string, phone: string|null }} data
+ * @param {object} [db]
  * @returns {Promise<object>} User vừa tạo
  */
-export const createUser = (data) => insertUser(data);
+export const createUser = (data, db = prisma) => db.user.create({ data });
 
 /**
  * Ghi mật khẩu đã băm mới. Gọi trong transaction của auth (đổi mật khẩu kèm thu hồi refresh token).
@@ -53,19 +59,22 @@ export const createUser = (data) => insertUser(data);
  * @param {object} [db]
  * @returns {Promise<object>} User sau khi cập nhật
  */
-export const setPassword = ({ userId, passwordHash }, db) => setPasswordHash(userId, passwordHash, db);
+export const setPassword = ({ userId, passwordHash }, db = prisma) => db.user.update({ where: { id: userId }, data: { passwordHash } });
 
 /**
- * Cộng điểm thưởng (BR-25). Gọi trong transaction thanh toán (truyền `tx`).
+ * Cộng điểm thưởng (BR-25) bằng `increment` nguyên tử của CSDL. Gọi trong transaction thanh toán (truyền `tx`).
  * @param {{ userId: string, points: number }} params
  * @param {object} [db]
  * @returns {Promise<object>} User sau khi cập nhật
  */
-export const addPoints = ({ userId, points }, db) => addPointsToUser(userId, points, db);
+export const addPoints = ({ userId, points }, db = prisma) =>
+  db.user.update({ where: { id: userId }, data: { points: { increment: points } } });
 
 /**
  * Vai trò và trạng thái HIỆN TẠI của tài khoản trong DB (không tin vai trò ghi trong access token).
  * @param {{ userId: string }} params
+ * @param {object} [db]
  * @returns {Promise<{ role: string, isActive: boolean } | null>} null nếu tài khoản không còn tồn tại
  */
-export const getAccountState = ({ userId }) => findUserRoleState(userId);
+export const getAccountState = ({ userId }, db = prisma) =>
+  db.user.findUnique({ where: { id: userId }, select: { role: true, isActive: true } });
