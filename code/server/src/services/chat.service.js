@@ -135,7 +135,7 @@ export async function chat({ userId, sessionId, text, now = new Date() }) {
     });
   } catch (err) {
     if (err instanceof AppError) throw err;
-    console.error('[ai] LLM lỗi:', err);
+    console.error('[ai] LLM lỗi:', err?.name, err?.status ?? '', err?.message); // chỉ tên / mã / thông điệp, không in cả đối tượng lỗi
     throw new AppError('AI_UNAVAILABLE'); // không lộ chi tiết kỹ thuật
   }
 
