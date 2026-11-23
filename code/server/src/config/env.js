@@ -20,6 +20,12 @@ const schema = z.object({
   ENABLE_DEV_ROUTES: bool,
   // Số "bước nhảy" proxy tin cậy (vd 1 khi chạy sau Nginx) để req.ip là IP khách thật, không phải IP của proxy.
   TRUST_PROXY: z.coerce.number().int().min(0).max(10).optional(),
+  // Trợ lý AI (docs/07): không có ANTHROPIC_API_KEY thì trợ lý TẮT (AI_UNAVAILABLE), phần còn lại của hệ thống vẫn chạy bình thường.
+  // Khóa chỉ nằm trong .env (không bao giờ commit / in ra log).
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  AI_MODEL: z.string().min(1).default('claude-opus-5-5'),
+  AI_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('low'),
+  AI_REFUSAL_FALLBACK: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
 }).superRefine((env, ctx) => {
   if (env.NODE_ENV !== 'production') return;
   const bad = (path, message) => ctx.addIssue({ code: 'custom', path: [path], message });

@@ -260,3 +260,12 @@ test('vòng import showtime.service <-> seat.service (docs/04 v1.25) an toàn: k
     assert.deepEqual(topLevelCalls, [], `${file}.service gọi ${other}.service ở mức module`);
   }
 });
+
+test('⭐ SDK Anthropic chỉ được nhập trong ai/llm/anthropic.js (còn lại chỉ biết giao diện `complete`); khóa API chỉ đọc ở env.js / server.js và không bao giờ bị in ra', () => {
+  const importers = files(SRC).filter((f) => /@anthropic-ai\/sdk/.test(code(f))).map(rel);
+  assert.deepEqual(importers, ['ai/llm/anthropic.js']);
+  const readers = files(SRC).filter((f) => /ANTHROPIC_API_KEY/.test(code(f))).map(rel).sort();
+  assert.deepEqual(readers, ['config/env.js', 'server.js']);
+  const leaks = files(SRC).filter((f) => /console\.\w+\(\s*(env\.)?(ANTHROPIC_API_KEY|apiKey)\s*[,)]|\$\{[^}]*(ANTHROPIC_API_KEY|apiKey)[^}]*\}/.test(code(f))).map(rel);
+  assert.deepEqual(leaks, []);
+});

@@ -215,6 +215,16 @@ Một số tool trong mục 2 chưa có service tương ứng, hoặc tên khác
 
 **Tiến độ (29/10/2026):** bước 1 ✅ · bước 2 ✅ (`findShowtimes`, `suggestSeats`, `previewHold`, `holdSeats(source)`, tìm phim / rạp theo tên) · bước 3 ✅ (`ai/tools.js`, `ai/agent.js`, `ai/prompt.js`, `ai/llm/` kèm mô hình giả, `services/chat.service.js`) · bước 4 ✅ (HTTP `/ai/chat`, `/ai/confirm`, `/ai/sessions/:id`) · bước 5–7 chưa làm (bước 5 cần khóa `ANTHROPIC_API_KEY`).
 
+**Ghi chú thực hiện bước 5 (bộ chuyển Anthropic, 23/11/2026) — phần code ✅, hội thoại thật ⏳ chờ khóa API:**
+- `ai/llm/anthropic.js` dùng SDK chính thức `@anthropic-ai/sdk`, cài đúng giao diện `complete({ system, messages, tools, maxTokens })`. Mỗi lần gọi là MỘT `messages.create`; vòng lặp công cụ vẫn do `ai/agent.js` điều khiển (tool ghi vẫn chỉ tạo đề xuất chờ xác nhận). Kết quả công cụ của cùng một lượt gọi song song được gộp vào MỘT tin `user`.
+- Mô hình mặc định **`claude-opus-5-5`** (đổi bằng `AI_MODEL`, vd `claude-sonnet-5-5` rẻ hơn khoảng một nửa). `effort` mặc định `low` (`AI_EFFORT`): trò chuyện + gọi công cụ ngắn không cần suy nghĩ sâu, nhanh và rẻ hơn. Không gửi `thinking`, `temperature`, `tool_choice` ép buộc vì Opus 5.5 từ chối các tham số này (có test khóa lại).
+- Bật `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`, `AI_REFUSAL_FALLBACK=true`): bộ lọc an toàn từ chối thì API tự chạy lại trên mô hình dự phòng; nếu cả chuỗi từ chối, khách nhận câu trả lời lịch sự, không có lỗi.
+- Cắt cụt (`max_tokens`) giữa lúc viết lời gọi công cụ thì KHÔNG chạy tham số dở dang (ném lỗi → khách thấy `AI_UNAVAILABLE`).
+- Nối lúc khởi động (`server.js`) chỉ khi có `ANTHROPIC_API_KEY` trong `.env`; không có khóa thì trợ lý tắt và phần còn lại hoạt động bình thường. Khóa chỉ đọc ở `config/env.js` và `server.js`, không bao giờ in ra log (test kiến trúc kiểm); log lỗi LLM chỉ ghi tên / mã / thông điệp.
+- Lịch sử gửi đi **không kèm khối `thinking` của lượt trước** (giao diện LLM chỉ mang chữ và lời gọi công cụ). Với Opus 5.5 điều này chấp nhận được (mô hình tự suy nghĩ lại ở mỗi yêu cầu) nhưng **cần kiểm bằng hội thoại thật** khi có khóa.
+- Test: `tests/ai.anthropic.test.js` (14 ca, dùng client GIẢ — không tốn token): dịch tin nhắn / công cụ, tham số gửi đi, từ chối, cắt cụt, trọn vòng Agent + chat service, cấu hình. Kiểm tra đột biến 12 chỗ, 11 bị bắt, 1 tương đương (khối `thinking` thật không có trường `text`).
+- **Việc còn lại của bước 5 khi có khóa:** đặt `ANTHROPIC_API_KEY` trong `code/server/.env`, chạy `npm run dev` (log in "Trợ lý AI: BẬT"), thử hội thoại đặt vé trọn vẹn qua bong bóng chat, chỉnh `ai/prompt.js`.
+
 **Ghi chú thực hiện bước 6 (giao diện chat, 23/11/2026) ✅:**
 - Bong bóng nổi ở góc phải (`components/chat/ChatWidget.jsx`), chỉ hiện khi đã đăng nhập (server yêu cầu đăng nhập cho mọi `/ai/*`); khung chat chỉ dựng khi mở nên **không gọi API nào cho tới khi người dùng bấm**. Gắn vào `MainLayout` (khu khách hàng, không có ở khu quản trị).
 - Luồng đúng quy ước: `ChatWidget → hook useChat → api/chat.api.js`. Hook giữ danh sách tin, `pendingAction`, `sessionId` (nhớ trong `sessionStorage` để tải lại trang nạp lại phiên qua `GET /ai/sessions/:id`).
