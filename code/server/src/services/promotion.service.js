@@ -1,5 +1,4 @@
 import { prisma } from '../config/prisma.js';
-import { incrementUsedCount } from '../dao/promotion.dao.js';
 import { AppError } from '../utils/AppError.js';
 
 const promoError = (reason) => new AppError('PROMO_INVALID', { details: { reason } });
@@ -24,38 +23,37 @@ export function calcDiscount(promotion, subtotal) {
 }
 
 /**
- * Kiểm tra một mã còn dùng được không (BR-22) và trả về mã. Chỉ ĐỌC; lượt dùng chỉ bị trừ khi thanh toán (BR-24).
- * @param {{ promotion: object|null, userId: string, subtotal: number, orderId?: string, now?: Date, db?: object }} params
- *   `db` là prisma hoặc `tx` trong transaction; `orderId` để bỏ qua chính đơn đang áp mã khi đếm "đã dùng".
- * @returns {Promise<object>} promotion
+ * Kiểm tra một mã còn dùng được không (BR-22) và trả về mã. Hàm thuần: không đụng CSDL; lượt dùng chỉ bị trừ khi thanh toán (BR-24).
+ * Số lần tài khoản đã dùng mã do `order.service` đếm (bảng Order thuộc về nó) rồi truyền vào `usedByUser`.
+ * @param {{ promotion: object|null, subtotal: number, usedByUser: number, now?: Date }} params
+ *   `usedByUser`: số đơn ĐÃ THANH TOÁN (kể cả chờ hoàn tiền) của tài khoản này đã dùng mã, không tính đơn đang áp mã.
+ * @returns {object} promotion
  * @throws {AppError} PROMO_INVALID với details.reason ∈ NOT_FOUND | NOT_STARTED | EXPIRED | USAGE_LIMIT_REACHED | MIN_ORDER_NOT_MET | ALREADY_USED
  */
-export async function assertPromotionUsable({ promotion, userId, subtotal, orderId, now = new Date(), db = prisma }) {
+export function assertPromotionUsable({ promotion, subtotal, usedByUser, now = new Date() }) {
   if (!promotion || !promotion.isActive) throw promoError('NOT_FOUND');
   if (now < promotion.startAt) throw promoError('NOT_STARTED');
   if (now > promotion.endAt) throw promoError('EXPIRED');
   if (promotion.usageLimit != null && promotion.usedCount >= promotion.usageLimit) throw promoError('USAGE_LIMIT_REACHED');
   if (subtotal < promotion.minOrderValue) throw promoError('MIN_ORDER_NOT_MET');
-
-  // Mỗi tài khoản dùng 1 lần: đã có đơn ĐÃ THANH TOÁN dùng mã này (REFUND_PENDING cũng là đã thu tiền).
-  const used = await db.order.count({
-    where: {
-      userId, promotionId: promotion.id, status: { in: ['PAID', 'REFUND_PENDING'] },
-      ...(orderId && { id: { not: orderId } }),
-    },
-  });
-  if (used > 0) throw promoError('ALREADY_USED');
+  if (usedByUser > 0) throw promoError('ALREADY_USED'); // mỗi tài khoản dùng 1 lần
   return promotion;
 }
 
-/** Tìm mã theo chuỗi người dùng nhập (không phân biệt hoa/thường, bỏ khoảng trắng). */
+/**
+ * Tìm mã theo chuỗi người dùng nhập (không phân biệt hoa/thường, bỏ khoảng trắng).
+ * @param {{ code: string, db?: object }} params `db` là prisma hoặc `tx` trong transaction
+ * @returns {Promise<object|null>} Promotion hoặc null
+ */
 export const findPromotionByCode = ({ code, db = prisma }) =>
   db.promotion.findUnique({ where: { code: code.trim().toUpperCase() } });
 
 /**
- * Ghi nhận một lượt dùng mã khi đơn thanh toán thành công (BR-24): tăng `usedCount`. Gọi trong transaction của order (truyền `tx`).
+ * Ghi nhận một lượt dùng mã khi đơn thanh toán thành công (BR-24): tăng `usedCount` nguyên tử bằng `increment` của CSDL.
+ * Gọi trong transaction của order (truyền `tx`).
  * @param {string} promotionId
  * @param {object} [db]
  * @returns {Promise<object>} Promotion sau khi cập nhật
  */
-export const recordUsage = (promotionId, db) => incrementUsedCount(promotionId, db);
+export const recordUsage = (promotionId, db = prisma) =>
+  db.promotion.update({ where: { id: promotionId }, data: { usedCount: { increment: 1 } } });

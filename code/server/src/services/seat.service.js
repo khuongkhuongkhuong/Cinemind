@@ -1,4 +1,4 @@
-import { countActiveSeatsByRoom as countActiveSeats, findSeatsInRoom, getSeatsOfRoom } from '../dao/seat.dao.js';
+import { prisma } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
 import { toVnClock } from '../lib/time.js';
 import { priceSeats } from './pricing.service.js';
@@ -58,10 +58,12 @@ export async function getSeatMap({ showtimeId }) {
 /**
  * Số ghế DÙNG ĐƯỢC (chưa hỏng) của mỗi phòng.
  * @param {string[]} roomIds
+ * @param {object} [db]
  * @returns {Promise<Map<string, number>>} roomId -> số ghế
  */
-export async function countActiveSeatsByRoom(roomIds) {
-  return new Map((await countActiveSeats(roomIds)).map((c) => [c.roomId, c._count._all]));
+export async function countActiveSeatsByRoom(roomIds, db = prisma) {
+  const rows = await db.seat.groupBy({ by: ['roomId'], where: { roomId: { in: roomIds }, isActive: true }, _count: { _all: true } });
+  return new Map(rows.map((c) => [c.roomId, c._count._all]));
 }
 
 /**
@@ -214,3 +216,20 @@ export async function previewHold({ showtimeId, seatIds }) {
     totalPrice: (await priceSeats({ basePrice, seats: chosen.map((s) => ({ id: s.id, type: s.type, pairCode: s.pairCode })) })).total,
   };
 }
+
+// =============================================================================================
+// TRUY VẤN NỘI BỘ (@internal) — bảng Seat. Mỗi hàm MỘT thao tác đọc / ghi; chỉ file này gọi chúng (docs/04 v1.26).
+// Tham số cuối `db = prisma`: truyền `tx` khi chạy trong transaction. Lỗi CSDL (vd P2002) đi xuyên ra cho hàm nghiệp vụ xử lý.
+// =============================================================================================
+
+/**
+ * Toàn bộ ghế của một phòng, theo hàng rồi số.
+ * @internal
+ */
+export const getSeatsOfRoom = (roomId, db = prisma) => db.seat.findMany({ where: { roomId }, orderBy: [{ row: 'asc' }, { number: 'asc' }] });
+
+/**
+ * Các ghế (trong danh sách id) THUỘC phòng đã cho; ghế không thuộc phòng thì không có trong kết quả.
+ * @internal
+ */
+export const findSeatsInRoom = ({ roomId, seatIds }, db = prisma) => db.seat.findMany({ where: { id: { in: seatIds }, roomId } });

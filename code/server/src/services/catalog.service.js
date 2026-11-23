@@ -1,5 +1,4 @@
 import { prisma } from '../config/prisma.js';
-import { findActiveCinemaSummary } from '../dao/cinema.dao.js';
 import { AppError } from '../utils/AppError.js';
 import { removeAccents } from '../lib/text.js';
 import { buildMeta, toSkipTake } from '../utils/pagination.js';
@@ -192,8 +191,10 @@ export async function listCinemasByCityName({ cityName }) {
 }
 
 /**
- * Rạp ĐANG HOẠT ĐỘNG theo id (rạp đã tắt coi như không có). Service khác (showtime) gọi hàm này thay vì import `cinema.dao`.
+ * Rạp ĐANG HOẠT ĐỘNG theo id (rạp đã tắt coi như không có). Service khác (showtime) gọi hàm này.
  * @param {string} cinemaId
+ * @param {object} [db]
  * @returns {Promise<{ id: string, name: string, address: string }|null>}
  */
-export const getActiveCinemaSummary = (cinemaId) => findActiveCinemaSummary(cinemaId);
+export const getActiveCinemaSummary = (cinemaId, db = prisma) =>
+  db.cinema.findFirst({ where: { id: cinemaId, isActive: true }, select: { id: true, name: true, address: true } });

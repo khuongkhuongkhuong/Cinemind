@@ -1,5 +1,4 @@
-import { findPriceRule } from '../dao/priceRule.dao.js';
-import { getAllSurcharges } from '../dao/seatTypeSurcharge.dao.js';
+import { prisma } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
 import { vnWeekday } from '../lib/time.js';
 
@@ -73,3 +72,23 @@ export function calcSeatPrices({ basePrice, surcharges, seats }) {
 export async function priceSeats({ basePrice, seats }) {
   return calcSeatPrices({ basePrice, surcharges: await getSurcharges(), seats });
 }
+
+// =============================================================================================
+// TRUY VẤN NỘI BỘ (@internal) — bảng PriceRule, SeatTypeSurcharge. Mỗi hàm MỘT thao tác đọc / ghi; chỉ file này gọi chúng (docs/04 v1.26).
+// Tham số cuối `db = prisma`: truyền `tx` khi chạy trong transaction. Lỗi CSDL (vd P2002) đi xuyên ra cho hàm nghiệp vụ xử lý.
+// =============================================================================================
+
+/**
+ * Dòng bảng giá gốc theo định dạng + loại ngày (BR-12).
+ * @internal
+ * @param {{ format: 'F2D'|'F3D'|'IMAX', dayType: 'WEEKDAY'|'WEEKEND' }} key
+ * @returns {Promise<object|null>} PriceRule hoặc null
+ */
+export const findPriceRule = ({ format, dayType }, db = prisma) =>
+  db.priceRule.findUnique({ where: { format_dayType: { format, dayType } } });
+
+/**
+ * Toàn bộ phụ thu theo loại ghế (BR-13). @returns {Promise<Array<{ seatType: string, surcharge: number }>>}
+ * @internal
+ */
+export const getAllSurcharges = (db = prisma) => db.seatTypeSurcharge.findMany();

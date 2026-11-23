@@ -1,11 +1,4 @@
-import { runInTransaction } from '../dao/transaction.js';
-import {
-  ORDER_INCLUDE, cancelPendingOrderIfNotExpired, checkInIfNotUsed, countOrdersOfUser, findActivePendingOrderIds, findOrderByCode,
-  findOrdersOfUser, getOrderById, getOrderDetail, getOrderDetailByCode, getOrderForRecalc, getOrderLines, getOrderOwner, getOrderStatus as findOrderStatus,
-  insertOrder, listStalePendingOrderIds, markOrderExpiredIfStale, markOrderPaid, markOrdersCancelled, setOrderPromotion, setOrderStatus,
-  touchPendingOrder, updateOrderTotals,
-} from '../dao/order.dao.js';
-import { deleteCombosOfOrder, insertOrderCombos } from '../dao/orderCombo.dao.js';
+import { prisma, runInTransaction } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
 import { generateOrderCode, normalizeTicketCode } from '../lib/code.js';
 import { buildMeta, toSkipTake } from '../utils/pagination.js';
@@ -17,13 +10,33 @@ import * as comboService from './combo.service.js';
 import * as userService from './user.service.js';
 import { assertPromotionUsable, calcDiscount, findPromotionByCode, recordUsage } from './promotion.service.js';
 
+// ---- Hằng dùng cho truy vấn (Order, OrderCombo) ----
+
+/** Phần của suất mà đơn / vé / soát vé cần (kèm `status` để soát vé biết suất đã hủy hay chưa). Suất của đơn lấy qua VÉ. */
+export const SHOWTIME_SELECT = {
+  id: true, startTime: true, status: true, format: true, audio: true,
+  movie: { select: { title: true, ageRating: true, posterUrl: true } },
+  room: { select: { name: true, cinema: { select: { name: true } } } },
+};
+
+/**
+ * Hình dạng "đơn đầy đủ" mà các màn hình đọc (đơn, vé, soát vé, quản trị). Đây là CÁCH ĐỌC dữ liệu (một phần của truy vấn),
+ * `toOrderDto` đổi nó sang `Order` DTO.
+ * `Order` không còn `showtime` (docs/03 v1.3): suất nằm ở từng vé, mọi vé của một đơn cùng một suất.
+ */
+export const ORDER_INCLUDE = {
+  tickets: { orderBy: { seatLabel: 'asc' }, include: { showtime: { select: SHOWTIME_SELECT } } },
+  combos: { include: { combo: { select: { name: true } } }, orderBy: { combo: { name: 'asc' } } },
+  promotion: { select: { code: true, name: true } },
+};
+
 const HOLD_MINUTES = 10; // BR-01: giữ ghế 10 phút, không gia hạn
 const MAX_SEATS = 8; // BR-02
 const MAX_ATTEMPTS = 3;
 // Nhiều người giành ghế cùng lúc => transaction phải xếp hàng chờ nhau; nới thời gian chờ mặc định (2s/5s).
 const TX_OPTIONS = { maxWait: 10_000, timeout: 15_000 };
 
-// Hình dạng "đơn đầy đủ" nay nằm ở DAO; re-export để các nơi đang import từ đây (adminOrder...) không phải đổi.
+// Tên công khai của `ORDER_INCLUDE`: `adminOrder.service` dùng chung cách đọc đơn đầy đủ.
 export const orderInclude = ORDER_INCLUDE;
 
 /**
@@ -280,7 +293,8 @@ async function recalcOrder(tx, orderId) {
   let discount = 0;
   if (order.promotion) {
     try {
-      await assertPromotionUsable({ promotion: order.promotion, userId: order.userId, subtotal, orderId, db: tx });
+      const usedByUser = await countPaidOrdersUsingPromotion({ userId: order.userId, promotionId: order.promotionId, exceptOrderId: orderId }, tx);
+      assertPromotionUsable({ promotion: order.promotion, subtotal, usedByUser });
       discount = calcDiscount(order.promotion, subtotal);
     } catch (err) {
       if (err.code !== 'PROMO_INVALID') throw err;
@@ -347,7 +361,8 @@ export async function applyPromotion({ userId, orderId, code }) {
     const order = await getOrderLines(orderId, tx);
     const subtotal = order.tickets.reduce((s, x) => s + x.price, 0) + order.combos.reduce((s, c) => s + c.quantity * c.unitPrice, 0);
     const promotion = await findPromotionByCode({ code, db: tx });
-    await assertPromotionUsable({ promotion, userId, subtotal, orderId, db: tx });
+    const usedByUser = promotion ? await countPaidOrdersUsingPromotion({ userId, promotionId: promotion.id, exceptOrderId: orderId }, tx) : 0;
+    assertPromotionUsable({ promotion, subtotal, usedByUser });
     await setOrderPromotion(orderId, promotion.id, tx);
   });
 }
@@ -361,9 +376,8 @@ export function removePromotion({ userId, orderId }) {
   return withPendingOrder({ userId, orderId }, (tx) => setOrderPromotion(orderId, null, tx));
 }
 
-
 // ---------------------------------------------------------------------------------------------
-// Dành cho payment.service: đọc / chuyển trạng thái đơn mà payment không được tự đụng vào order.dao.
+// Dành cho payment.service: đọc / chuyển trạng thái đơn mà payment không được tự truy vấn bảng Order.
 // ---------------------------------------------------------------------------------------------
 
 const POINT_UNIT = 10_000; // BR-25 (Could): 1 điểm / 10.000đ thực trả
@@ -509,3 +523,203 @@ function vnTime(date) {
   const d = new Date(date.getTime() + 7 * 3600_000);
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 }
+
+// =============================================================================================
+// TRUY VẤN NỘI BỘ (@internal) — bảng Order, OrderCombo. Mỗi hàm MỘT thao tác đọc / ghi; chỉ file này gọi chúng (docs/04 v1.26).
+// Tham số cuối `db = prisma`: truyền `tx` khi chạy trong transaction. Lỗi CSDL (vd P2002) đi xuyên ra cho hàm nghiệp vụ xử lý.
+// =============================================================================================
+
+/**
+ * Tìm đơn theo MÃ (đã chuẩn hóa) kèm dữ liệu cho soát vé (gồm trạng thái suất).
+ * @internal
+ * @param {string} code mã đơn / vé, đã qua normalizeTicketCode
+ * @returns {Promise<object|null>}
+ */
+export const findOrderByCode = (code, db = prisma) => db.order.findUnique({ where: { code }, include: ORDER_INCLUDE });
+
+/**
+ * Đơn thô (không kèm quan hệ). @returns {Promise<object|null>}
+ * @internal
+ */
+export const getOrderById = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId } });
+
+/**
+ * Đơn đầy đủ theo `ORDER_INCLUDE`. @returns {Promise<object|null>}
+ * @internal
+ */
+export const getOrderDetail = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, include: ORDER_INCLUDE });
+
+/**
+ * ⭐ Đánh dấu đơn ĐÃ VÀO RẠP — MỘT câu cập nhật có điều kiện (`status = PAID` và `checkedInAt IS NULL`): hai nhân viên quét
+ * cùng lúc thì chỉ một người có count = 1. Service quyết định nghĩa của count = 0 (có người quét trước).
+ * @internal
+ * @param {{ orderId: string, staffId: string, now: Date }} params
+ * @returns {Promise<number>} 1 nếu vừa check-in được, 0 nếu không
+ */
+export const checkInIfNotUsed = async ({ orderId, staffId, now }, db = prisma) =>
+  (await db.order.updateMany({
+    where: { id: orderId, status: 'PAID', checkedInAt: null },
+    data: { checkedInAt: now, checkedInById: staffId },
+  })).count;
+
+/**
+ * Id các đơn PENDING CÒN HẠN của một user (BR-03: tạo đơn mới thì hủy các đơn này). @returns {Promise<string[]>}
+ * @internal
+ */
+export const findActivePendingOrderIds = async ({ userId, now }, db = prisma) =>
+  (await db.order.findMany({ where: { userId, status: 'PENDING', expiresAt: { gt: now } }, select: { id: true } })).map((o) => o.id);
+
+/**
+ * Chuyển các đơn sang CANCELLED (không kiểm điều kiện: service đã chọn đúng các đơn cần hủy).
+ * @internal
+ */
+export const markOrdersCancelled = (orderIds, db = prisma) =>
+  db.order.updateMany({ where: { id: { in: orderIds } }, data: { status: 'CANCELLED' } });
+
+/**
+ * Tạo đơn (chưa có vé; vé được chèn riêng bằng `ticketService.holdTickets` trong cùng transaction).
+ * @internal
+ * @param {{ code: string, userId: string, source: string, expiresAt: Date, seatTotal: number, total: number }} data
+ * @returns {Promise<object>} Order vừa tạo
+ */
+export const insertOrder = (data, db = prisma) => db.order.create({ data });
+
+/**
+ * Chỉ chủ đơn. @returns {Promise<{ userId: string }|null>}
+ * @internal
+ */
+export const getOrderOwner = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, select: { userId: true } });
+
+/**
+ * Chỉ trạng thái. @returns {Promise<{ status: string }|null>}
+ * @internal
+ */
+export const findOrderStatus = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, select: { status: true } });
+
+/**
+ * Đơn đầy đủ theo MÃ (cho "vé của tôi"). @returns {Promise<object|null>}
+ * @internal
+ */
+export const getOrderDetailByCode = (code, db = prisma) => db.order.findUnique({ where: { code }, include: ORDER_INCLUDE });
+
+/**
+ * ⭐ Hủy đơn NẾU còn PENDING và còn hạn — MỘT câu cập nhật có điều kiện: nếu IPN vừa chuyển đơn sang PAID cùng lúc thì
+ * điều kiện sai, count = 0, không hủy nhầm đơn đã trả tiền.
+ * @internal
+ * @returns {Promise<number>} 1 nếu hủy được, 0 nếu không
+ */
+export const cancelPendingOrderIfNotExpired = async ({ orderId, now }, db = prisma) =>
+  (await db.order.updateMany({ where: { id: orderId, status: 'PENDING', expiresAt: { gt: now } }, data: { status: 'CANCELLED' } })).count;
+
+/**
+ * Id các đơn PENDING đã quá hạn (dùng index status + expiresAt), cho tác vụ dọn dẹp. @returns {Promise<string[]>}
+ * @internal
+ */
+export const listStalePendingOrderIds = async ({ now }, db = prisma) =>
+  (await db.order.findMany({ where: { status: 'PENDING', expiresAt: { lt: now } }, select: { id: true } })).map((o) => o.id);
+
+/**
+ * ⭐ Chuyển đơn sang EXPIRED NẾU vẫn PENDING và quá hạn — có điều kiện nên nếu IPN vừa xác nhận đơn này thì count = 0.
+ * @internal
+ * @returns {Promise<number>}
+ */
+export const markOrderExpiredIfStale = async ({ orderId, now }, db = prisma) =>
+  (await db.order.updateMany({ where: { id: orderId, status: 'PENDING', expiresAt: { lt: now } }, data: { status: 'EXPIRED' } })).count;
+
+/**
+ * ⭐ "Chiếm" dòng của một đơn còn PENDING và còn hạn: cập nhật `updatedAt` trong MỘT câu có điều kiện. Câu này vừa kiểm
+ * trạng thái, vừa KHÓA dòng đơn đến hết transaction: IPN thanh toán / hủy đơn cùng lúc phải chờ nhau, không ai ghi chồng lên ai.
+ * @internal
+ * @returns {Promise<number>} 1 nếu chiếm được, 0 nếu đơn không còn PENDING hoặc đã hết hạn
+ */
+export const touchPendingOrder = async ({ orderId, now }, db = prisma) =>
+  (await db.order.updateMany({ where: { id: orderId, status: 'PENDING', expiresAt: { gt: now } }, data: { updatedAt: now } })).count;
+
+/**
+ * Số đơn + một trang đơn của một user theo trạng thái, mới nhất trước (cho "vé của tôi").
+ * @internal
+ */
+export const countOrdersOfUser = ({ userId, status }, db = prisma) => db.order.count({ where: { userId, status } });
+
+/**
+ * @param {{ userId: string, status: string }} filter @param {{ skip: number, take: number }} page
+ * @internal
+ */
+export const findOrdersOfUser = ({ userId, status }, { skip, take }, db = prisma) =>
+  db.order.findMany({
+    where: { userId, status },
+    orderBy: { createdAt: 'desc' },
+    skip,
+    take,
+    select: {
+      id: true, code: true, status: true, total: true, createdAt: true, paidAt: true, checkedInAt: true,
+      tickets: { select: { seatLabel: true, showtime: { select: SHOWTIME_SELECT } }, orderBy: { seatLabel: 'asc' } },
+    },
+  });
+
+/**
+ * Đơn kèm dòng vé, combo và khuyến mãi — để TÍNH LẠI tiền (recalcOrder). @returns {Promise<object|null>}
+ * @internal
+ */
+export const getOrderForRecalc = (orderId, db = prisma) =>
+  db.order.findUnique({ where: { id: orderId }, include: { tickets: true, combos: true, promotion: true } });
+
+/**
+ * Đơn kèm dòng vé và combo (để tính tạm tính khi áp mã). @returns {Promise<object|null>}
+ * @internal
+ */
+export const getOrderLines = (orderId, db = prisma) => db.order.findUnique({ where: { id: orderId }, include: { tickets: true, combos: true } });
+
+/**
+ * Ghi lại các khoản tiền đã tính lại. @param {{ seatTotal: number, comboTotal: number, discount: number, promotionId: string|null, total: number }} totals
+ * @internal
+ */
+export const updateOrderTotals = (orderId, { seatTotal, comboTotal, discount, promotionId, total }, db = prisma) =>
+  db.order.update({ where: { id: orderId }, data: { seatTotal, comboTotal, discount, promotionId, total } });
+
+/**
+ * Gắn mã khuyến mãi vào đơn (`null` = gỡ mã).
+ * @internal
+ */
+export const setOrderPromotion = (orderId, promotionId, db = prisma) => db.order.update({ where: { id: orderId }, data: { promotionId } });
+
+/**
+ * Đổi trạng thái đơn (không kiểm điều kiện: service đã quyết định trong transaction).
+ * @internal
+ */
+export const setOrderStatus = (orderId, status, db = prisma) => db.order.update({ where: { id: orderId }, data: { status } });
+
+/**
+ * Ghi nhận đơn ĐÃ THANH TOÁN. Chỉ được gọi từ luồng xác nhận IPN.
+ * @internal
+ */
+export const markOrderPaid = (orderId, paidAt, db = prisma) => db.order.update({ where: { id: orderId }, data: { status: 'PAID', paidAt } });
+
+/**
+ * Xóa mọi dòng combo của đơn (trước khi ghi lại cả danh sách).
+ * @internal
+ */
+export const deleteCombosOfOrder = (orderId, db = prisma) => db.orderCombo.deleteMany({ where: { orderId } });
+
+/**
+ * Ghi các dòng combo của đơn với GIÁ ĐÃ CHỐT (BR-14).
+ * @internal
+ * @param {{ orderId: string, items: Array<{ comboId: string, quantity: number, unitPrice: number }> }} params
+ */
+export const insertOrderCombos = ({ orderId, items }, db = prisma) =>
+  db.orderCombo.createMany({ data: items.map((i) => ({ orderId, comboId: i.comboId, quantity: i.quantity, unitPrice: i.unitPrice })) });
+
+/**
+ * Số đơn ĐÃ THANH TOÁN của một tài khoản đã dùng một mã khuyến mãi (REFUND_PENDING cũng tính: tiền đã thu), không tính đơn `exceptOrderId`
+ * (chính đơn đang áp mã). `promotion.service.assertPromotionUsable` dùng con số này để áp luật "mỗi tài khoản dùng một lần" (BR-22).
+ * @internal
+ * @param {{ userId: string, promotionId: string, exceptOrderId?: string }} params
+ * @returns {Promise<number>}
+ */
+export const countPaidOrdersUsingPromotion = ({ userId, promotionId, exceptOrderId }, db = prisma) =>
+  db.order.count({
+    where: {
+      userId, promotionId, status: { in: ['PAID', 'REFUND_PENDING'] },
+      ...(exceptOrderId && { id: { not: exceptOrderId } }),
+    },
+  });
