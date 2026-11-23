@@ -486,3 +486,44 @@ test('getSession nạp lại khung chat: có việc chờ còn hạn thì trả,
   const later = await chatSvc.getSession({ userId: customer.id, sessionId, now: new Date(Date.now() + 6 * minute) });
   assert.equal(later.pendingAction, null);
 });
+
+// ------------------------------------------------------------------ rà soát bảo mật (bước 7) ------------------------------------------------------------------
+
+test('⭐ trần chi phí TOÀN hệ thống: nhiều tài khoản cộng lại vượt AI_GLOBAL_DAILY_LIMIT thì AI_UNAVAILABLE (LLM không bị gọi, không tính vào lượt của khách); sang ngày VN mới thì dùng lại được', async () => {
+  const fake = useLlm(Array.from({ length: 20 }, () => ({ text: 'ok' })));
+  chatSvc.setGlobalDailyLimit(3);
+  try {
+    const t0 = new Date('2030-03-10T05:00:00Z'); // 12:00 giờ VN
+    await say(customer, 'một', { now: t0 });
+    await say(other, 'hai', { now: t0 });
+    await say(customer, 'ba', { now: new Date(t0.getTime() + 61_000) });
+    const callsBefore = fake.calls.length;
+    const err = await failErr(say(other, 'bốn', { now: new Date(t0.getTime() + 62_000) }));
+    assert.equal(err.code, 'AI_UNAVAILABLE');
+    assert.equal(fake.calls.length, callsBefore); // không gọi LLM = không tốn tiền
+    // ngày tính theo giờ VN: 16:59Z (23:59 VN) vẫn là ngày cũ, 17:00Z (00:00 VN ngày kế) là ngày mới
+    assert.equal((await failErr(say(other, 'năm', { now: new Date('2030-03-10T16:59:00Z') }))).code, 'AI_UNAVAILABLE');
+    await say(other, 'sang ngày mới', { now: new Date('2030-03-10T17:00:00Z') });
+  } finally {
+    chatSvc.setGlobalDailyLimit(2000);
+  }
+});
+
+test('trần toàn hệ thống = 0 nghĩa là không giới hạn', async () => {
+  useLlm(Array.from({ length: 10 }, () => ({ text: 'ok' })));
+  chatSvc.setGlobalDailyLimit(0);
+  try {
+    for (let i = 0; i < 5; i++) await say(customer, `tin ${i}`, { now: new Date(Date.UTC(2030, 5, 1, 5, i * 2)) });
+  } finally {
+    chatSvc.setGlobalDailyLimit(2000);
+  }
+});
+
+test('⭐ danh sách công cụ của AI bị KHÓA đúng thiết kế (docs/07 mục 2): 9 công cụ đọc + 5 công cụ ghi; không có công cụ xác nhận thanh toán, soát vé, quản trị, đổi vai trò', () => {
+  const names = toolSpecs().map((t) => t.name).sort();
+  assert.deepEqual(names, [
+    'apply_promotion', 'cancel_order', 'create_payment_link', 'find_showtimes', 'get_movie_details', 'get_order', 'get_seat_map',
+    'hold_seats', 'list_cinemas', 'list_combos', 'list_my_tickets', 'search_movies', 'set_combos', 'suggest_seats',
+  ]);
+  assert.ok(names.every((n) => !/admin|check_?in|confirm|paid|refund|role|user/i.test(n)), 'có công cụ nhạy cảm');
+});

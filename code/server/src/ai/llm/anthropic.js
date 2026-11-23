@@ -6,7 +6,7 @@ import Anthropic from '@anthropic-ai/sdk';
  * chạy ở đây, chỉ tạo đề xuất chờ khách xác nhận). Module này chỉ dịch qua lại giữa hai dạng tin nhắn và gọi API.
  */
 
-export const DEFAULT_MODEL = 'claude-opus-5-5';
+export const DEFAULT_MODEL = 'claude-sonnet-5-5'; // quyết định D1 (docs/07): đủ tốt cho trò chuyện + gọi công cụ, rẻ hơn Opus; đổi bằng AI_MODEL
 export const REFUSAL_TEXT = 'Mình không thể hỗ trợ yêu cầu này. Bạn thử diễn đạt khác, hoặc đặt vé trực tiếp trên trang nhé.';
 const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
