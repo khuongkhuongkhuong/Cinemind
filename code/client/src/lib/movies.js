@@ -39,3 +39,24 @@ export const safeExternalUrl = (url) => {
     return null;
   }
 };
+
+const YOUTUBE_HOSTS = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtube-nocookie.com', 'www.youtube-nocookie.com'];
+
+/**
+ * Link YouTube (watch?v=, youtu.be/, embed/, shorts/) -> địa chỉ nhúng vào trang; link khác trả null.
+ * Chỉ ghép đúng mã video 11 ký tự vào một địa chỉ cố định, nên link do admin nhập không điều khiển được iframe trỏ đi nơi khác.
+ */
+export const youtubeEmbedUrl = (url) => {
+  const safe = safeExternalUrl(url);
+  if (!safe) return null;
+  let parsed;
+  try { parsed = new URL(safe); } catch { return null; }
+  const parts = parsed.pathname.split('/').filter(Boolean);
+  let id = null;
+  if (parsed.hostname === 'youtu.be') [id] = parts;
+  else if (YOUTUBE_HOSTS.includes(parsed.hostname)) {
+    if (parts[0] === 'watch') id = parsed.searchParams.get('v');
+    else if (parts[0] === 'embed' || parts[0] === 'shorts') id = parts[1];
+  }
+  return /^[\w-]{11}$/.test(id ?? '') ? `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0` : null;
+};

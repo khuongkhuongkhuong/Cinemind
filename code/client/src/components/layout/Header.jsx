@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { isAdmin, isStaff, useAuth } from '@/hooks/useAuth';
 import { loginUrl } from '@/lib/returnUrl';
 import Button from '@/components/ui/Button';
+import NavDropdown, { MobileSubItems } from '@/components/layout/NavDropdown';
+import { NAV } from '@/components/layout/navItems';
+import { FilmStrip, Logo, TicketButton } from '@/components/layout/CinemaDecor';
 
-const NAV = [{ to: '/movies', label: 'Phim' }, { to: '/cinemas', label: 'Rạp' }];
 const navClass = ({ isActive }) =>
-  `px-3 py-2 text-sm font-bold uppercase tracking-wide transition-colors ${isActive ? 'text-brand-600' : 'text-ink-100 hover:text-brand-600'}`;
+  `whitespace-nowrap px-2 py-2 text-sm font-bold uppercase tracking-wide transition-colors lg:px-3 lg:text-base ${isActive ? 'text-brand-600' : 'text-ink-100 hover:text-brand-600'}`;
 
 /** Menu tài khoản theo vai trò: Vé của tôi, Hồ sơ, [Soát vé], [Quản trị], Đăng xuất (05-ui-pages mục 2). */
 function UserMenu({ user, onLogout }) {
@@ -64,7 +66,7 @@ export default function Header() {
   const [query, setQuery] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  useEffect(() => setMobileOpen(false), [location.pathname]);
+  useEffect(() => setMobileOpen(false), [location.pathname, location.search]);
 
   const search = (e) => {
     e.preventDefault();
@@ -72,39 +74,42 @@ export default function Header() {
     navigate(q ? `/movies?q=${encodeURIComponent(q)}` : '/movies');
   };
 
+  // Cuộn trang: dải phim trên cùng và hàng tìm kiếm / tài khoản (14px + 48px) trôi đi, thanh menu ở lại.
   return (
-    <header className="sticky top-0 z-30 border-b border-t-4 border-ink-700 border-t-brand-600 bg-ink-900/95 shadow-sm backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
-        <Link to="/" className="text-2xl font-black tracking-wide text-ink-100" aria-label="Cinemind — trang chủ">
-          CINE<span className="text-brand-500">MIND</span>
-        </Link>
-
-        <nav aria-label="Điều hướng chính" className="hidden items-center gap-1 md:flex">
-          {NAV.map((n) => <NavLink key={n.to} to={n.to} className={navClass}>{n.label}</NavLink>)}
-        </nav>
-
-        <form onSubmit={search} role="search" className="ml-auto hidden max-w-xs flex-1 md:block">
+    <header className="sticky -top-[62px] z-30 bg-ink-950 shadow-md">
+      <FilmStrip />
+      <div className="mx-auto flex h-12 max-w-6xl items-center justify-end gap-3 px-4">
+        <form onSubmit={search} role="search" className="hidden w-64 md:block">
           <label htmlFor="header-search" className="sr-only">Tìm phim</label>
           <input
             id="header-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm phim..."
-            className="h-10 w-full rounded-lg border border-ink-600 bg-ink-800 px-3 text-sm placeholder:text-ink-300/60 hover:border-ink-300"
+            className="h-9 w-full rounded-full border border-ink-600 bg-ink-900 px-4 text-sm placeholder:text-ink-300/60 hover:border-ink-300"
           />
         </form>
+        {status === 'loading' ? (
+          <div className="h-9 w-28 animate-pulse rounded-lg bg-ink-700" aria-hidden="true" />
+        ) : user ? (
+          <UserMenu user={user} onLogout={logout} />
+        ) : (
+          <>
+            <Link to={loginUrl(location.pathname + location.search)}><Button size="sm">Đăng nhập</Button></Link>
+            <Link to="/register" className="hidden sm:block"><Button size="sm" variant="secondary">Đăng ký</Button></Link>
+          </>
+        )}
+      </div>
 
-        <div className="ml-auto flex items-center gap-2 md:ml-0">
-          {status === 'loading' ? (
-            <div className="h-10 w-28 animate-pulse rounded-lg bg-ink-700" aria-hidden="true" />
-          ) : user ? (
-            <UserMenu user={user} onLogout={logout} />
-          ) : (
-            <>
-              <Link to={loginUrl(location.pathname + location.search)}><Button size="md">Đăng nhập</Button></Link>
-              <Link to="/register" className="hidden sm:block"><Button variant="secondary">Đăng ký</Button></Link>
-            </>
-          )}
+      {/* Thanh chính, hai đường kẻ như khung hình phim (05-ui-pages mục 2) */}
+      <div className="border-y border-ink-100/70">
+        <div className="mx-auto flex h-[72px] max-w-6xl items-center gap-3 px-4 lg:gap-8">
+          <Logo />
+          <nav aria-label="Điều hướng chính" className="hidden items-center gap-1 md:flex lg:gap-4">
+            {NAV.map((n) => <NavDropdown key={n.to} {...n} className={navClass} />)}
+            {user && <NavLink to="/me/tickets" className={navClass}>Vé của tôi</NavLink>}
+          </nav>
+          <div className="ml-auto hidden lg:block"><TicketButton /></div>
           <button
             type="button" onClick={() => setMobileOpen((v) => !v)} aria-label="Mở menu" aria-expanded={mobileOpen}
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-ink-600 md:hidden"
+            className="ml-auto flex h-10 w-10 items-center justify-center rounded-lg border border-ink-600 bg-ink-900 md:hidden"
           >
             <span aria-hidden="true">{mobileOpen ? '✕' : '☰'}</span>
           </button>
@@ -121,11 +126,18 @@ export default function Header() {
             />
           </form>
           <nav aria-label="Điều hướng chính (di động)" className="flex flex-col">
-            {NAV.map((n) => <NavLink key={n.to} to={n.to} className={navClass}>{n.label}</NavLink>)}
+            {NAV.map((n) => (
+              <Fragment key={n.to}>
+                <NavLink to={n.to} className={navClass}>{n.label}</NavLink>
+                <MobileSubItems useItems={n.useItems} />
+              </Fragment>
+            ))}
+            {user && <NavLink to="/me/tickets" className={navClass}>Vé của tôi</NavLink>}
             {!user && status !== 'loading' && <Link to="/register" className="px-3 py-2 text-sm text-ink-300 hover:text-brand-600">Đăng ký</Link>}
           </nav>
         </div>
       )}
+      <FilmStrip />
     </header>
   );
 }

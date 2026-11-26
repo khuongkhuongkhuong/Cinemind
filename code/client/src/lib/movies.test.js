@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apiStatusToUrl, audioLabel, countOpenShowtimes, countShowtimes, formatLabel, safeExternalUrl, showGroupLabel, urlStatusToApi } from './movies';
+import { apiStatusToUrl, audioLabel, countOpenShowtimes, countShowtimes, formatLabel, safeExternalUrl, showGroupLabel, urlStatusToApi, youtubeEmbedUrl } from './movies';
 import { formatDateOnly } from './format';
 
 const schedule = {
@@ -47,6 +47,25 @@ describe('đếm suất chiếu', () => {
     expect(countShowtimes({ date: 'x', cinemas: [] })).toBe(0);
     expect(countOpenShowtimes(undefined)).toBe(0);
     expect(countShowtimes(undefined)).toBe(0);
+  });
+});
+
+describe('youtubeEmbedUrl — chỉ nhúng đúng video YouTube', () => {
+  const embed = 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0';
+
+  it('nhận các dạng link YouTube thường gặp', () => {
+    for (const url of [
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'https://youtube.com/watch?v=dQw4w9WgXcQ&t=10', 'https://m.youtube.com/watch?v=dQw4w9WgXcQ',
+      'https://youtu.be/dQw4w9WgXcQ?si=abc', 'https://www.youtube.com/embed/dQw4w9WgXcQ', 'https://www.youtube.com/shorts/dQw4w9WgXcQ',
+    ]) expect(youtubeEmbedUrl(url)).toBe(embed);
+  });
+
+  it('⭐ từ chối nguồn khác, tên miền giả mạo, mã video sai', () => {
+    for (const url of [
+      null, '', 'javascript:alert(1)', 'https://vimeo.com/123', 'https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ',
+      'https://evil.com/embed/dQw4w9WgXcQ', 'https://evil.com/?u=https://youtu.be/dQw4w9WgXcQ', 'https://youtube.com/watch?v=1',
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ%22%3E', 'https://www.youtube.com/channel/dQw4w9WgXcQ',
+    ]) expect(youtubeEmbedUrl(url)).toBeNull();
   });
 });
 

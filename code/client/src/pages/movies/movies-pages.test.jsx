@@ -174,6 +174,21 @@ describe('MovieDetailPage (P03)', () => {
     expect(screen.queryByRole('link', { name: /Xem trailer/ })).not.toBeInTheDocument();
   });
 
+  it('trailer YouTube phát ngay trong trang: bấm mở hộp thoại có video, đóng thì video bị gỡ', async () => {
+    detailBackend(detail({ trailerUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }), SCHEDULE);
+    const user = userEvent.setup();
+    wrap(detailRoutes, '/movies/phim-so-1');
+    await screen.findByRole('heading', { name: 'Phim số 1' });
+    expect(screen.queryByTitle('Trailer phim Phim số 1')).not.toBeInTheDocument(); // chưa bấm thì không tải gì từ YouTube
+    expect(screen.queryByRole('link', { name: /Xem trailer/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Xem trailer/ }));
+    expect(screen.getByTitle('Trailer phim Phim số 1')).toHaveAttribute('src', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0');
+
+    await user.click(screen.getByRole('button', { name: 'Đóng' }));
+    expect(screen.queryByTitle('Trailer phim Phim số 1')).not.toBeInTheDocument();
+  });
+
   it('lịch chiếu: suất còn mở là liên kết tới trang chọn ghế; suất đã đóng bán KHÔNG bấm được', async () => {
     detailBackend(detail(), SCHEDULE);
     wrap(detailRoutes, '/movies/phim-so-1');
