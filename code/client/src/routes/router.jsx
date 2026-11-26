@@ -26,6 +26,7 @@ import AdminPricingPage from '@/pages/admin/AdminPricingPage';
 import AdminOrdersPage from '@/pages/admin/AdminOrdersPage';
 import RequireAuth from './RequireAuth';
 import RequireRole from './RequireRole';
+import MembersPage from '@/pages/members/MembersPage';
 import LoginPage from '@/pages/auth/LoginPage';
 import RegisterPage from '@/pages/auth/RegisterPage';
 import { ForbiddenPage, NotFoundPage } from '@/pages/common/StatusPages';
@@ -40,6 +41,7 @@ export const routes = [
       { path: 'movies/:slug', element: <MovieDetailPage /> },
       { path: 'cinemas', element: <CinemasPage /> },
       { path: 'cinemas/:id', element: <CinemaDetailPage /> },
+      { path: 'members', element: <MembersPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
       {

@@ -167,7 +167,7 @@ export default function CheckoutPage() {
           </section>
         </div>
 
-        <aside aria-label="Tóm tắt đơn" className="h-fit space-y-4 rounded-2xl border border-ink-700 bg-ink-900 p-5 lg:sticky lg:top-20">
+        <aside aria-label="Tóm tắt đơn" className="h-fit space-y-4 rounded-2xl border border-ink-700 bg-ink-900 p-5 lg:sticky lg:top-28">
           <h2 className="text-xl font-bold">Tóm tắt đơn</h2>
           <OrderSummary order={order} />
           <p aria-live="polite" className="text-xs text-ink-300">{busy && !paying ? 'Đang cập nhật tổng tiền...' : ' '}</p>

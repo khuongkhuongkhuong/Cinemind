@@ -67,7 +67,9 @@ export default function PaymentResultPage({ pollMs = POLL_MS, maxWaitMs = MAX_WA
   if (paid) {
     return (
       <Panel icon="✅" tone="ok" title="Đặt vé thành công!"
-        actions={order.data ? <Link to={`/me/tickets/${order.data.code}`} className={linkBtn}>Xem vé</Link> : <Link to="/me/tickets" className={linkBtn}>Vé của tôi</Link>}>
+        actions={order.data
+          ? <><Link to={`/me/tickets/${order.data.code}`} className={linkBtn}>Xem vé</Link><Link to="/me/tickets" className={linkBtn2}>Vé của tôi</Link></>
+          : <Link to="/me/tickets" className={linkBtn}>Vé của tôi</Link>}>
         Thanh toán đã được xác nhận. Vé và mã QR của bạn đã sẵn sàng.
       </Panel>
     );

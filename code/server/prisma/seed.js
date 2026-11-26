@@ -9,6 +9,7 @@ if (process.env.NODE_ENV === 'production') throw new Error('Không chạy seed t
 const readJson = (name) => JSON.parse(readFileSync(new URL(`./seed-data/${name}`, import.meta.url), 'utf8'));
 const DEMO_PASSWORD = 'Cinemind@123'; // chỉ dùng cho tài khoản demo
 const VN_OFFSET_H = 7; // giờ Việt Nam = UTC+7; DB lưu UTC
+const SHOWTIME_DAYS = 14; // số ngày có lịch chiếu kể từ lúc chạy seed
 
 // ---- 1. Xóa sạch theo thứ tự phụ thuộc (bảng con trước, bảng cha sau) ----
 async function wipe() {
@@ -60,17 +61,24 @@ async function seedMovies() {
   for (const name of genres) genreRows[name] = await prisma.genre.create({ data: { name } });
 
   const created = [];
-  for (const { genres: gNames, releaseDate, ...m } of movies) {
+  const usedSlugs = new Set();
+  // tmdbId, backdropUrl chỉ có trong file dữ liệu (bảng Movie không có cột này).
+  for (const { genres: gNames, releaseDate, tmdbId, backdropUrl, ...m } of movies) {
+    // Phim thật có thể trùng tên (bản làm lại) hoặc tên không có chữ Latin: slug vẫn phải duy nhất và khác rỗng.
+    const base = slugify(m.title) || `phim-${tmdbId}`;
+    let slug = usedSlugs.has(base) ? `${base}-${releaseDate.slice(0, 4)}` : base;
+    for (let i = 2; usedSlugs.has(slug); i++) slug = `${base}-${i}`;
+    usedSlugs.add(slug);
     const movie = await prisma.movie.create({
       data: {
         ...m,
-        slug: slugify(m.title),
+        slug,
         searchKey: removeAccents(m.title),
         releaseDate: new Date(releaseDate),
         genres: { create: gNames.map((g) => ({ genreId: genreRows[g].id })) },
       },
     });
-    created.push(movie);
+    created.push({ ...movie, backdropUrl });
   }
   return created;
 }
@@ -111,7 +119,7 @@ async function seedCinemas() {
   return rooms;
 }
 
-// ---- 6. Suất chiếu 7 ngày tới (giờ VN, lưu UTC) ----
+// ---- 6. Suất chiếu SHOWTIME_DAYS ngày tới (giờ VN, lưu UTC) ----
 async function seedShowtimes(movies, rooms) {
   const nowShowing = movies.filter((m) => m.status === 'NOW_SHOWING');
   const prices = await prisma.priceRule.findMany();
@@ -121,15 +129,17 @@ async function seedShowtimes(movies, rooms) {
   const vnNow = new Date(Date.now() + VN_OFFSET_H * 3600_000);
   const data = [];
 
-  for (let day = 0; day < 7; day++) {
+  for (let day = 0; day < SHOWTIME_DAYS; day++) {
     const d = new Date(Date.UTC(vnNow.getUTCFullYear(), vnNow.getUTCMonth(), vnNow.getUTCDate() + day));
     const dow = d.getUTCDay(); // 0 = CN
     const dayType = dow === 0 || dow === 5 || dow === 6 ? 'WEEKEND' : 'WEEKDAY'; // T6–CN
     for (const room of rooms) {
+      let busyUntil = 0; // phim thật có thể dài hơn khoảng cách giữa hai khung giờ: bỏ khung bị chồng
       slots.forEach(([h, min], si) => {
         const startTime = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h - VN_OFFSET_H, min));
-        if (startTime.getTime() < Date.now()) return; // bỏ suất đã qua của hôm nay
+        if (startTime.getTime() < Date.now() || startTime.getTime() < busyUntil) return; // bỏ suất đã qua của hôm nay / bị chồng
         const movie = nowShowing[(room.cinemaIndex * 7 + room.roomIndex * 3 + si + day) % nowShowing.length];
+        busyUntil = startTime.getTime() + (movie.durationMin + 15) * 60_000;
         const kidFriendly = movie.ageRating === 'P' || movie.ageRating === 'K';
         data.push({
           movieId: movie.id,
@@ -148,7 +158,7 @@ async function seedShowtimes(movies, rooms) {
 }
 
 // ---- 7. Combo, khuyến mãi, banner ----
-async function seedMarketing() {
+async function seedMarketing(movies) {
   await prisma.combo.createMany({
     data: [
       { name: 'Combo Solo', description: '1 bắp vừa + 1 nước', price: 69000 },
@@ -166,11 +176,15 @@ async function seedMarketing() {
       { code: 'FIRST50', name: 'Khách mới', description: 'Giảm 50.000đ, giới hạn 100 lượt', discountType: 'FIXED', discountValue: 50000, minOrderValue: 150000, startAt: inDays(-1), endAt: inDays(60), usageLimit: 100 },
     ],
   });
+  // Có ảnh nền thật thì banner giới thiệu phim đang chiếu; dữ liệu không có ảnh thì dùng banner khuyến mãi.
+  const featured = movies.filter((m) => m.status === 'NOW_SHOWING' && m.backdropUrl).slice(0, 4);
   await prisma.banner.createMany({
-    data: [
-      { title: 'Đặt vé online – Giảm 10%', imageUrl: '/banners/promo-1.jpg', sortOrder: 1 },
-      { title: 'Combo Đôi chỉ 99.000đ', imageUrl: '/banners/promo-2.jpg', sortOrder: 2 },
-    ],
+    data: featured.length
+      ? featured.map((m, i) => ({ title: m.title, imageUrl: m.backdropUrl, linkUrl: `/movies/${m.slug}`, sortOrder: i + 1 }))
+      : [
+        { title: 'Đặt vé online – Giảm 10%', imageUrl: '/banners/promo-1.jpg', sortOrder: 1 },
+        { title: 'Combo Đôi chỉ 99.000đ', imageUrl: '/banners/promo-2.jpg', sortOrder: 2 },
+      ],
   });
 }
 
@@ -180,6 +194,6 @@ await seedPricing();
 const movies = await seedMovies();
 const rooms = await seedCinemas();
 const showtimeCount = await seedShowtimes(movies, rooms);
-await seedMarketing();
+await seedMarketing(movies);
 console.log(`Seed xong: ${movies.length} phim, ${rooms.length} phòng (${rooms.length * 96} ghế), ${showtimeCount} suất chiếu.`);
 await prisma.$disconnect();

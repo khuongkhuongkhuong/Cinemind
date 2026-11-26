@@ -1,293 +1,473 @@
 {
+  "source": "TMDB",
+  "fetchedAt": "2026-11-26",
   "genres": [
-    "Hành động",
+    "Bí Ẩn",
+    "Chiến Tranh",
+    "Chính Kịch",
+    "Gây Cấn",
+    "Gia Đình",
+    "Giả Tượng",
     "Hài",
-    "Tình cảm",
-    "Kinh dị",
-    "Hoạt hình",
-    "Khoa học viễn tưởng",
-    "Gia đình",
-    "Phiêu lưu",
-    "Tâm lý"
+    "Hành Động",
+    "Hình Sự",
+    "Hoạt Hình",
+    "Khoa Học Viễn Tưởng",
+    "Kinh Dị",
+    "Lãng Mạn",
+    "Lịch Sử",
+    "Nhạc",
+    "Phiêu Lưu",
+    "Tài Liệu"
   ],
   "movies": [
     {
-      "title": "Nhà Bà Tư",
+      "tmdbId": 1300968,
+      "title": "Đấu Trường Sinh Tử: Bình Minh Ngày Chiêu Quân",
       "genres": [
-        "Hài",
-        "Gia đình"
+        "Khoa Học Viễn Tưởng",
+        "Hành Động",
+        "Phiêu Lưu"
       ],
-      "durationMin": 102,
+      "durationMin": 159,
       "ageRating": "T13",
       "status": "NOW_SHOWING",
-      "releaseDate": "2026-09-12",
-      "language": "Tiếng Việt",
-      "description": "Nhà Bà Tư — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
-    },
-    {
-      "title": "Cú Nhảy Cuối Cùng",
-      "genres": [
-        "Hành động"
-      ],
-      "durationMin": 128,
-      "ageRating": "T16",
-      "status": "NOW_SHOWING",
-      "releaseDate": "2026-09-05",
+      "releaseDate": "2026-11-20",
       "language": "Tiếng Anh",
-      "description": "Cú Nhảy Cuối Cùng — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
+      "description": "Trở lại Panem 24 năm trước những sự kiện của Đấu Trường Sinh Tử, câu chuyện bắt đầu vào buổi sáng diễn ra Lễ Chiêu Quân lần thứ 50. Đây cũng là Huyết trường Tứ phân lần thứ hai, nơi một thế hệ vật tế mới bị đẩy vào cuộc chơi sinh tử khắc nghiệt hơn bao giờ hết.",
+      "director": "Francis Lawrence",
+      "actors": "Joseph Zada, Mckenna Grace, Jesse Plemons, Ralph Fiennes, Glenn Close, Whitney Peak",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/sW8pW5AjNOLaRlhuJcyJ7ID6Mhq.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/aqFZcr2dxSZ2UwWSo1WC6C0rwDf.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=Dr060OLTodE"
     },
     {
-      "title": "Mùa Hè Của Mây",
+      "tmdbId": 656908,
+      "title": "Ramayana: Khởi Nguồn Một Huyền Thoại",
       "genres": [
-        "Tình cảm",
-        "Tâm lý"
+        "Giả Tượng",
+        "Hành Động",
+        "Phiêu Lưu"
       ],
-      "durationMin": 115,
+      "durationMin": 195,
       "ageRating": "T13",
       "status": "NOW_SHOWING",
-      "releaseDate": "2026-09-19",
-      "language": "Tiếng Việt",
-      "description": "Mùa Hè Của Mây — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
+      "releaseDate": "2026-11-06",
+      "language": "Tiếng Hindi",
+      "description": "Dựa trên sử thi cổ đại lừng danh được hàng tỷ người biết đến, tác phẩm Ramayana: Khởi Nguồn Một Huyền Thoại của Namit Malhotra kể về câu chuyện của Rama, một vị hoàng tử gắn liền với sự hy sinh và Ravana, một vị vua bất tử bị thôi thúc bởi lòng báo thù; cùng lời tiên tri đã gắn kết số phận của họ lại với nhau.",
+      "director": "Nitesh Tiwari",
+      "actors": "Ranbir Kapoor, Yash, Sai Pallavi, Ravi Dubey, अरुण गोविल, Shobana",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/dI0jgiSu7yy26tUGi7P1fxRpRIz.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/prbMZ3DPf8taS6JYQd6igPnm2mA.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=AYkPRN874m8"
     },
     {
-      "title": "Căn Phòng Số 9",
+      "tmdbId": 1381071,
+      "title": "Godzilla Trừ Không",
       "genres": [
-        "Kinh dị"
+        "Khoa Học Viễn Tưởng",
+        "Kinh Dị",
+        "Hành Động"
       ],
-      "durationMin": 98,
+      "durationMin": 135,
       "ageRating": "T18",
       "status": "NOW_SHOWING",
-      "releaseDate": "2026-09-26",
-      "language": "Tiếng Việt",
-      "description": "Căn Phòng Số 9 — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
+      "releaseDate": "2026-11-06",
+      "language": "Tiếng Nhật",
+      "description": "War reduced Japan to zero, and Godzilla plunged it into minus. Two years have passed since then, and the country has faced agonizing struggles to achieve recovery and finally reclaim its daily life. Just as humanity managed to cling to a hard-won peace, a new threat strikes, crushing hope in an instant. There is no third time. Everything ends here.",
+      "director": "Takashi Yamazaki",
+      "actors": "Kamiki Ryunosuke, Hamabe Minami, 吉岡秀隆, Tanaka Min, Nagasawa Masami, Yamada Yuki",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/oISOIs13TZhHg0XcbgFn8KNIlSE.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/oqrYIDH4tvfEzPe1yqT4jzmAWHQ.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=Pu0pH5BuCPM"
     },
     {
-      "title": "Thế Giới Bong Bóng",
+      "tmdbId": 1400940,
+      "title": "Clayface",
       "genres": [
-        "Hoạt hình",
-        "Gia đình"
+        "Kinh Dị",
+        "Gây Cấn",
+        "Khoa Học Viễn Tưởng"
       ],
-      "durationMin": 92,
-      "ageRating": "P",
+      "durationMin": 109,
+      "ageRating": "T18",
       "status": "NOW_SHOWING",
-      "releaseDate": "2026-09-14",
-      "language": "Tiếng Việt",
-      "description": "Thế Giới Bong Bóng — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
-    },
-    {
-      "title": "Hành Tinh Cuối",
-      "genres": [
-        "Khoa học viễn tưởng",
-        "Phiêu lưu"
-      ],
-      "durationMin": 140,
-      "ageRating": "T13",
-      "status": "NOW_SHOWING",
-      "releaseDate": "2026-09-20",
+      "releaseDate": "2026-10-30",
       "language": "Tiếng Anh",
-      "description": "Hành Tinh Cuối — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
+      "description": "Bộ phim theo chân hành trình sa ngã kinh hoàng của một diễn viên triển vọng ở Hollywood khi anh dần biến thành một quái vật bị thôi thúc bởi lòng thù hận, qua đó phơi bày sự đánh mất bản ngã và nhân tính, những tàn phá của tình yêu độc hại và mặt tối của tham vọng khoa học.",
+      "director": "James Watkins",
+      "actors": "Tom Rhys Harries, Naomi Ackie, Eddie Marsan, Max Minghella, David Dencik, Francesca Corney",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/vyQJ8ER4DYKVrCeraQ1VGQf7Olt.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/f1TVhqJJdxMvUsUDuKHS0ekgYkk.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=f7jlCqdtwdM"
     },
     {
-      "title": "Phố Đêm Sài Gòn",
+      "tmdbId": 1437511,
+      "title": "Bí Kíp Luyện Cướp",
       "genres": [
-        "Hành động",
-        "Tâm lý"
+        "Hành Động",
+        "Hình Sự",
+        "Gây Cấn"
       ],
       "durationMin": 122,
       "ageRating": "T18",
       "status": "NOW_SHOWING",
-      "releaseDate": "2026-09-27",
-      "language": "Tiếng Việt",
-      "description": "Phố Đêm Sài Gòn — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
+      "releaseDate": "2026-11-13",
+      "language": "Tiếng Anh",
+      "description": "Một băng cướp ngân hàng am hiểu mạng xã hội biến những phi vụ táo tợn thành màn trình diễn gây sốt trên mạng, không biết rằng danh tiếng đang kéo họ vào tầm ngắm của một đặc vụ FBI kỳ cựu và một kỹ sư phần mềm thiên tài. Khi vòng vây siết chặt, nhóm tội phạm vẫn liều lĩnh vượt mọi giới hạn để đánh cược tất cả cho vụ cướp tham vọng nhất.",
+      "director": "David Leitch",
+      "actors": "Nicholas Hoult, Zoë Kravitz, Pete Davidson, John C. Reilly, Anna Sawai, Rhenzy Feliz",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/yrvHDNNHrNyu2MFwks8glrBZ0sx.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/u38hNQbxvIicUdfrHpqa9puBnA9.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=MVvWKh336m4"
     },
     {
-      "title": "Ngày Mai Nắng Lên",
-      "genres": [
-        "Tình cảm"
-      ],
-      "durationMin": 108,
-      "ageRating": "K",
-      "status": "NOW_SHOWING",
-      "releaseDate": "2026-09-21",
-      "language": "Tiếng Việt",
-      "description": "Ngày Mai Nắng Lên — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
-    },
-    {
-      "title": "Bí Mật Dưới Hầm",
-      "genres": [
-        "Kinh dị"
-      ],
-      "durationMin": 95,
-      "ageRating": "T16",
-      "status": "NOW_SHOWING",
-      "releaseDate": "2026-09-28",
-      "language": "Tiếng Việt",
-      "description": "Bí Mật Dưới Hầm — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
-    },
-    {
-      "title": "Gấu Con Đi Học",
-      "genres": [
-        "Hoạt hình",
-        "Gia đình"
-      ],
-      "durationMin": 85,
-      "ageRating": "P",
-      "status": "NOW_SHOWING",
-      "releaseDate": "2026-09-07",
-      "language": "Tiếng Việt",
-      "description": "Gấu Con Đi Học — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
-    },
-    {
-      "title": "Siêu Trộm Hà Nội",
+      "tmdbId": 1457866,
+      "title": "Những Thảm Hoạ Phiêu Lưu Mới Của Cliff Booth",
       "genres": [
         "Hài",
-        "Hành động"
+        "Chính Kịch",
+        "Gây Cấn"
       ],
-      "durationMin": 110,
-      "ageRating": "T13",
+      "durationMin": 141,
+      "ageRating": "T18",
       "status": "NOW_SHOWING",
-      "releaseDate": "2026-09-13",
-      "language": "Tiếng Việt",
-      "description": "Siêu Trộm Hà Nội — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
-    },
-    {
-      "title": "Đảo Kho Báu",
-      "genres": [
-        "Phiêu lưu",
-        "Gia đình"
-      ],
-      "durationMin": 118,
-      "ageRating": "K",
-      "status": "NOW_SHOWING",
-      "releaseDate": "2026-09-24",
+      "releaseDate": "2026-11-25",
       "language": "Tiếng Anh",
-      "description": "Đảo Kho Báu — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
+      "description": "Tám năm sau sự kiện ở \"Chuyện Ngày xưa ở...Hollywood\", Cliff Booth quay lại Los Angeles, nơi mà giờ đây đã đổi thay đi nhiều. Anh bây giờ chuyên giải quyết những rắc rối trong bóng tối sau hệ thống các hãng phim Hollywood đồ sộ,  Cliff dần thấy mình bị vướng vào các âm mưu, tội ác, phản bội sẽ thử thách mọi điều anh biết về lòng trung thành và sự sinh tồn.",
+      "director": "David Fincher",
+      "actors": "Brad Pitt, Elizabeth Debicki, Scott Caan, Yahya Abdul-Mateen II, Carla Gugino, Peter Weller",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/eHP06lF63seXl5hQhk8DCuoaL2m.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/aRO4TuqF8dkRCb5tPlsSlpJbmQD.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=fJH-wfSXnWg"
     },
     {
-      "title": "Đường Về Nhà",
+      "tmdbId": 1584855,
+      "title": "Thiên Đường Tăm Tối",
       "genres": [
-        "Tâm lý",
-        "Gia đình"
-      ],
-      "durationMin": 125,
-      "ageRating": "K",
-      "status": "NOW_SHOWING",
-      "releaseDate": "2026-09-10",
-      "language": "Tiếng Việt",
-      "description": "Đường Về Nhà — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
-    },
-    {
-      "title": "Vùng Tối",
-      "genres": [
-        "Khoa học viễn tưởng",
-        "Kinh dị"
-      ],
-      "durationMin": 132,
-      "ageRating": "T16",
-      "status": "NOW_SHOWING",
-      "releaseDate": "2026-09-29",
-      "language": "Tiếng Anh",
-      "description": "Vùng Tối — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
-    },
-    {
-      "title": "Tết Này Về Quê",
-      "genres": [
-        "Hài",
-        "Gia đình"
-      ],
-      "durationMin": 100,
-      "ageRating": "P",
-      "status": "COMING_SOON",
-      "releaseDate": "2026-11-10",
-      "language": "Tiếng Việt",
-      "description": "Tết Này Về Quê — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
-    },
-    {
-      "title": "Chiến Binh Lửa",
-      "genres": [
-        "Hành động",
-        "Phiêu lưu"
-      ],
-      "durationMin": 145,
-      "ageRating": "T16",
-      "status": "COMING_SOON",
-      "releaseDate": "2026-11-14",
-      "language": "Tiếng Anh",
-      "description": "Chiến Binh Lửa — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
-    },
-    {
-      "title": "Thư Tình Mùa Đông",
-      "genres": [
-        "Tình cảm"
-      ],
-      "durationMin": 112,
-      "ageRating": "T13",
-      "status": "COMING_SOON",
-      "releaseDate": "2026-11-21",
-      "language": "Tiếng Việt",
-      "description": "Thư Tình Mùa Đông — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
-    },
-    {
-      "title": "Rừng Thì Thầm",
-      "genres": [
-        "Kinh dị"
+        "Gây Cấn",
+        "Chính Kịch",
+        "Khoa Học Viễn Tưởng"
       ],
       "durationMin": 101,
-      "ageRating": "T18",
-      "status": "COMING_SOON",
-      "releaseDate": "2026-12-05",
-      "language": "Tiếng Việt",
-      "description": "Rừng Thì Thầm — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
+      "ageRating": "T16",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-11-06",
+      "language": "Tiếng Hàn",
+      "description": "Thiên Đường Tăm Tối xoay quanh hành trình bi thương của So-young - một người mẹ bất ngờ mất đi đứa con của mình. Giữa nỗi đau tận cùng, So-young tìm thấy niềm an ủi khi kết nối với hình ảnh cậu con trai Sun-woo đã mất tích thông qua kính AR. Chín năm sau, điều tưởng như không thể xảy ra: Sun-woo thật sự trở về, nay đã là một chàng trai trưởng thành. Thế nhưng, cuộc đoàn tụ không mang đến hạnh phúc mà một lần nữa đẩy So-young vào tuyệt vọng khi người con trai trở về giờ đây xa lạ và lạnh lùng, trong khi phiên bản Sun-woo ảo lại ngày càng cần đến cô, buộc cô phải đối diện với lựa chọn đau đớn giữa thực tại và một thế giới được tạo nên từ ký ức.",
+      "director": "연상호",
+      "actors": "김현주, 배현성, 김종태, 이현균, Lee Yoo-joo, 유지완",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/3XneeGMSvbPBFW63oJERhedHcHe.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/8Qybglcd5IqksU7rNRvpvodtrpQ.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=Yhdt5zJ1_Jc"
     },
     {
-      "title": "Chuyến Xe Đêm",
+      "tmdbId": 11489,
+      "title": "Rosetta",
       "genres": [
-        "Tâm lý"
+        "Chính Kịch"
+      ],
+      "durationMin": 95,
+      "ageRating": "T18",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-11-21",
+      "language": "Tiếng Pháp",
+      "description": "17 tuổi và sống chật vật cùng người mẹ nghiện rượu trong khu nhà lưu động, Rosetta ở trong một cuộc chiến sinh tồn để giữ được công việc của mình, như để không trượt vào vực thẳm của những số phận xung quanh. Máy quay cầm tay của anh em Dardenne gần như theo sát nhân vật chính suốt bộ phim, từ chối mọi khoảng lùi của sự thương hại hay phán xét, buộc người xem cảm nhận trực tiếp các diễn tiến nội tâm của Rosetta.  ‘Một kiệt tác khép lại thế kỷ 20 và mở ra thế kỷ 21 - một tác phẩm mà nội dung tôn giáo và tâm linh đã vượt lên trên bối cảnh xã hội đầy bất ổn.’ (Tran Anh Hung)",
+      "director": "Jean-Pierre Dardenne, Luc Dardenne",
+      "actors": "Émilie Dequenne, Olivier Gourmet, Fabrizio Rongione, Anne Yernaux, Bernard Marbaix, Frédéric Bodson",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/zdWX3mNm9rzEU9f363y0NPehFrS.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/1ZBPashbl6CQ3IhfbM38A67tNnj.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=woN2P4r65oA"
+    },
+    {
+      "tmdbId": 1269644,
+      "title": "Amrum",
+      "genres": [
+        "Chính Kịch",
+        "Chiến Tranh"
+      ],
+      "durationMin": 93,
+      "ageRating": "T13",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-11-24",
+      "language": "Tiếng Đức",
+      "description": "Trên đảo Amrum vào mùa xuân năm 1945, cậu bé Nanning mười hai tuổi săn hải cẩu, đánh cá ban đêm và làm việc trên đồng ruộng để giúp nuôi sống gia đình. Khi chiến tranh kết thúc, mẹ cậu rơi vào trầm cảm, và cậu phải đối mặt với những xung đột mới trong khi vật lộn để tìm ra con đường riêng của mình.",
+      "director": "Fatih Akin",
+      "actors": "Jasper Billerbeck, Laura Tonke, Lisa Hagmeister, Kian Köppke, Lars Jessen, Detlev Buck",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/yrFHlsSa5bK2LrV0oN6xpdodyBI.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/oiiQVnnEY4M2pz6iZkq59ls9fP.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=-izT0MKkvZY"
+    },
+    {
+      "tmdbId": 1318864,
+      "title": "Người Gặp Thời",
+      "genres": [
+        "Lịch Sử",
+        "Chính Kịch"
+      ],
+      "durationMin": 155,
+      "ageRating": "T16",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-11-21",
+      "language": "Tiếng Pháp",
+      "description": "September 1940. Henri Marre arrives alone in Vichy as the authoritarian regime settles in. Broke, estranged from his family, and carrying copies of his self-published manifesto Notre Salut (Our Salvation), the 49-year-old is determined to secure what he believes is his rightful place in the new administration. In his writing, Henri sets out his patriotic convictions and his engineer’s methodology: efficiency above all. Claiming he wants to help save France after defeat, he does whatever is required to remain useful, serving the machinery of the new order with increasing skill. But he may be pursuing something more urgent: escape from his own ruin",
+      "director": "Emmanuel Marre",
+      "actors": "Swann Arlaud, Sandrine Blancke, Mathieu Perotto, Harpo Guit, Mathilde Abd El Kader, Jean-Baptiste Marre",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/tFzSSetNzvdaxms6RLfr2pyu9sM.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/iQMFLm9Te2IuJTr08RdBLKTGw8n.jpg",
+      "trailerUrl": null
+    },
+    {
+      "tmdbId": 1716222,
+      "title": "Đơn Hàng Ma Ám",
+      "genres": [
+        "Kinh Dị",
+        "Bí Ẩn",
+        "Gây Cấn"
+      ],
+      "durationMin": 98,
+      "ageRating": "T13",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-11-06",
+      "language": "Tiếng Indonesia",
+      "description": "Khi nhận hàng online trở thành án tử! Một nhóm sinh viên nhận được những kiện hàng bí ẩn không rõ nguồn gốc. Sự tò mò thôi thúc họ mở từng kiện hàng, nhưng cũng chính là lúc cơn ác mộng bắt đầu… Những cái chết kỳ dị liên tiếp xảy ra: thi thể bị đàn ong vây kín, tai nạn quái dị và sự mất kiểm soát tâm trí. Giữa vòng xoáy nghi kỵ, họ bàng hoàng nhận ra sự thật lạnh sống lưng: Mỗi lần nhận hàng đều có thể dẫn đến cái chết. Lời nguyền này đến từ đâu, ai là kẻ chủ mưu giật dây cho cuộc tàn sát đẫm máu? Một cuộc đua sinh tồn nghẹt thở, nơi lòng tin vỡ vụn và cái chết chực chờ sau mỗi lần mở đơn hàng online.",
+      "director": "Dinna Jasanti",
+      "actors": "Fatih Unru, Yasamin Jasem, Gabriella Ekaputri, Fadly Faisal, Fiki Naki, Farandika",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/5XQyttCSqAYnTXrZR48XFnYO2qo.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/wP70ACOajhix1Ko845sBxUT9vkG.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=iAAtCbIbGfU"
+    },
+    {
+      "tmdbId": 1662293,
+      "title": "Ma Mút Con Vượt Kỷ Băng Hà",
+      "genres": [
+        "Hoạt Hình",
+        "Phiêu Lưu",
+        "Gia Đình"
+      ],
+      "durationMin": 90,
+      "ageRating": "T13",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-11-20",
+      "language": "Tiếng Nga",
+      "description": "Fluffy the baby mammoth awakens after a thousand-year slumber in the icy desert and sets out to find his mother. They say she can be found in distant and mysterious Africa. But Africa is far away, and getting there is extremely difficult, and the baby mammoth's only companion is a chick named Tupik, who dreams of performing his rap at the \"Africa's Got Talent\" competition. Together, they must overcome numerous challenges: crossing the ocean on an ice floe, escaping from bloodthirsty crocodiles, defeating treacherous hyenas, performing their music in front of a wide variety of audiences, and, most importantly, learning to be friends and understanding that friendship means responsibility and support.",
+      "director": "Александр Войтинский",
+      "actors": "Вадзім Галыгін, Пелагея Ханова, Александр Ревва, Данил Прытков, Яна Чурикова, Филипп Киркоров",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/g5T7HJm5EB6TM0z5buh8ELecBM2.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/btsrO669mivu4p1vIHjypBVmiB2.jpg",
+      "trailerUrl": null
+    },
+    {
+      "tmdbId": 1720229,
+      "title": "Trại Giam Hạnh Phúc",
+      "genres": [
+        "Hài",
+        "Chính Kịch",
+        "Gia Đình"
+      ],
+      "durationMin": 127,
+      "ageRating": "T13",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-11-20",
+      "language": "Tiếng Việt",
+      "description": "Trại Giam Hạnh Phúc - phim điện ảnh Việt Nam đầu tiên khai thác đời sống trong nhà tù, dự kiến khởi chiếu 20.11.2026",
+      "director": "Nhật Trung",
+      "actors": "Tuấn Trần, Ma Ran Đô, Lương Thế Thành, Tiến Luật, Gi A Nguyễn, La Thành",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/lQWHcA1Lt2MOizjyCcOZHzsZeOP.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/j9zPNBRahc9Iis73hyOuygg9U6v.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=gXfaBKCL9z4"
+    },
+    {
+      "tmdbId": 1770234,
+      "title": "BTS World Tour 'Arirang' In São Paulo: Live Viewing",
+      "genres": [
+        "Nhạc"
+      ],
+      "durationMin": 195,
+      "ageRating": "T13",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-10-31",
+      "language": "Tiếng Hàn",
+      "description": "TRẢI NGHIỆM BTS WORLD TOUR 'ARIRANG' TẠI RẠP CHIẾU PHIM TRÊN TOÀN CẦU, TRUYỀN HÌNH TRỰC TIẾP TỪ SÃO PAULO, BRAZIL!  | THỨ BẢY - NGÀY 31.10.2026 | SUẤT 13:45 - TIẾP SÓNG SAU | SUẤT 17:30 - PHÁT LẠI | Đánh dấu chặng cuối hoành tráng của tour diễn tại Mỹ Latinh, đại nhạc hội quy mô chưa từng có này sẽ đưa nguồn năng lượng bùng nổ từ sân vận động chật kín khán giả tại Brazil thẳng lên màn ảnh rộng, để ARMY trên toàn thế giới cùng hòa mình vào khoảnh khắc đặc biệt của BTS.",
+      "director": "Ha Jung-jae",
+      "actors": "알엠, 진, 슈가, 제이홉, 지민, 뷔",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/co7oHM6UMhuskwfp9lzXQW9zGBw.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/aO949ZTuPQJOLLkSQcm9I7PySUv.jpg",
+      "trailerUrl": null
+    },
+    {
+      "tmdbId": 1744848,
+      "title": "Chị Chị Em Em 3",
+      "genres": [
+        "Lãng Mạn",
+        "Gây Cấn",
+        "Chính Kịch"
+      ],
+      "durationMin": 122,
+      "ageRating": "T13",
+      "status": "NOW_SHOWING",
+      "releaseDate": "2026-10-30",
+      "language": "Tiếng Việt",
+      "description": "Giữa xã hội Bắc Bộ cũ đầy lễ giáo và những khuôn phép khắt khe, Thị Mầu – tiểu thư nổi tiếng tài sắc nhất vùng – bước vào một thế giới nơi tình yêu chưa bao giờ là chuyện của riêng hai người.  Những rung động bị che giấu, những mối quan hệ chồng chéo và những lựa chọn trái với khuôn phép dần tạo nên một mạng nhện tình cảm rối ren, nơi mỗi người đều có một bí mật, một toan tính và một người không thể gọi tên.  Khi tình yêu và danh dự không thể cùng tồn tại, liệu ai sẽ là người thoát khỏi mạng nhện ấy – và ai sẽ phải trả giá cho thứ tình cảm mình không thể cưỡng lại?",
+      "director": "Nguyễn Hữu Hoàng",
+      "actors": "Ninh Dương Lan Ngọc, Quốc Anh, Kỳ Duyên, Chi Pu, Steven Nguyễn, Lê Khanh",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/aFOS7OFrXTFgYenMoEqg8jNA5AX.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/sdNQCnSTZWyn2Y4NEzqAX3dXM9e.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=T2agdzhXOaY"
+    },
+    {
+      "tmdbId": 1003596,
+      "title": "Avengers: Ngày Tận Thế",
+      "genres": [
+        "Khoa Học Viễn Tưởng",
+        "Hành Động",
+        "Phiêu Lưu"
+      ],
+      "durationMin": 165,
+      "ageRating": "T13",
+      "status": "COMING_SOON",
+      "releaseDate": "2026-12-18",
+      "language": "Tiếng Anh",
+      "description": "Avengers: Doomsday theo chân những người hùng được yêu mến đến từ ba vũ trụ khác nhau, khi họ bị cuốn vào một hành trình va chạm sinh tử và phải đối mặt với một mối đe dọa mang tính sống còn chưa từng có trong lịch sử.",
+      "director": "Joe Russo, Anthony Russo",
+      "actors": "Robert Downey Jr., Chris Evans, Chris Hemsworth, Pedro Pascal, Paul Rudd, Anthony Mackie",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/2NRUUSow5XBcmFXJta7W5JrfWk7.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/rObL4of4eFA8yWaN9pRFo9aOVNi.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=msxsRECi7F8"
+    },
+    {
+      "tmdbId": 1765072,
+      "title": "Điểm Mù",
+      "genres": [
+        "Tài Liệu"
+      ],
+      "durationMin": 175,
+      "ageRating": "T18",
+      "status": "COMING_SOON",
+      "releaseDate": "2026-11-27",
+      "language": "Tiếng Anh",
+      "description": "Từng được tung hô với tham vọng thay đổi thế giới công nghệ, nữ founder này lại trở thành tâm điểm của một vụ lừa đảo đình đám khiến cả thế giới chấn động. Đằng sau lời hứa táo bạo và hình ảnh hào nhoáng ấy che giấu sự thật gì?",
+      "director": "Nathan Fielder, Lance Oppenheim",
+      "actors": "Elizabeth Holmes, Nathan Fielder, Billy Evans, Amanda Seyfried, Christopher Abbott, Lance Oppenheim",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/fbN5s2RnsPbUVOol8XbPuAeClc3.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/rrbbzCyS45yooXpUGJatfptlHYI.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=IEx8D1Wb__U"
+    },
+    {
+      "tmdbId": 1538497,
+      "title": "Hexed: Thế Giới Phép Thuật",
+      "genres": [
+        "Phiêu Lưu",
+        "Hoạt Hình",
+        "Gia Đình"
+      ],
+      "durationMin": 103,
+      "ageRating": "K",
+      "status": "COMING_SOON",
+      "releaseDate": "2026-11-27",
+      "language": "Tiếng Anh",
+      "description": "Một cô gái tuổi teen khác biệt phát hiện mình sở hữu những năng lực phép thuật bí mật. Khi sức mạnh ấy được giải phóng, cô bị cuốn vào một hành trình choáng ngợp qua thế giới ẩn giấu của các phù thủy.",
+      "director": "Jason Hand, ฝน วีระสุนทร",
+      "actors": "Hailee Steinfeld, Rashida Jones, Jodie Foster, Walton Goggins, Henry Winkler, Dan Stevens",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/kaujVsr4qhsVyQurU1TDG4y477I.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/wdjW11Tp4w9EfDBxbjyBJvDVHDA.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=9ke5KSOUl-U"
+    },
+    {
+      "tmdbId": 1400336,
+      "title": "Gặp Gỡ Thông Gia: Dâu Mới Trình Làng",
+      "genres": [
+        "Hài",
+        "Lãng Mạn"
       ],
       "durationMin": 105,
+      "ageRating": "T13",
+      "status": "COMING_SOON",
+      "releaseDate": "2026-11-27",
+      "language": "Tiếng Anh",
+      "description": "Henry, con trai của Greg Focker đưa bạn gái mình, một chuyên gia đàm phán con tin của FBI về ra mắt gia đình. Mọi chuyện bắt đầu trở nên rối rắm khi Henry tiết lộ kế hoạch cầu hôn, khiến Greg không khỏi lo lắng và kéo theo hàng loạt tình huống dở khóc dở cười.",
+      "director": "John Hamburg",
+      "actors": "Ben Stiller, Robert De Niro, Ariana Grande, Skyler Gisondo, Owen Wilson, Blythe Danner",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/rOvmiVH0PtqHv0YGUKRnrTZIlY0.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/6IfsmHoVWwgJwzxA9DLim2XZbSn.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=9CKu3WoMYCg"
+    },
+    {
+      "tmdbId": 791523,
+      "title": "Wildwood",
+      "genres": [
+        "Hoạt Hình",
+        "Phiêu Lưu",
+        "Giả Tượng"
+      ],
+      "durationMin": 132,
+      "ageRating": "T13",
+      "status": "COMING_SOON",
+      "releaseDate": "2026-12-04",
+      "language": "Tiếng Anh",
+      "description": "Hành trình tuyệt vọng của một cô bé nhằm cứu em trai sơ sinh mở ra một cuộc phiêu lưu kỳ ảo đầy hiểm nguy trong khu rừng cấm, nơi có những sinh vật huyền bí, đồng minh đáng mến và kẻ thù đáng gờm, với số phận của cả một vương quốc bí ẩn đang bị đe dọa.",
+      "director": "Travis Knight",
+      "actors": "Peyton Elizabeth Lee, Jacob Tremblay, Carey Mulligan, Mahershala Ali, Richard E. Grant, Angela Bassett",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/snFM00mpNAfUzUtkdEW0uDEvXA0.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/sl5NJ1vtyhP9Vr88bB4blULsJYp.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=bJQGtSeLPII"
+    },
+    {
+      "tmdbId": 1170608,
+      "title": "Dune: Hành Tinh Cát - Phần Ba",
+      "genres": [
+        "Khoa Học Viễn Tưởng",
+        "Phiêu Lưu"
+      ],
+      "durationMin": 150,
+      "ageRating": "T13",
+      "status": "COMING_SOON",
+      "releaseDate": "2026-12-18",
+      "language": "Tiếng Anh",
+      "description": "Lấy bối cảnh gần hai thập kỷ sau khi Paul Atreides nắm quyền kiểm soát Đế chế, giờ đây, khi đã trở thành một Hoàng đế tàn nhẫn, Paul phải đối mặt với những hậu quả từ chính sự cai trị của mình. Những đồng minh cũ trở lại, những mối đe dọa mới trỗi dậy, và cả sự phản bội luôn lẩn khuất trong bóng tối. Bị ám ảnh bởi viễn cảnh Đế chế sụp đổ cùng sự trở lại của một người anh từng yêu thương, Paul bị cuốn vào một âm mưu hủy diệt - mà trung tâm của bí mật ấy lại chính là Chani. Cuộc nổi dậy dần nhen nhóm, những kẻ thù ngày một áp sát. Chính lúc này đây, Paul sẽ phải đối diện với cái giá thực sự của quyền lực, đánh đổi bằng định mệnh của những người quan trọng nhất cuộc đời anh.",
+      "director": "Denis Villeneuve",
+      "actors": "Timothée Chalamet, Zendaya, Jason Momoa, Florence Pugh, Rebecca Ferguson, Isaach de Bankolé",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/dsxmCGa2gxxtHO20G3T6W5OgcXE.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/i5E9H7Ik0u61ylDDTbmUpTL3Yw.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=mWjLTxrXsxk"
+    },
+    {
+      "tmdbId": 1078446,
+      "title": "Đêm Hung Tàn 2",
+      "genres": [
+        "Hành Động",
+        "Hài"
+      ],
+      "durationMin": 110,
+      "ageRating": "T18",
+      "status": "COMING_SOON",
+      "releaseDate": "2026-12-04",
+      "language": "Tiếng Anh",
+      "description": "Khi Ông Già Noel quên mất ý nghĩa thực sự của Giáng sinh, ông bất ngờ lạc vào một khu trung tâm thương mại đang bị bọn côn đồ đe dọa. Mất đi phép thuật, ông buộc phải tìm lại niềm tin vào lòng tốt con người và nhờ đến sự giúp sức của người mà chẳng kẻ xấu nào dám đối đầu: Bà Claus.",
+      "director": "Tommy Wirkola",
+      "actors": "David Harbour, Kristen Bell, Daniela Melchior, Jared Harris, Joe Pantoliano, Maxwell Jacob Friedman",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/m5ZVKQU1bqsH42vkw8TLc1bQzpb.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/78dChJs7doULSEhIiOvGUcXQRGU.jpg",
+      "trailerUrl": "https://www.youtube.com/watch?v=FmM2giDwLAE"
+    },
+    {
+      "tmdbId": 1590933,
+      "title": "Người, Tựa Một Vì Sao",
+      "genres": [
+        "Chính Kịch",
+        "Lãng Mạn"
+      ],
+      "durationMin": 135,
       "ageRating": "T16",
-      "status": "ENDED",
-      "releaseDate": "2026-06-01",
-      "language": "Tiếng Việt",
-      "description": "Chuyến Xe Đêm — phim dữ liệu mẫu của hệ thống Cinemind dùng để demo.",
-      "director": "Đạo diễn mẫu",
-      "actors": "Diễn viên A, Diễn viên B"
+      "status": "COMING_SOON",
+      "releaseDate": "2026-11-27",
+      "language": "Tiếng Nhật",
+      "description": "Kai Aono is a high school student. He transfers to a scenic island in the Seto Inland Sea from Kyoto. There, he meets high school student Akimi Inoue, who was born on the island and lives with her mother. They fall in love with each other, but they are forced to make a choice due to their own fates.",
+      "director": "藤井道人",
+      "actors": "Yokohama Ryusei, Hirose Suzu, 松村北斗, Nakamura Anne, 濱田岳, 尾野真千子",
+      "posterUrl": "https://image.tmdb.org/t/p/w500/sM4P60sNzycnJMZRrpGiN4KYGAy.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/fGwgblkNDNAnwrHckFkWSkJNR4W.jpg",
+      "trailerUrl": null
     }
   ]
 }

@@ -3,9 +3,9 @@ import { Link, useParams } from 'react-router-dom';
 import { useMovie } from '@/hooks/useMovies';
 import { hasCode } from '@/api/errors';
 import { formatDateOnly, formatDuration } from '@/lib/format';
-import { safeExternalUrl } from '@/lib/movies';
 import { Poster } from '@/components/movie/MovieCard';
 import ShowtimePicker from '@/components/movie/ShowtimePicker';
+import TrailerButton from '@/components/movie/TrailerButton';
 import AgeBadge from '@/components/ui/AgeBadge';
 import ErrorState from '@/components/ui/ErrorState';
 import Skeleton from '@/components/ui/Skeleton';
@@ -39,7 +39,6 @@ export default function MovieDetailPage() {
     );
   }
 
-  const trailer = safeExternalUrl(movie.trailerUrl);
   const minAge = MATURE[movie.ageRating];
 
   return (
@@ -72,12 +71,7 @@ export default function MovieDetailPage() {
           </div>
           <p className="max-w-3xl whitespace-pre-line leading-relaxed text-ink-100/90">{movie.description}</p>
 
-          {trailer && (
-            <a href={trailer} target="_blank" rel="noopener noreferrer"
-              className="inline-flex h-11 items-center gap-2 rounded-lg border border-ink-500 px-4 text-sm font-semibold hover:bg-ink-700">
-              ▶ Xem trailer
-            </a>
-          )}
+          <TrailerButton url={movie.trailerUrl} title={movie.title} />
         </div>
       </section>
 

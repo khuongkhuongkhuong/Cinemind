@@ -12,8 +12,8 @@ export default function Footer() {
         <div>
           <div className="font-bold uppercase tracking-wide text-white">Khám phá</div>
           <ul className="mt-2 space-y-1">
-            <li><Link to="/movies?status=NOW_SHOWING" className="hover:text-white">Phim đang chiếu</Link></li>
-            <li><Link to="/movies?status=COMING_SOON" className="hover:text-white">Phim sắp chiếu</Link></li>
+            <li><Link to="/movies?status=now" className="hover:text-white">Phim đang chiếu</Link></li>
+            <li><Link to="/movies?status=soon" className="hover:text-white">Phim sắp chiếu</Link></li>
             <li><Link to="/cinemas" className="hover:text-white">Hệ thống rạp</Link></li>
           </ul>
         </div>
@@ -23,7 +23,12 @@ export default function Footer() {
         </div>
       </div>
       <div className="border-t border-white/10 py-4 text-center text-xs text-[#9a968a]">
-        © {new Date().getFullYear()} Cinemind — đồ án tốt nghiệp.
+        <p>© {new Date().getFullYear()} Cinemind — đồ án tốt nghiệp.</p>
+        <p className="mt-1 px-4">
+          Thông tin và hình ảnh phim từ{' '}
+          <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer" className="underline hover:text-white">TMDB</a>.
+          This product uses the TMDB API but is not endorsed or certified by TMDB.
+        </p>
       </div>
     </footer>
   );

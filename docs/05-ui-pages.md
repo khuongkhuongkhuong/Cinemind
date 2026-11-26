@@ -2,6 +2,7 @@
 
 > Phiên bản: 1.0 — chốt ngày 02/10/2026. Thương hiệu: **Cinemind** (không dùng nhận diện CGV).
 > Ưu tiên theo `01-requirements.md`: M = MVP, S = nên có, C = có thì tốt.
+> v1.1 (26/11/2026): thanh menu mới + trang P14 Thành viên; P03 xem trailer ngay trong trang; chân trang ghi nguồn dữ liệu phim TMDB.
 
 ## 1. Danh sách trang
 
@@ -12,7 +13,7 @@
 | P01 | Trang chủ | `/` | Công khai | M | FR-01, FR-06 |
 | P02 | Danh sách phim | `/movies?status=now\|soon&q=&genre=` | Công khai | M | FR-01, FR-04 |
 | P03 | Chi tiết phim + chọn suất | `/movies/:slug` | Công khai | M | FR-02, FR-03 |
-| P04 | Danh sách rạp / lịch chiếu theo rạp | `/cinemas`, `/cinemas/:id` | Công khai | S | FR-05 |
+| P04 | Danh sách rạp / lịch chiếu theo rạp | `/cinemas?city=`, `/cinemas/:id` | Công khai | S | FR-05 |
 | P05 | **Chọn ghế** ⭐ | `/booking/showtimes/:showtimeId` | USER | M | FR-11 |
 | P06 | **Thanh toán** (combo + mã + tổng) ⭐ | `/booking/orders/:orderId` | USER (chủ đơn) | M | FR-12→14 |
 | P07 | Kết quả thanh toán | `/payment/result` | USER | M | FR-14 |
@@ -22,6 +23,7 @@
 | P11 | Chi tiết vé + QR | `/me/tickets/:code` | USER (chủ đơn) | M | FR-15 |
 | P12 | Hồ sơ cá nhân | `/me/profile` | USER | S | FR-16 |
 | P13 | Không tìm thấy / Không có quyền | `*`, `/403` | Công khai | M | — |
+| P14 | Thành viên (điểm và cách tích điểm) | `/members` | Công khai | C | FR-17 |
 
 ### 1.2 Nhân viên
 
@@ -71,7 +73,9 @@ flowchart TD
 **Quy tắc điều hướng:**
 - Route cần đăng nhập bọc bởi `RequireAuth`; route theo vai trò bọc bởi `RequireRole(['ADMIN'])`… Chưa đăng nhập → chuyển `/login?returnUrl=<trang hiện tại>` → đăng nhập xong quay lại đúng chỗ.
 - Luồng đặt vé tối đa **4 màn hình** (P03 → P05 → P06 → P07).
-- Header: logo, Phim, Rạp, Khuyến mãi, ô tìm kiếm; góc phải: Đăng nhập **hoặc** menu tài khoản (Vé của tôi, Hồ sơ, [Soát vé], [Quản trị], Đăng xuất) tùy vai trò.
+- Trang trí chủ đề điện ảnh (v1.1): dải "phim nhựa" đỏ có lỗ răng ở mép trên và dưới header, logo cuộn phim, nút vé "Mua vé ngay" (màn rộng ≥ 1024px, dẫn tới phim đang chiếu). Nhận diện riêng, không sao chép rạp khác. Khi cuộn trang, hàng tìm kiếm / tài khoản trôi đi, thanh menu ở lại.
+- Header (v1.1) hai hàng: hàng trên gồm ô tìm kiếm và Đăng nhập **hoặc** menu tài khoản (Vé của tôi, Hồ sơ, [Soát vé], [Quản trị], Đăng xuất) tùy vai trò; hàng dưới là logo, thanh menu giữa hai đường kẻ: Phim, Rạp Cinemind, Thành viên. Đã đăng nhập thì có thêm **"Vé của tôi"** ở bên phải thanh menu (và trong menu ☰); màn hình "Đặt vé thành công" (P07) có hai nút "Xem vé" và "Vé của tôi". Rê chuột (hoặc Tab) vào mỗi mục hiện menu con nền tối; bấm vào mục cha vẫn mở trang của nó. **Phim:** Phim đang chiếu, Phim sắp chiếu (P02 `?status=now|soon`). **Rạp Cinemind:** Tất cả các rạp, rồi mỗi thành phố một mục (P04 `?city=<id>`, mã lạ thì hiện tất cả). **Thành viên:** Tài khoản Cinemind (P12, khách được đưa tới đăng nhập), Quyền lợi (P14). Màn hình hẹp gộp thanh menu vào nút ☰. ("Quầy dịch vụ online" và trang Khuyến mãi chưa làm.)
+- **P14:** khách chưa đăng nhập thấy cách tích điểm và nút Đăng ký / Đăng nhập; đã đăng nhập thấy điểm hiện có (lấy mới từ `GET /auth/me`), liên kết Vé của tôi và Hồ sơ. Chỉ nêu quyền lợi hệ thống thật sự có: tích 1 điểm / 10.000đ đã thanh toán (BR-25), **chưa đổi điểm**, chưa có hạng thành viên.
 
 ## 3. Wireframe các trang chính
 
@@ -111,6 +115,10 @@ flowchart TD
 └──────────────────────────────────────────────────────────┘
   (Suất còn < 15 phút trước giờ chiếu: ẩn hoặc làm mờ — BR-04)
 ```
+
+**Thẻ phim ở P01 / P02 (v1.1):** thiết bị có chuột, rê vào poster hiện nút phát trailer ở giữa, tên phim, "Xem chi tiết" và "Mua vé" (phim sắp chiếu không có "Mua vé"); dùng bàn phím cũng hiện. Thiết bị cảm ứng: nút phát nằm trên poster, hai nút nằm dưới tên phim.
+
+**Trailer (v1.1, 26/11/2026):** link YouTube phát ngay trong hộp thoại trên trang (nhúng `youtube-nocookie.com`, chỉ tải khi bấm, đóng hộp thoại thì video dừng); link nguồn khác mở tab mới.
 
 ### P05 — Chọn ghế ⭐
 ```

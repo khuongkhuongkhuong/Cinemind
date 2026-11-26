@@ -1,6 +1,6 @@
 # 04 — Hợp đồng API (API Contract)
 
-> Phiên bản: 1.26 — cập nhật 23/11/2026 (xem mục 6) · Hệ thống: **Cinemind**
+> Phiên bản: 1.27 — cập nhật 26/11/2026 (xem mục 6) · Hệ thống: **Cinemind**
 > Đây là **bản cam kết** giữa Backend (Người A) và Frontend (Người B). Muốn đổi bất kỳ điều gì: thống nhất với người kia → sửa file này **trước** → rồi mới sửa code.
 
 ## 1. Quy ước chung
@@ -225,11 +225,12 @@ Mọi endpoint cần đăng nhập (USER trở lên). `userId` lấy từ token;
 // MovieSummary — phần tử của GET /movies
 { "id": "m1...", "title": "Nhà Bà Tư", "slug": "nha-ba-tu", "posterUrl": null, "durationMin": 102,
   "ageRating": "T13", "status": "NOW_SHOWING", "releaseDate": "2026-09-12",
-  "genres": [{ "id": "g1...", "name": "Hài" }] }
+  "genres": [{ "id": "g1...", "name": "Hài" }], "trailerUrl": null }
 
 // MovieDetail — GET /movies/:slug = MovieSummary + các trường sau
-{ "description": "...", "director": "...", "actors": "A, B", "language": "Tiếng Việt", "trailerUrl": null }
+{ "description": "...", "director": "...", "actors": "A, B", "language": "Tiếng Việt" }
 ```
+- (v1.27) `trailerUrl` chuyển lên `MovieSummary` để thẻ phim phát trailer ngay ở danh sách; `MovieDetail` vẫn có trường này vì gồm cả `MovieSummary`.
 - `GET /movies`: sắp xếp `releaseDate` mới → cũ; `q` tìm theo tên không phân biệt dấu/hoa thường; `status` ∈ `NOW_SHOWING | COMING_SOON | ENDED`.
 - `releaseDate` dạng `YYYY-MM-DD`.
 
@@ -677,3 +678,4 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 21/11/2026 | 1.24 | Mục 5.2, 5.3: quy tắc trách nhiệm service (mỗi service một thực thể); `booking.service` → `order.service` (nhận cả soát vé), thêm `seat.service`, `movie.service`, `room.service`, `ticket.service` phụ trách vé; `seatLock.dao` → `ticket.dao` (docs/03 v1.3: bỏ `SeatLock`, vé là lớp trung gian Suất chiếu – Ghế). **Không đổi endpoint, request, response** | Theo nhận xét GVHD 18/11 |
 | 21/11/2026 | 1.25 | Mục 5.2, 5.3: thêm `combo.service` (chỉ phụ trách `Combo`, import `combo.dao`); `order.service` giữ Order + OrderCombo + soát vé, gọi `combo.service` để lấy giá combo (một chiều `order → combo`, không vòng). Sửa lỗi ở bảng v1.24: `combo.dao` không thuộc `order.service`. **Không đổi endpoint** | Theo trả lời của bên báo cáo (TraLoi_TachService_Tuan8) |
 | 23/11/2026 | 1.26 | Mục 5.2, 5.3: **bỏ tầng `dao/`** — hàm truy vấn chuyển vào service cùng thực thể (`@internal`, tham số cuối `db = prisma`); `runInTransaction` ở `config/prisma.js`, `lockRoom` ở `showtime.service`; bảng phân công đổi cột "DAO được import" thành "Bảng được truy vấn"; `promotion.service` không tự đọc bảng `Order`. **Không đổi endpoint, request, response** | Theo nhận xét GVHD tuần 9 (Hình 3.11) |
+| 26/11/2026 | 1.27 | Mục 3.0: thêm `trailerUrl` vào `MovieSummary` (thẻ phim ở trang chủ / danh sách có nút phát trailer). Chỉ thêm trường, không phá client cũ | Người A + B |

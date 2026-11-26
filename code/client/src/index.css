@@ -49,3 +49,24 @@ body { background: var(--color-ink-950); color: var(--color-ink-100); font-famil
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* Trang trí đầu trang (components/layout/CinemaDecor.jsx) */
+/* Dải phim nhựa: nền đỏ sẫm, lỗ răng cưa màu kem lặp ngang */
+.film-strip {
+  height: 14px;
+  background-color: var(--color-brand-700);
+  background-image: linear-gradient(90deg, transparent 5px, var(--color-ink-950) 5px 13px, transparent 13px);
+  background-size: 18px 6px;
+  background-position: left center;
+  background-repeat: repeat-x;
+}
+/* Tấm vé: khoét hai nửa vòng tròn ở hai mép */
+.ticket {
+  display: inline-block;
+  padding: 6px 20px;
+  color: #fff;
+  background:
+    radial-gradient(circle at left center, transparent 8px, var(--color-brand-600) 8.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at right center, transparent 8px, var(--color-brand-600) 8.5px) right / 51% 100% no-repeat;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.25));
+}
