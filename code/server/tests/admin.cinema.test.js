@@ -1,6 +1,7 @@
 // Danh sách rạp + phòng và sơ đồ ghế vật lý của một phòng (admin, chỉ đọc).
 // Cần dữ liệu mẫu: chạy `npm run db:seed` trước.
 import { readFileSync } from 'node:fs';
+import { ROOMS_PER_CINEMA } from '../prisma/schedule.js';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -33,7 +34,7 @@ test('phân quyền: không token 401; USER / STAFF 403; ADMIN xem được', as
   assert.equal((await get('/admin/cinemas')).status, 200);
 });
 
-test('danh sách rạp: có thành phố, các phòng và SỐ GHẾ mỗi phòng (dữ liệu mẫu: mỗi rạp 3 phòng x 96 ghế)', async () => {
+test('danh sách rạp: có thành phố, các phòng và SỐ GHẾ mỗi phòng (dữ liệu mẫu: mỗi rạp ROOMS_PER_CINEMA phòng x 96 ghế)', async () => {
   const cinemas = (await (await get('/admin/cinemas')).json()).data;
   const seeded = cinemas.filter((c) => c.name.startsWith('Cinemind'));
   const expected = JSON.parse(readFileSync(new URL('../prisma/seed-data/cinemas.json', import.meta.url), 'utf8')).flatMap((c) => c.cinemas.map((x) => x.name));
@@ -41,8 +42,8 @@ test('danh sách rạp: có thành phố, các phòng và SỐ GHẾ mỗi phòn
   for (const c of seeded.filter((x) => expected.includes(x.name))) {
     assert.ok(c.city.name && c.address);
     // Chỉ xét phòng của dữ liệu mẫu: test admin khác có thể tạm tạo phòng TestRoom-... trong cùng rạp khi chạy song song.
-    const rooms = c.rooms.filter((r) => /^Phòng \d$/.test(r.name));
-    assert.deepEqual(rooms.map((r) => r.name), ['Phòng 1', 'Phòng 2', 'Phòng 3']);
+    const rooms = c.rooms.filter((r) => /^Phòng \d+$/.test(r.name));
+    assert.deepEqual(rooms.map((r) => r.name), Array.from({ length: ROOMS_PER_CINEMA }, (_, i) => `Phòng ${i + 1}`));
     assert.ok(rooms.every((r) => r.seatCount === 96 && r.isActive));
   }
   assert.ok(seeded.every((c) => !('createdAt' in c))); // chỉ trả các trường cần cho giao diện

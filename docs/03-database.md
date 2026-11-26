@@ -335,7 +335,7 @@ File đầy đủ: [`schema.prisma`](./schema.prisma) — 22 model, 16 enum (v1.
 
 ### 6.4 Dữ liệu mẫu (seed) cần có
 
-2 thành phố · 4 cụm rạp · 3 phòng / rạp (sơ đồ 8–10 hàng × 12–14 ghế, có hàng VIP và hàng ghế đôi) · 15–20 phim · suất chiếu 7 ngày tới · bảng `PriceRule` + `SeatTypeSurcharge` theo BR-12, BR-13 · 4–5 combo · 3 mã khuyến mãi · tài khoản mẫu cho USER / STAFF / ADMIN.
+(cập nhật 26/11/2026) 3 thành phố · 9 cụm rạp · 12 phòng / rạp (sơ đồ 8 hàng × 12 ghế, có hàng VIP và hàng ghế đôi) · ~23 phim thật từ TMDB · suất chiếu 14 ngày tới, mỗi phòng chiếu nối tiếp từ 08:00 đến suất mở cuối không quá 23:30, phim chia theo độ phổ biến trong từng thành phố (3 phim đầu trọng số 8, 4 phim kế 3, còn lại 1; ngày nào phim nào cũng có suất) · bảng `PriceRule` + `SeatTypeSurcharge` theo BR-12, BR-13 · 4–5 combo · 3 mã khuyến mãi · tài khoản mẫu cho USER / STAFF / ADMIN.
 
 ## 7. Lịch sử thay đổi
 

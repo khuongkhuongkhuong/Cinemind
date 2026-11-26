@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import bcrypt from 'bcrypt';
 import { prisma } from '../src/config/prisma.js';
 import { removeAccents, slugify } from '../src/lib/text.js';
+import { buildDaySchedule, ROOM_FORMATS, ROOMS_PER_CINEMA } from './schedule.js';
 
 if (process.env.NODE_ENV === 'production') throw new Error('Không chạy seed trên production.');
 
@@ -101,31 +102,27 @@ function buildSeats(roomId) {
 }
 
 async function seedCinemas() {
-  const rooms = []; // { id, cinemaIndex, roomIndex, format }
-  const formats = ['F2D', 'F3D', 'IMAX'];
-  let cinemaIndex = 0;
+  const rooms = []; // { id, city, roomIndex, format }
   for (const { city, cinemas } of readJson('cinemas.json')) {
     const cityRow = await prisma.city.create({ data: { name: city } });
     for (const c of cinemas) {
       const cinema = await prisma.cinema.create({ data: { ...c, cityId: cityRow.id } });
-      for (let r = 0; r < 3; r++) {
+      for (let r = 0; r < ROOMS_PER_CINEMA; r++) {
         const room = await prisma.room.create({ data: { cinemaId: cinema.id, name: `Phòng ${r + 1}` } });
         await prisma.seat.createMany({ data: buildSeats(room.id) });
-        rooms.push({ id: room.id, cinemaIndex, roomIndex: r, format: formats[r] });
+        rooms.push({ id: room.id, city, roomIndex: r, format: ROOM_FORMATS[r] });
       }
-      cinemaIndex++;
     }
   }
   return rooms;
 }
 
-// ---- 6. Suất chiếu SHOWTIME_DAYS ngày tới (giờ VN, lưu UTC) ----
+// ---- 6. Suất chiếu SHOWTIME_DAYS ngày tới (giờ VN, lưu UTC); cách xếp lịch ở ./schedule.js ----
 async function seedShowtimes(movies, rooms) {
   const nowShowing = movies.filter((m) => m.status === 'NOW_SHOWING');
   const prices = await prisma.priceRule.findMany();
   const priceOf = (format, dayType) => prices.find((p) => p.format === format && p.dayType === dayType).basePrice;
 
-  const slots = [[9, 30], [12, 30], [15, 30], [18, 30], [21, 30]]; // giờ VN; cách nhau 3h > phim dài nhất + 15' dọn
   const vnNow = new Date(Date.now() + VN_OFFSET_H * 3600_000);
   const data = [];
 
@@ -133,23 +130,19 @@ async function seedShowtimes(movies, rooms) {
     const d = new Date(Date.UTC(vnNow.getUTCFullYear(), vnNow.getUTCMonth(), vnNow.getUTCDate() + day));
     const dow = d.getUTCDay(); // 0 = CN
     const dayType = dow === 0 || dow === 5 || dow === 6 ? 'WEEKEND' : 'WEEKDAY'; // T6–CN
-    for (const room of rooms) {
-      let busyUntil = 0; // phim thật có thể dài hơn khoảng cách giữa hai khung giờ: bỏ khung bị chồng
-      slots.forEach(([h, min], si) => {
-        const startTime = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h - VN_OFFSET_H, min));
-        if (startTime.getTime() < Date.now() || startTime.getTime() < busyUntil) return; // bỏ suất đã qua của hôm nay / bị chồng
-        const movie = nowShowing[(room.cinemaIndex * 7 + room.roomIndex * 3 + si + day) % nowShowing.length];
-        busyUntil = startTime.getTime() + (movie.durationMin + 15) * 60_000;
-        const kidFriendly = movie.ageRating === 'P' || movie.ageRating === 'K';
-        data.push({
-          movieId: movie.id,
-          roomId: room.id,
-          startTime,
-          endTime: new Date(startTime.getTime() + (movie.durationMin + 15) * 60_000),
-          format: room.format,
-          audio: kidFriendly && si % 2 === 0 ? 'DUBBED' : 'SUBTITLE',
-          basePrice: priceOf(room.format, dayType),
-        });
+    const vnMidnight = d.getTime() - VN_OFFSET_H * 3600_000; // 00:00 giờ VN của ngày d, tính theo UTC
+    for (const { room, movie, startMin, endMin, order } of buildDaySchedule({ movies: nowShowing, rooms, dayIndex: day })) {
+      const startTime = new Date(vnMidnight + startMin * 60_000);
+      if (startTime.getTime() < Date.now()) continue; // bỏ suất đã qua của hôm nay
+      const kidFriendly = movie.ageRating === 'P' || movie.ageRating === 'K';
+      data.push({
+        movieId: movie.id,
+        roomId: room.id,
+        startTime,
+        endTime: new Date(vnMidnight + endMin * 60_000),
+        format: room.format,
+        audio: kidFriendly && order % 2 === 0 ? 'DUBBED' : 'SUBTITLE',
+        basePrice: priceOf(room.format, dayType),
       });
     }
   }
