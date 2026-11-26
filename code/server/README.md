@@ -28,7 +28,9 @@ Cần: Node 20+ (đã thử trên Node 24), PostgreSQL.
    ```
    Kiểm tra: mở http://localhost:4000/api/v1/health thấy `{"success":true,...}` là xong.
 
-> `npm run db:seed` **xóa sạch dữ liệu cũ** rồi nạp lại (bị chặn khi `NODE_ENV=production`). Suất chiếu được tạo cho **7 ngày kể từ lúc chạy seed**, nên nếu để lâu thì chạy lại seed để có lịch chiếu mới.
+> `npm run db:seed` **xóa sạch dữ liệu cũ** rồi nạp lại (bị chặn khi `NODE_ENV=production`). Suất chiếu được tạo cho **14 ngày kể từ lúc chạy seed**, nên nếu để lâu thì chạy lại seed để có lịch chiếu mới.
+>
+> **Dữ liệu phim thật (TMDB):** thêm `TMDB_API_KEY` vào `.env`, chạy `npm run db:fetch-movies` (chỉ ghi file `prisma/seed-data/movies.json`), xem lại các cảnh báo (nhất là phân loại tuổi), rồi `npm run db:seed`. File đã commit nên người khác seed được mà không cần khóa. Điều khoản TMDB: dùng phi thương mại, phải ghi nguồn (đã có ở chân trang). Rạp Cinemind, số điện thoại và giá vé là dữ liệu giả định, chỉ tên đường là có thật.
 
 ## 2. Tài khoản demo (do seed tạo)
 
@@ -129,6 +131,7 @@ Quy tắc kiến trúc và các bất biến cốt lõi (chống trùng ghế b�
 | `npm run dev` | Chạy server, tự khởi động lại khi sửa code |
 | `npm test` | Chạy toàn bộ test (cần đã `db:seed`) |
 | `npm run db:migrate` | Tạo/áp migration sau khi sửa schema (**sửa `docs/schema.prisma` trước!**) |
+| `npm run db:fetch-movies` | Lấy phim thật từ TMDB vào file dữ liệu seed |
 | `npm run db:seed` | Xóa và nạp lại dữ liệu mẫu |
 | `npm run db:demo` | Thêm khách hàng + 45 đơn đã bán (doanh thu 14 ngày) để demo; `-- --only-live` tạo suất soát vé sau ~25 phút (xem docs/09) |
 | `npm run db:studio` | Xem dữ liệu bằng giao diện web |
@@ -153,5 +156,5 @@ Danh sách kiểm tra trước khi triển khai: `docs/08-security-review.md` m�
 | Trình duyệt báo CORS | `CLIENT_URL` trong `.env` chưa khớp địa chỉ frontend (cả cổng) |
 | Đăng nhập được nhưng refresh `401` | Axios chưa bật `withCredentials: true` |
 | Gọi `/dev/...` bị 404 | Chưa đặt `ENABLE_DEV_ROUTES=true` (hoặc `NODE_ENV` không phải `development`) |
-| Không có suất chiếu hôm nay | Seed chỉ tạo 7 ngày kể từ lúc chạy; chạy lại `npm run db:seed` |
+| Không có suất chiếu hôm nay | Seed chỉ tạo 14 ngày kể từ lúc chạy; chạy lại `npm run db:seed` |
 | `npm test` báo ghế đã có người giữ | Có dữ liệu rác từ lần test trước: `npm run db:clean-test` |

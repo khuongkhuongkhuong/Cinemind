@@ -15,6 +15,7 @@ export function toSummary(m) {
     title: m.title,
     slug: m.slug,
     posterUrl: m.posterUrl,
+    trailerUrl: m.trailerUrl,
     durationMin: m.durationMin,
     ageRating: m.ageRating,
     status: m.status,
@@ -31,7 +32,6 @@ export function toDetail(m) {
     director: m.director,
     actors: m.actors,
     language: m.language,
-    trailerUrl: m.trailerUrl,
   };
 }
 

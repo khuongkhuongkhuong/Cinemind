@@ -11,6 +11,7 @@
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "db:clean-test": "node --env-file=.env scripts/clean-test-data.js",
+    "db:fetch-movies": "node --env-file=.env scripts/fetch-tmdb.js",
     "db:seed": "node --env-file=.env prisma/seed.js",
     "db:demo": "node --env-file=.env scripts/seed-demo-orders.js"
   },

@@ -16,7 +16,7 @@ const minute = 60_000;
 const DAY = 24 * 60 * minute;
 const RUN = Date.now();
 let movie; let room; let otherRoom; let customer; let roles;
-let T0; // gốc thời gian: 60 ngày nữa, làm tròn giờ — xa hơn dữ liệu seed (7 ngày) nên không đụng ai
+let T0; // gốc thời gian: 60 ngày nữa, làm tròn giờ — xa hơn dữ liệu seed (14 ngày) nên không đụng ai
 const createdIds = new Set();
 
 const at = (day, offsetMin = 0) => new Date(T0.getTime() + day * DAY + offsetMin * minute);
@@ -29,7 +29,10 @@ const makeOrder = (showtimeId, data) => createOrder({
 
 before(async () => {
   T0 = new Date(Math.ceil((Date.now() + 60 * DAY) / (60 * minute)) * 60 * minute);
-  movie = await prisma.movie.findUnique({ where: { slug: 'nha-ba-tu' } }); // 102 phút
+  // Phim RIÊNG của test, 102 phút (các mốc phút bên dưới tính theo con số này): không phụ thuộc dữ liệu phim mẫu.
+  movie = await prisma.movie.create({
+    data: { title: `TestShowtimeMovie ${RUN}`, slug: `test-showtime-movie-${RUN}`, searchKey: `testshowtimemovie ${RUN}`, description: 'Mô tả thử', durationMin: 102, ageRating: 'P', releaseDate: new Date(), status: 'NOW_SHOWING' },
+  });
   // Phòng RIÊNG của test: không đụng suất chiếu seed, và nếu test bị ngắt giữa chừng thì không để lại xung đột.
   // Rạp DỮ LIỆU MẪU, không phải rạp tạm do test khác (admin.cinema.crud) tạo ra song song rồi xóa.
   const cinema = await prisma.cinema.findFirst({ where: { name: { startsWith: 'Cinemind' }, isActive: true }, orderBy: { name: 'asc' } });
@@ -45,6 +48,7 @@ after(async () => {
   await prisma.showtime.deleteMany({ where: { OR: [{ id: { in: ids } }, { roomId: { in: [room.id, otherRoom.id] } }] } });
   await prisma.seat.deleteMany({ where: { roomId: { in: [room.id, otherRoom.id] } } });
   await prisma.room.deleteMany({ where: { id: { in: [room.id, otherRoom.id] } } });
+  await prisma.movie.delete({ where: { id: movie.id } });
   await prisma.user.delete({ where: { id: customer.id } });
   await roles.cleanup();
   await prisma.$disconnect();

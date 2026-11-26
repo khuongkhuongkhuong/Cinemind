@@ -1,10 +1,17 @@
 [
   { "city": "Hồ Chí Minh", "cinemas": [
     { "name": "Cinemind Quận 1", "address": "12 Nguyễn Huệ, Quận 1", "phone": "02838000001" },
-    { "name": "Cinemind Thủ Đức", "address": "88 Võ Văn Ngân, TP. Thủ Đức", "phone": "02838000002" }
+    { "name": "Cinemind Thủ Đức", "address": "88 Võ Văn Ngân, TP. Thủ Đức", "phone": "02838000002" },
+    { "name": "Cinemind Nguyễn Hữu Thọ", "address": "469 Nguyễn Hữu Thọ, Quận 7", "phone": "02838000005" }
   ]},
   { "city": "Hà Nội", "cinemas": [
     { "name": "Cinemind Hoàn Kiếm", "address": "25 Tràng Tiền, Hoàn Kiếm", "phone": "02438000003" },
-    { "name": "Cinemind Cầu Giấy", "address": "102 Cầu Giấy, Cầu Giấy", "phone": "02438000004" }
+    { "name": "Cinemind Cầu Giấy", "address": "102 Cầu Giấy, Cầu Giấy", "phone": "02438000004" },
+    { "name": "Cinemind Bà Triệu", "address": "191 Bà Triệu, Hai Bà Trưng", "phone": "02438000006" },
+    { "name": "Cinemind Nguyễn Trãi", "address": "72 Nguyễn Trãi, Thanh Xuân", "phone": "02438000007" }
+  ]},
+  { "city": "Đà Nẵng", "cinemas": [
+    { "name": "Cinemind Sơn Trà", "address": "910 Ngô Quyền, Sơn Trà", "phone": "02363000008" },
+    { "name": "Cinemind Hải Châu", "address": "255 Hùng Vương, Hải Châu", "phone": "02363000009" }
   ]}
 ]
