@@ -17,7 +17,9 @@ export async function listAdminCinemas() {
   });
   return cinemas.map((c) => ({
     id: c.id, name: c.name, address: c.address, phone: c.phone, isActive: c.isActive, city: c.city,
-    rooms: c.rooms.map((r) => ({ id: r.id, name: r.name, isActive: r.isActive, seatCount: r._count.seats })),
+    rooms: c.rooms
+      .map((r) => ({ id: r.id, name: r.name, isActive: r.isActive, seatCount: r._count.seats }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'vi', { numeric: true })), // "Phòng 2" đứng trước "Phòng 10"
   }));
 }
 
