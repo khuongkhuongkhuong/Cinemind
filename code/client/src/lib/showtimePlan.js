@@ -61,6 +61,33 @@ export function dateList(from, to) {
   return days;
 }
 
+export const CLEANING_MIN = 15; // khớp server: endTime = thời lượng + 15 phút dọn phòng
+
+/**
+ * Giá trị ô "datetime-local" (giờ VN) + thời lượng phim -> mốc bắt đầu, phim kết thúc, phòng trống lại (ISO).
+ * Thiếu giờ hoặc thời lượng thì trả null.
+ */
+export function planSlot(startInput, durationMin) {
+  const startMs = Date.parse(`${startInput}:00+07:00`);
+  if (Number.isNaN(startMs) || !(durationMin > 0)) return null;
+  const at = (min) => new Date(startMs + min * 60_000).toISOString();
+  return { start: at(0), filmEnd: at(durationMin), roomFree: at(durationMin + CLEANING_MIN) };
+}
+
+/** Giờ PHIM kết thúc của một suất: `endTime` của server đã gồm thời gian dọn phòng. */
+export const filmEndOf = (showtime) => new Date(Date.parse(showtime.endTime) - CLEANING_MIN * 60_000).toISOString();
+
+/** Id phim xếp theo số suất giảm dần (bằng nhau thì theo id) — phim nhiều suất được cấp màu riêng trước. */
+export function moviesByShowCount(showtimes) {
+  const count = new Map();
+  for (const s of showtimes) count.set(s.movie.id, (count.get(s.movie.id) ?? 0) + 1);
+  return [...count.keys()].sort((a, b) => count.get(b) - count.get(a) || a.localeCompare(b));
+}
+
+/** Các suất chồng lên khoảng [start, roomFree); nối đuôi thì không tính (cùng quy tắc với server). */
+export const findClashes = (showtimes, { start, roomFree }) =>
+  showtimes.filter((s) => Date.parse(s.startTime) < Date.parse(roomFree) && Date.parse(s.endTime) > Date.parse(start));
+
 export const EMPTY_BULK = { movieId: '', roomId: '', from: '', to: '', times: '', format: 'F2D', audio: 'SUBTITLE', basePrice: '' };
 
 /** Kiểm tra phía trình duyệt cho nhanh; server vẫn kiểm tra lại. */

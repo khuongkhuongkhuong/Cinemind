@@ -1,12 +1,16 @@
-import { axisRange, clockLabel, minutesFrom, slotValue, startingOn } from '@/lib/showtimePlan';
+import { axisRange, CLEANING_MIN, clockLabel, filmEndOf, minutesFrom, moviesByShowCount, slotValue, startingOn } from '@/lib/showtimePlan';
 import { formatTime } from '@/lib/format';
 
-// Mỗi phim một màu (viết đủ tên lớp để Tailwind nhận ra). Không dùng red-200: theme đã đổi nó thành đỏ đậm (index.css).
-const COLORS = [
-  'bg-rose-200 border-rose-700','bg-sky-200 border-sky-700', 'bg-amber-200 border-amber-700', 'bg-green-200 border-green-700',
-  'bg-violet-200 border-violet-700', 'bg-pink-200 border-pink-700', 'bg-teal-200 border-teal-700', 'bg-orange-200 border-orange-700',
-  'bg-lime-200 border-lime-700', 'bg-indigo-200 border-indigo-700',
+// Mỗi phim một màu (viết đủ tên lớp để Tailwind nhận ra): 8 màu nhạt rồi 8 màu đậm hơn.
+// Không dùng red-200 / red-300 / green-300 / amber-300 / pink-300 / pink-400: theme đã đổi chúng thành màu đậm (index.css).
+export const COLORS = [
+  'bg-sky-200 border-sky-700', 'bg-amber-200 border-amber-700', 'bg-green-200 border-green-700', 'bg-violet-200 border-violet-700',
+  'bg-rose-200 border-rose-700', 'bg-teal-200 border-teal-700', 'bg-orange-200 border-orange-700', 'bg-slate-200 border-slate-700',
+  'bg-lime-400 border-lime-800', 'bg-fuchsia-300 border-fuchsia-800', 'bg-sky-400 border-sky-900', 'bg-yellow-400 border-yellow-800',
+  'bg-rose-400 border-rose-900', 'bg-cyan-300 border-cyan-800', 'bg-orange-400 border-orange-900', 'bg-stone-400 border-stone-800',
 ];
+export const OTHER_COLOR = 'bg-white border-gray-500'; // phim ngoài 16 phim nhiều suất nhất
+const STRIPES = 'repeating-linear-gradient(45deg, #6b7280 0 2px, #e5e7eb 2px 6px)'; // phần dọn phòng
 const PX_PER_MIN = 1.6; // một giờ rộng 96px: đủ đọc tên phim, cuộn ngang được
 
 /**
@@ -18,8 +22,8 @@ export default function ShowtimeTimeline({ rooms, showtimes, date, onAdd, onOpen
   const range = axisRange(open, date);
   const span = range.end - range.start;
   const width = span * PX_PER_MIN;
-  const movieIds = [...new Set(open.map((s) => s.movie.id))].sort();
-  const colorOf = (id) => COLORS[movieIds.indexOf(id) % COLORS.length];
+  const movieIds = moviesByShowCount(open);
+  const colorOf = (id) => COLORS[movieIds.indexOf(id)] ?? OTHER_COLOR;
   const hours = Array.from({ length: span / 60 }, (_, i) => range.start + i * 60);
   const left = (min) => `${((min - range.start) / span) * 100}%`;
 
@@ -50,13 +54,16 @@ export default function ShowtimeTimeline({ rooms, showtimes, date, onAdd, onOpen
               {open.filter((s) => s.room.id === room.id).map((s) => {
                 const from = minutesFrom(s.startTime, date);
                 const to = minutesFrom(s.endTime, date);
-                const label = `${s.movie.title}, ${formatTime(s.startTime)}–${formatTime(s.endTime)}, ${s.bookedSeats} ghế đã đặt`;
+                const filmTime = `${formatTime(s.startTime)}–${formatTime(filmEndOf(s))}`;
+                const label = `${s.movie.title}, ${filmTime}, dọn phòng đến ${formatTime(s.endTime)}, ${s.bookedSeats} ghế đã đặt`;
                 return (
                   <button key={s.id} type="button" onClick={() => onOpen(s)} aria-label={label} title={label}
-                    className={`absolute inset-y-1 cursor-pointer overflow-hidden rounded border-l-4 px-1.5 text-left text-gray-900 hover:brightness-95 ${colorOf(s.movie.id)}`}
+                    className={`absolute inset-y-1 cursor-pointer overflow-hidden rounded border-l-4 pl-1.5 pr-7 text-left text-gray-900 hover:brightness-95 ${colorOf(s.movie.id)}`}
                     style={{ left: left(from), width: `${((to - from) / span) * 100}%` }}>
                     <span className="block truncate text-xs font-bold">{s.movie.title}</span>
-                    <span className="block truncate text-[11px]">{formatTime(s.startTime)}{s.bookedSeats > 0 && <strong> · 🎟 {s.bookedSeats}</strong>}</span>
+                    <span className="block truncate text-[11px]">{filmTime}{s.bookedSeats > 0 && <strong> · 🎟 {s.bookedSeats}</strong>}</span>
+                    <span data-testid="cleaning" aria-hidden="true" className="absolute inset-y-0 right-0"
+                      style={{ width: `${(CLEANING_MIN / (to - from)) * 100}%`, backgroundImage: STRIPES }} />
                   </button>
                 );
               })}

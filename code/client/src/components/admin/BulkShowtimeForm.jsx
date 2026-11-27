@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { errorMessage, fieldErrors, hasCode } from '@/api/errors';
 import { useBulkShowtimes } from '@/hooks/useAdmin';
-import { bulkToBody, EMPTY_BULK, validateBulk } from '@/lib/showtimePlan';
+import { bulkToBody, EMPTY_BULK, filmEndOf, validateBulk } from '@/lib/showtimePlan';
 import { formatDateOnly, formatMoney, formatTime } from '@/lib/format';
 import ShowtimeFields from '@/components/admin/ShowtimeFields';
 import Button from '@/components/ui/Button';
@@ -12,7 +12,7 @@ import { useToast } from '@/components/ui/Toast';
 const RESULT = {
   OK: () => 'Tạo được',
   PAST: () => 'Giờ đã qua',
-  OVERLAP: (c) => `Trùng suất "${c.movieTitle}" ${formatTime(c.startTime)}–${formatTime(c.endTime)}`,
+  OVERLAP: (c) => `Trùng suất "${c.movieTitle}" ${formatTime(c.startTime)}–${formatTime(filmEndOf(c))} (dọn đến ${formatTime(c.endTime)})`,
   BATCH_OVERLAP: (c) => `Đè lên suất ${formatTime(c.startTime)} trong chính lô này`,
 };
 
@@ -78,7 +78,7 @@ export default function BulkShowtimeForm({ initial, onClose }) {
                   {result.items.map((i) => (
                     <tr key={`${i.date} ${i.time}`} className="border-t border-ink-700">
                       <td className="px-3 py-1.5">{formatDateOnly(i.date)}</td>
-                      <td className="px-3 py-1.5">{i.time}</td>
+                      <td className="whitespace-nowrap px-3 py-1.5">{i.time}–{formatTime(filmEndOf(i))}</td>
                       <td className="px-3 py-1.5">{formatMoney(i.basePrice)}</td>
                       <td className={`px-3 py-1.5 ${i.result === 'OK' ? 'text-green-300' : 'text-red-300'}`}>{RESULT[i.result](i.conflict)}</td>
                     </tr>
