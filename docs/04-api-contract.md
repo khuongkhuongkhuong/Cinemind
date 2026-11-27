@@ -1,6 +1,6 @@
 # 04 — Hợp đồng API (API Contract)
 
-> Phiên bản: 1.27 — cập nhật 26/11/2026 (xem mục 6) · Hệ thống: **Cinemind**
+> Phiên bản: 1.28 — cập nhật 26/11/2026 (xem mục 6) · Hệ thống: **Cinemind**
 > Đây là **bản cam kết** giữa Backend (Người A) và Frontend (Người B). Muốn đổi bất kỳ điều gì: thống nhất với người kia → sửa file này **trước** → rồi mới sửa code.
 
 ## 1. Quy ước chung
@@ -169,7 +169,7 @@
 | Thể loại | `GET/POST /admin/genres` · `PUT/DELETE /admin/genres/:id` | |
 | Rạp, phòng | `GET /admin/cinemas` · `POST /admin/cinemas` `{ cityId, name, address, phone?, isActive? }` · `PUT /admin/cinemas/:id` (sửa một phần, cùng các trường) · `GET /admin/rooms/:id/seats` | Tạo / sửa **rạp** (v1.20). Phòng + sơ đồ ghế vẫn nạp bằng seed (S) |
 | Nhật ký | `GET /admin/audit-logs?actorId&entityType&page&pageSize` | v1.21 (FR-39). Xem mục "Nhật ký thao tác" bên dưới |
-| Suất chiếu | `GET /admin/showtimes?cinemaId&roomId&date&page` · `POST /admin/showtimes` `{ movieId, roomId, startTime, format, audio, basePrice? }` · `PUT /admin/showtimes/:id` · `PATCH /admin/showtimes/:id/cancel` | Server tự tính `endTime` (thời lượng + 15 phút dọn phòng) và `basePrice` từ bảng giá nếu không gửi. Trùng giờ → `SHOWTIME_OVERLAP`. Sửa / hủy suất đã bán vé → `RESOURCE_IN_USE` |
+| Suất chiếu | `GET /admin/showtimes?cinemaId&roomId&date&page` · `POST /admin/showtimes` `{ movieId, roomId, startTime, format, audio, basePrice? }` · `POST /admin/showtimes/bulk` (v1.28) · `PUT /admin/showtimes/:id` · `PATCH /admin/showtimes/:id/cancel` | Server tự tính `endTime` (thời lượng + 15 phút dọn phòng) và `basePrice` từ bảng giá nếu không gửi. Trùng giờ → `SHOWTIME_OVERLAP`. Sửa / hủy suất đã bán vé → `RESOURCE_IN_USE` |
 | Bảng giá | `GET /admin/pricing` → `{ priceRules[], surcharges[] }` · `PUT /admin/pricing` (cùng cấu trúc) | Không ảnh hưởng đơn / suất đã tạo (BR-14) |
 | Đơn hàng | `GET /admin/orders?status&from&to&q&page` · `GET /admin/orders/:id` (kèm `payments[]`) · `PATCH /admin/orders/:id/refund` | `refund`: chỉ từ `REFUND_PENDING` → `REFUNDED` (ghi nhận hoàn tiền thủ công) |
 | Combo | `GET/POST /admin/combos` · `PUT/DELETE /admin/combos/:id` | |
@@ -186,6 +186,24 @@ Mọi endpoint danh sách admin trả `meta` phân trang; tạo mới trả `201
 - `action` là **mẫu route**, vd `PATCH /admin/orders/:id/refund`; `entityType` là nhóm (`orders`, `users`, `movies`…); `entityId` lấy từ `:id` trên đường dẫn (hoặc `id` của đối tượng vừa tạo).
 - `details` = `{ fields: [tên các trường body], values?: { role, isActive, status } }` — chỉ **tên** trường và ba giá trị không nhạy cảm; **không bao giờ** lưu giá trị mật khẩu hay nội dung body.
 - Chỉ ghi yêu cầu **thành công**. Ghi nhật ký là "best-effort" **sau khi** trả phản hồi: nếu ghi lỗi thì chỉ log lỗi ở server, không làm hỏng thao tác của admin (đánh đổi đã chấp nhận). Nhật ký **chỉ thêm**, không có API sửa / xóa.
+
+**Danh sách suất quản trị (v1.28):** mỗi phần tử của `GET /admin/showtimes` có thêm `bookedSeats` (số ghế đã bán hoặc đang được giữ còn hạn) để trang lịch đánh dấu suất đã có khách.
+
+**Tạo suất hàng loạt (v1.28, FR-31b):** `POST /admin/showtimes/bulk`
+```json
+// Request
+{ "movieId": "...", "roomId": "...", "dates": ["2026-11-28", "2026-11-29"], "times": ["09:00", "13:30"],
+  "format": "F2D", "audio": "SUBTITLE", "basePrice": 90000, "dryRun": true }
+// data
+{ "dryRun": true, "okCount": 3, "skippedCount": 1, "items": [
+  { "date": "2026-11-28", "time": "09:00", "startTime": "...", "endTime": "...", "basePrice": 90000, "result": "OK", "conflict": null },
+  { "date": "2026-11-28", "time": "13:30", "startTime": "...", "endTime": "...", "basePrice": 90000, "result": "OVERLAP",
+    "conflict": { "showtimeId": "...", "movieTitle": "...", "startTime": "...", "endTime": "..." } } ] }
+```
+- Ngày và giờ theo **giờ Việt Nam**; server ghép thành mỗi (ngày × giờ) một suất. `dates` 1–31 ngày, `times` 1–12 giờ, trùng lặp được gộp, tổng không quá **200** suất (`400 VALIDATION_ERROR`).
+- `result`: `OK` (tạo được / đã tạo) · `PAST` (giờ đã qua) · `OVERLAP` (trùng suất đang có trong phòng, kèm `conflict`) · `BATCH_OVERLAP` (trùng một suất đứng trước trong chính lô này, `conflict.showtimeId = null`).
+- `dryRun: true` chỉ xem trước, **không ghi gì** (`200`). `dryRun: false` (mặc định) tạo **các suất `OK`**, bỏ qua suất lỗi và liệt kê trong `items` (`201`). Chạy trong một transaction đã khóa theo phòng, nên kết quả tính lại tại thời điểm tạo, có thể khác bản xem trước.
+- `basePrice` không gửi thì tra bảng giá cho từng ngày (ngày thường / cuối tuần). Cùng luật 15 phút dọn phòng như tạo một suất.
 
 **Tạo / sửa rạp (v1.20):** `POST /admin/cinemas` → `201` + rạp (cùng dạng phần tử của `GET /admin/cinemas`, `rooms: []`). `PUT /admin/cinemas/:id` sửa một phần (phải có ít nhất một trường; không nhận trường lạ). `cityId` không tồn tại → `400 VALIDATION_ERROR` (`details.fields.cityId`); rạp không tồn tại → `404 NOT_FOUND`. **Tắt rạp** (`isActive: false`) khi rạp còn suất chiếu **chưa chiếu** đã có người mua/giữ vé → `409 RESOURCE_IN_USE` (hủy / hoàn tiền các đơn đó trước). Rạp tắt biến khỏi `GET /cinemas` và lịch chiếu của khách; suất / đơn cũ giữ nguyên để tra cứu. Chưa có thao tác xóa rạp (dùng "tắt"). Số điện thoại: `0` + 9 chữ số, hoặc `null` (không có).
 
@@ -679,3 +697,4 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 21/11/2026 | 1.25 | Mục 5.2, 5.3: thêm `combo.service` (chỉ phụ trách `Combo`, import `combo.dao`); `order.service` giữ Order + OrderCombo + soát vé, gọi `combo.service` để lấy giá combo (một chiều `order → combo`, không vòng). Sửa lỗi ở bảng v1.24: `combo.dao` không thuộc `order.service`. **Không đổi endpoint** | Theo trả lời của bên báo cáo (TraLoi_TachService_Tuan8) |
 | 23/11/2026 | 1.26 | Mục 5.2, 5.3: **bỏ tầng `dao/`** — hàm truy vấn chuyển vào service cùng thực thể (`@internal`, tham số cuối `db = prisma`); `runInTransaction` ở `config/prisma.js`, `lockRoom` ở `showtime.service`; bảng phân công đổi cột "DAO được import" thành "Bảng được truy vấn"; `promotion.service` không tự đọc bảng `Order`. **Không đổi endpoint, request, response** | Theo nhận xét GVHD tuần 9 (Hình 3.11) |
 | 26/11/2026 | 1.27 | Mục 3.0: thêm `trailerUrl` vào `MovieSummary` (thẻ phim ở trang chủ / danh sách có nút phát trailer). Chỉ thêm trường, không phá client cũ | Người A + B |
+| 26/11/2026 | 1.28 | Mục 2.7: thêm `POST /admin/showtimes/bulk` (tạo suất hàng loạt, có xem trước, FR-31b); `GET /admin/showtimes` thêm `bookedSeats` (FR-31a). Chỉ thêm, không phá client cũ | Người A + B |

@@ -14,6 +14,8 @@ export const deleteMovie = (id) => api.delete(`/admin/movies/${id}`).then(() => 
 // ---- Suất chiếu ----
 export const listAdminShowtimes = (params) => paged(api.get('/admin/showtimes', { params }));
 export const createShowtime = (body) => unwrap(api.post('/admin/showtimes', body));
+/** Tạo hàng loạt; `body.dryRun` = chỉ xem trước. */
+export const bulkShowtimes = (body) => unwrap(api.post('/admin/showtimes/bulk', body));
 export const updateShowtime = (id, body) => unwrap(api.put(`/admin/showtimes/${id}`, body));
 export const cancelShowtime = (id) => unwrap(api.patch(`/admin/showtimes/${id}/cancel`));
 

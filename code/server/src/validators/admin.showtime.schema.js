@@ -23,6 +23,21 @@ export const createShowtimeSchema = z.object({
   basePrice: basePrice.optional(),
 });
 
+const vnDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày phải có dạng YYYY-MM-DD')
+  .refine((s) => !Number.isNaN(Date.parse(s)) && new Date(s).toISOString().startsWith(s), 'Ngày không tồn tại');
+const vnTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Giờ phải có dạng HH:mm');
+
+export const bulkShowtimeSchema = z.object({
+  movieId: z.uuid('movieId không hợp lệ'),
+  roomId: z.uuid('roomId không hợp lệ'),
+  dates: z.array(vnDate).min(1, 'Chọn ít nhất một ngày').max(31, 'Tối đa 31 ngày'),
+  times: z.array(vnTime).min(1, 'Nhập ít nhất một giờ chiếu').max(12, 'Tối đa 12 giờ chiếu'),
+  format: formatEnum,
+  audio: audioEnum,
+  basePrice: basePrice.optional(),
+  dryRun: z.boolean().optional(),
+}).strict();
+
 export const updateShowtimeSchema = z.object({
   movieId: z.uuid().optional(),
   roomId: z.uuid().optional(),

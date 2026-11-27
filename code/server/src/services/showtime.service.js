@@ -25,6 +25,8 @@ export const ADMIN_SELECT = {
 };
 
 const SALE_CUTOFF_MS = 15 * 60_000; // BR-04: ngừng bán online 15 phút trước giờ chiếu
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const minutesOf = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
 
 /**
  * Suất còn mở bán không? (BR-04) — hàm thuần, order.service dùng lại khi giữ ghế.
@@ -164,7 +166,10 @@ export async function listAdminShowtimes({ cinemaId, roomId, date, page, pageSiz
     countAdminShowtimes(filter),
     findAdminShowtimes(filter, toSkipTake({ page, pageSize })),
   ]);
-  return { items: rows.map(toAdminShowtime), meta: buildMeta({ page, pageSize }, total) };
+  const booked = rows.length
+    ? await ticketService.countTakenSeatsByShowtime({ showtimeIds: rows.map((s) => s.id), now: new Date() })
+    : new Map();
+  return { items: rows.map((s) => ({ ...toAdminShowtime(s), bookedSeats: booked.get(s.id) ?? 0 })), meta: buildMeta({ page, pageSize }, total) };
 }
 
 /**
@@ -191,6 +196,74 @@ export async function createShowtime({ movieId, roomId, startTime, format, audio
     return insertShowtime({ movieId, roomId, startTime, endTime, format, audio, basePrice: price }, tx);
   });
   return toAdminShowtime(created);
+}
+
+export const BULK_LIMIT = 200; // số suất tối đa của một lần tạo hàng loạt
+
+const overlaps = (a, b) => a.startTime < b.endTime && a.endTime > b.startTime; // cùng quy tắc với findOverlapInRoom
+
+/** Xét từng suất theo thứ tự giờ: đã qua / trùng suất đang có / trùng suất đứng trước trong lô / tạo được. */
+function judgeCandidates(candidates, existing, now) {
+  const accepted = [];
+  return candidates.map((c) => {
+    if (c.startTime <= now) return { ...c, result: 'PAST', conflict: null };
+    const clash = existing.find((e) => overlaps(c, e));
+    if (clash) {
+      const conflict = { showtimeId: clash.id, movieTitle: clash.movie.title, startTime: clash.startTime, endTime: clash.endTime };
+      return { ...c, result: 'OVERLAP', conflict };
+    }
+    const inBatch = accepted.find((a) => overlaps(c, a));
+    if (inBatch) {
+      return { ...c, result: 'BATCH_OVERLAP', conflict: { showtimeId: null, movieTitle: null, startTime: inBatch.startTime, endTime: inBatch.endTime } };
+    }
+    accepted.push(c);
+    return { ...c, result: 'OK', conflict: null };
+  });
+}
+
+/**
+ * Tạo nhiều suất một lần cho MỘT phim trong MỘT phòng: mỗi (ngày × giờ) một suất, giờ Việt Nam.
+ * Suất lỗi bị bỏ qua và nêu lý do; `dryRun` chỉ xem trước, không ghi gì.
+ * @param {{ movieId: string, roomId: string, dates: string[], times: string[], format: string, audio: string, basePrice?: number, dryRun?: boolean }} params
+ *   `dates`: YYYY-MM-DD · `times`: HH:mm
+ * @returns {Promise<{ dryRun: boolean, okCount: number, skippedCount: number, items: Array<{ date: string, time: string, startTime: Date,
+ *   endTime: Date, basePrice: number, result: 'OK'|'PAST'|'OVERLAP'|'BATCH_OVERLAP', conflict: object|null }> }>}
+ * @throws {AppError} NOT_FOUND | VALIDATION_ERROR
+ */
+export async function createShowtimesBulk({ movieId, roomId, dates, times, format, audio, basePrice, dryRun = false }) {
+  const days = [...new Set(dates)].sort();
+  const hours = [...new Set(times)].sort();
+  if (days.length * hours.length > BULK_LIMIT) throw fieldError('dates', `Mỗi lần tạo tối đa ${BULK_LIMIT} suất.`);
+  const [movie, room] = await Promise.all([movieService.getMovieById(movieId), roomService.getRoomById(roomId)]);
+  if (!movie || movie.status === 'ENDED') throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phim đang hoặc sắp chiếu.' });
+  if (!room || !room.isActive) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy phòng chiếu.' });
+
+  const candidates = [];
+  for (const date of days) {
+    const { from } = vnDayRange(date); // 00:00 giờ VN
+    // Giá theo bảng giá chỉ phụ thuộc ngày (thường / cuối tuần): tra một lần cho mỗi ngày.
+    const price = basePrice ?? (await getBasePrice({ format, startTime: new Date(from.getTime() + 12 * 3600_000) })).basePrice;
+    for (const time of hours) {
+      const startTime = new Date(from.getTime() + minutesOf(time) * 60_000);
+      candidates.push({ date, time, startTime, endTime: computeEnd(startTime, movie.durationMin), basePrice: price });
+    }
+  }
+  const span = { roomId, from: candidates[0].startTime, to: candidates.at(-1).endTime };
+  const summarize = (items) => {
+    const okCount = items.filter((i) => i.result === 'OK').length;
+    return { dryRun, okCount, skippedCount: items.length - okCount, items };
+  };
+
+  if (dryRun) return summarize(judgeCandidates(candidates, await findOpenShowtimesInRoom(span), new Date()));
+
+  return withRoomLock(roomId, async (tx) => {
+    // Xét lại SAU KHI khóa phòng: từ lúc xem trước đến giờ người khác có thể đã thêm suất.
+    const items = judgeCandidates(candidates, await findOpenShowtimesInRoom(span, tx), new Date());
+    const rows = items.filter((i) => i.result === 'OK')
+      .map((i) => ({ movieId, roomId, startTime: i.startTime, endTime: i.endTime, format, audio, basePrice: i.basePrice }));
+    if (rows.length) await insertShowtimes(rows, tx);
+    return summarize(items);
+  });
 }
 
 /**
@@ -286,9 +359,6 @@ export async function listShowtimesByCinema({ cinemaId, date }) {
 // =============================================================================================
 // DÀNH CHO TRỢ LÝ AI (docs/07 mục 2, 10): tìm suất chiếu dạng danh sách phẳng. (Gợi ý ghế / xem trước giữ ghế nay ở seat.service.)
 // =============================================================================================
-
-const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
-const minutesOf = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
 
 /**
  * Tìm các suất chiếu CÒN MỞ BÁN trong một ngày, kết quả phẳng (dễ đọc cho LLM), kèm số ghế còn trống.
@@ -471,6 +541,20 @@ export const findOverlapInRoom = ({ roomId, startTime, endTime, excludeId }, db 
  */
 export const insertShowtime = ({ movieId, roomId, startTime, endTime, format, audio, basePrice }, db = prisma) =>
   db.showtime.create({ data: { movieId, roomId, startTime, endTime, format, audio, basePrice }, select: ADMIN_SELECT });
+
+/**
+ * Các suất chưa hủy của một phòng chạm vào khoảng [from, to) — để xét trùng cho cả một lô.
+ * @internal
+ */
+export const findOpenShowtimesInRoom = ({ roomId, from, to }, db = prisma) =>
+  db.showtime.findMany({
+    where: { roomId, status: 'OPEN', startTime: { lt: to }, endTime: { gt: from } },
+    orderBy: { startTime: 'asc' },
+    select: { id: true, startTime: true, endTime: true, movie: { select: { title: true } } },
+  });
+
+/** Thêm nhiều suất trong một câu lệnh. @internal */
+export const insertShowtimes = (rows, db = prisma) => db.showtime.createMany({ data: rows });
 
 /**
  * Cập nhật suất (service quyết định trường nào đổi). @returns {Promise<object>} theo `ADMIN_SELECT`

@@ -3,7 +3,7 @@ import * as adminApi from '@/api/admin.api';
 import * as catalogApi from '@/api/catalog.api';
 
 // Danh sách luôn được làm mới sau khi tạo / sửa / xóa: invalidate theo "họ" khóa truy vấn.
-const useListQuery = (key, fn, params) => useQuery({ queryKey: [key, params], queryFn: () => fn(params), placeholderData: keepPreviousData });
+const useListQuery = (key, fn, params, options) => useQuery({ queryKey: [key, params], queryFn: () => fn(params), placeholderData: keepPreviousData, ...options });
 
 function useInvalidatingMutation(fn, keys) {
   const queryClient = useQueryClient();
@@ -21,7 +21,17 @@ export const useSetMovieStatus = () => useInvalidatingMutation(({ id, status }) 
 export const useDeleteMovie = () => useInvalidatingMutation(adminApi.deleteMovie, ['adminMovies', 'movies']);
 
 // Suất chiếu
-export const useAdminShowtimes = (params) => useListQuery('adminShowtimes', adminApi.listAdminShowtimes, params);
+export const useAdminShowtimes = (params, options) => useListQuery('adminShowtimes', adminApi.listAdminShowtimes, params, options);
+/** Tạo hàng loạt: xem trước không đổi dữ liệu nên không cần làm mới danh sách. */
+export function useBulkShowtimes() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: adminApi.bulkShowtimes,
+    onSuccess: (data) => {
+      if (!data.dryRun) ['adminShowtimes', 'showtimes'].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
+    },
+  });
+}
 export const useCreateShowtime = () => useInvalidatingMutation(adminApi.createShowtime, ['adminShowtimes', 'showtimes']);
 export const useUpdateShowtime = () => useInvalidatingMutation(({ id, body }) => adminApi.updateShowtime(id, body), ['adminShowtimes', 'showtimes']);
 export const useCancelShowtime = () => useInvalidatingMutation(adminApi.cancelShowtime, ['adminShowtimes', 'showtimes']);
