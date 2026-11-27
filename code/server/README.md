@@ -44,6 +44,12 @@ Mật khẩu chung của ba tài khoản: xem hằng `DEMO_PASSWORD` ở đầu 
 
 Mã khuyến mãi mẫu: `CINE10` (giảm 10%, tối đa 30.000đ, đơn từ 100.000đ), `GIAM30K` (giảm 30.000đ, đơn từ 200.000đ), `FIRST50` (giảm 50.000đ, đơn từ 150.000đ, 100 lượt).
 
+### Gửi email (xác minh tài khoản, quên mật khẩu)
+
+Để trống `MAIL_USER` và `MAIL_APP_PASSWORD` thì **mã được in ra cửa sổ server** (chỉ khi phát triển), đủ để thử và demo. Muốn gửi thư thật bằng Gmail: bật xác minh 2 bước cho tài khoản Google, tạo "mật khẩu ứng dụng", điền hai biến trên vào `.env` rồi chạy lại server. Địa chỉ `@example.com` / `.test` không bao giờ được gửi thật.
+
+Kéo code mới có bảng `EmailCode`: chạy `npx prisma migrate deploy` (chỉ thêm, không mất dữ liệu).
+
 ## 3. Dành cho người làm frontend (B)
 
 - **Base URL:** `http://localhost:4000/api/v1`

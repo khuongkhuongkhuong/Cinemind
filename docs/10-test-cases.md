@@ -4,7 +4,7 @@
 > Mục đích: với **mỗi** yêu cầu (FR / NFR / BR) chỉ ra *kiểm bằng cái gì* và *kết quả lần chạy gần nhất*. Hội đồng hỏi "yêu cầu X đã được kiểm chưa?" thì mở bảng này.
 >
 > **Cách chạy lại:** `npm run db:seed` → `npm test` (trong `code/server`) · `npx vitest run` (trong `code/client`).
-> **Kết quả lần chạy 27/11/2026:** backend **372/372** (gồm 9 ca chuyển đổi dữ liệu TMDB, 4 ca xếp lịch chiếu mẫu) · frontend **396/396** (thêm trailer, thẻ phim, thanh menu, trang Thành viên, lịch timeline, tạo suất hàng loạt và quản lý phòng chiếu) · build production thành công.
+> **Kết quả lần chạy 27/11/2026:** backend **385/385** (gồm 9 ca chuyển đổi dữ liệu TMDB, 4 ca xếp lịch chiếu mẫu) · frontend **402/402** (thêm trailer, thẻ phim, thanh menu, trang Thành viên, lịch timeline, tạo suất hàng loạt và quản lý phòng chiếu) · build production thành công.
 > Lưu ý: test backend cần dữ liệu mẫu còn suất chiếu sắp tới (seed chỉ tạo 7 ngày). Hết hạn thì chạy lại `db:seed`.
 
 Quy ước cột "Cách kiểm": **A** = test tự động (tên file trong `code/server/tests/` hoặc `code/client/src/`), **T** = thử tay trên trình duyệt (kịch bản ở `docs/09`), **Đo** = có số liệu đo, **—** = chưa làm (đúng phạm vi: mức Could).
@@ -25,11 +25,13 @@ Quy ước cột "Cách kiểm": **A** = test tự động (tên file trong `cod
 | FR-11 ⭐ | Chọn ghế, giữ ghế có thời hạn | A `booking.concurrency.test.js` (50 người giành ghế → đúng 1 thắng), `order.lifecycle.test.js` · client `lib/seats.test.js` · T (2 trình duyệt) | Đạt |
 | FR-12 | Chọn combo | A `combo.promo.test.js` · client `pages/booking/*.test.jsx` | Đạt |
 | FR-13 | Mã khuyến mãi | A `combo.promo.test.js` (`PROMO_INVALID` kèm lý do) | Đạt |
-| FR-14 ⭐ | Thanh toán VNPay | A `payment.ipn.test.js` · client `payment-result.test.jsx` · **cổng giả lập** (chưa chạy với VNPay sandbox thật) | Đạt (giả lập) |
+| FR-14 ⭐ | Thanh toán VNPay | A `payment.ipn.test.js` · client `payment-result.test.jsx` · cổng giả lập · T **VNPay sandbox thật** 27/11/2026 (thẻ test NCB qua ngrok: IPN về, đơn `PAID`, 340.000đ, mã phản hồi 00) | Đạt |
 | FR-15 | Vé của tôi, chi tiết, QR | A `me.orders.test.js` · client `lib/tickets.test.js`, `pages/account/account-pages.test.jsx` | Đạt |
 | FR-16 | Hồ sơ, đổi mật khẩu | A `me.profile.test.js` · client `account-pages.test.jsx` | Đạt |
 | FR-17 | Tích điểm | A `payment.ipn.test.js` (cộng điểm đúng một lần) | Đạt |
-| FR-18 | Quên mật khẩu / email gửi vé | — (mức Could) | Chưa làm |
+| FR-18 | Email gửi vé | — (mức Could) | Chưa làm |
+| FR-18a ⭐ | Xác minh email; chưa xác minh không đặt vé được | A `auth.email.test.js` (mã băm, hết hạn, 5 lần nhập, đồng thời, chặn giữ ghế) · client `pages/auth/email-code.test.jsx` | Đạt (gửi thư thật chưa thử) |
+| FR-18b ⭐ | Quên mật khẩu | A `auth.email.test.js` (không lộ email, thu hồi phiên, mã dùng một lần) · client `email-code.test.jsx` | Đạt (gửi thư thật chưa thử) |
 
 ### 1.2 Nhân viên
 
@@ -148,7 +150,7 @@ Kiểm bằng **mô hình giả có kịch bản** (không gọi LLM thật): `t
 
 ## 5. Hạn chế của việc kiểm thử (nói thẳng với hội đồng)
 
-1. **Chưa kiểm với VNPay sandbox thật** — toàn bộ luồng thanh toán dùng cổng giả lập, dù vẫn đi qua đúng hàm `confirmPayment` với chữ ký hợp lệ.
+1. **VNPay sandbox thật mới thử luồng thành công** (một giao dịch, 27/11/2026). Các nhánh thất bại, IPN lặp, IPN muộn kiểm bằng test tự động với chữ ký tự tạo, chưa dựng lại trên sandbox.
 2. **NFR-11** (tải trang < 3 s trên 4G) mới ở mức ước tính theo dung lượng gói tải, chưa chạy Lighthouse; số đo NFR-10 là trên máy phát triển, một tiến trình, chưa phải môi trường triển khai.
 3. **Không có test giao diện đầu-cuối tự động** (Playwright/Cypress): luồng đặt vé trọn vẹn trên trình duyệt được kiểm tay theo kịch bản docs/09; phần giao diện còn lại được kiểm bằng test component (Testing Library + MSW).
 4. **Hai test phía client nhạy với tải máy** (đồng hồ đếm ngược, kết quả thanh toán): thỉnh thoảng đỏ khi máy đang bận, chạy lại thì xanh.

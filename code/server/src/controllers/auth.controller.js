@@ -42,3 +42,21 @@ export async function logout(req, res) {
 export async function me(req, res) {
   ok(res, await authService.getMe({ userId: req.user.id }));
 }
+
+export async function verifyEmail(req, res) {
+  ok(res, await authService.verifyEmail({ userId: req.user.id, code: req.body.code }));
+}
+
+export async function resendCode(req, res) {
+  ok(res, await authService.resendVerificationCode({ userId: req.user.id }));
+}
+
+export async function forgotPassword(req, res) {
+  authService.requestPasswordReset({ email: req.body.email }); // không chờ: phản hồi giống nhau cho mọi email (BR-42)
+  ok(res, { sent: true });
+}
+
+export async function resetPassword(req, res) {
+  await authService.resetPassword(req.body);
+  ok(res, { reset: true });
+}

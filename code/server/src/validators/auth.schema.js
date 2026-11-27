@@ -13,3 +13,12 @@ export const loginSchema = z.object({
   email,
   password: z.string().min(1, 'Vui lòng nhập mật khẩu'),
 });
+
+const code = z.string().trim().regex(/^\d{6}$/, 'Mã gồm 6 chữ số');
+
+export const verifyEmailSchema = z.object({ code }).strict();
+export const forgotPasswordSchema = z.object({ email }).strict();
+export const resetPasswordSchema = z.object({
+  email, code,
+  newPassword: z.string().min(8, 'Mật khẩu tối thiểu 8 ký tự').max(72, 'Mật khẩu tối đa 72 ký tự'),
+}).strict();

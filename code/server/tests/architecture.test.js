@@ -69,7 +69,7 @@ test('services có import Prisma là bình thường, nhưng KHÔNG import từ 
 const MODELS = {
   showtime: ['showtime'], seat: ['seat'], ticket: ['ticket'], order: ['order', 'orderCombo'], payment: ['payment'],
   pricing: ['priceRule', 'seatTypeSurcharge'], auth: ['refreshToken'], user: ['user'], promotion: ['promotion'],
-  movie: ['movie'], room: ['room'], combo: ['combo'], chat: ['chatSession', 'chatMessage'],
+  movie: ['movie'], room: ['room'], combo: ['combo'], chat: ['chatSession', 'chatMessage'], emailCode: ['emailCode'],
 };
 // Service còn truy vấn NHIỀU bảng bằng prisma trực tiếp (tồn đọng, docs/04 v1.26: admin*, report, audit, catalog). Thêm service mới => phải chọn một trong hai.
 const LEGACY_SERVICES = ['adminBanner', 'adminCatalog', 'adminCinema', 'adminMovie', 'adminOrder', 'adminPricing', 'adminPromotion', 'adminUser', 'audit', 'catalog', 'report'];

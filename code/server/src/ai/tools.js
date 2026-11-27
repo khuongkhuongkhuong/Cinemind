@@ -4,6 +4,7 @@ import * as showtimes from '../services/showtime.service.js';
 import * as seats from '../services/seat.service.js';
 import * as orders from '../services/order.service.js';
 import * as payment from '../services/payment.service.js';
+import * as users from '../services/user.service.js';
 import { toVnClock } from '../lib/time.js';
 import { AppError } from '../utils/AppError.js';
 
@@ -152,7 +153,8 @@ export const TOOLS = [
     name: 'hold_seats', kind: 'write',
     description: 'Đề xuất GIỮ GHẾ (10 phút) cho khách. Dùng ids lấy từ suggest_seats hoặc get_seat_map. Khách sẽ phải bấm xác nhận.',
     schema: z.object({ showtimeId: uuid('id của suất chiếu'), seatIds: z.array(uuid('id ghế')).min(1).max(8) }).strict(),
-    preview: async ({ input }) => {
+    preview: async ({ userId, input }) => {
+      await users.assertEmailVerified({ userId }); // BR-40: không mời xác nhận một việc chắc chắn thất bại
       const p = await seats.previewHold(input);
       const s = p.showtime;
       return {

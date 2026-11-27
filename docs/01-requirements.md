@@ -72,7 +72,9 @@ flowchart LR
 | FR-15 | Vé của tôi (danh sách, chi tiết, QR) | M |
 | FR-16 | Hồ sơ cá nhân, đổi mật khẩu | S |
 | FR-17 | Tích điểm thành viên | C |
-| FR-18 | Quên mật khẩu qua email; email gửi vé | C |
+| FR-18 | Email gửi vé | C |
+| FR-18a | Xác minh email bằng mã 6 số sau khi đăng ký; chưa xác minh thì chưa đặt vé được (bổ sung 27/11/2026, tách và nâng ưu tiên) | S |
+| FR-18b | Quên mật khẩu: đặt lại bằng mã 6 số gửi qua email (bổ sung 27/11/2026, tách và nâng ưu tiên) | S |
 
 ### 4.3 Nhân viên soát vé
 | Mã | Tính năng | Ưu tiên |

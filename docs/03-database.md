@@ -54,12 +54,13 @@ Suy ra trạng thái ghế của một suất:
 | `Showtime.basePrice` | Giá gốc chốt khi tạo suất (tra từ `PriceRule`); admin có thể điều chỉnh riêng một suất |
 | `Promotion.usedCount` | Kiểm tra "còn lượt" nhanh, cập nhật nguyên tử khi thanh toán thành công |
 
-## 2. Danh sách bảng (22 bảng)
+## 2. Danh sách bảng (23 bảng)
 
 | Nhóm | Bảng | Mô tả | Ưu tiên |
 |---|---|---|---|
 | Tài khoản | `User` | Tài khoản, vai trò USER / STAFF / ADMIN, điểm | M |
 | | `RefreshToken` | Refresh token (lưu dạng băm) để đăng xuất / thu hồi | M |
+| | `EmailCode` | Mã 6 số (lưu dạng băm) để xác minh email / đặt lại mật khẩu (v1.4) | S |
 | | `AuditLog` | Nhật ký thao tác quản trị / soát vé: ai làm gì, lúc nào (FR-39) | S |
 | Phim | `Movie` | Thông tin phim, trạng thái chiếu, phân loại độ tuổi | M |
 | | `Genre` | Thể loại | M |
@@ -88,6 +89,7 @@ Suy ra trạng thái ghế của một suất:
 ```mermaid
 erDiagram
     User ||--o{ RefreshToken : "có"
+    User ||--o{ EmailCode : "nhận mã"
     User ||--o{ AuditLog : "thực hiện"
     User ||--o{ Order : "đặt"
     Movie ||--o{ MovieGenre : ""
@@ -185,7 +187,8 @@ erDiagram
 
 | Bảng | Cột đáng chú ý | Ràng buộc / index |
 |---|---|---|
-| `User` | `passwordHash` (bcrypt), `role`, `points` | UNIQUE `email` |
+| `User` | `passwordHash` (bcrypt), `role`, `points`, `emailVerifiedAt` (v1.4; mặc định là thời điểm tạo, **đăng ký công khai đặt `NULL`** cho tới khi xác minh) | UNIQUE `email` |
+| `EmailCode` | `purpose`, `codeHash` (HMAC), `expiresAt`, `attempts`, `sentAt`, `sendCount`, `windowStart` | UNIQUE (`userId`, `purpose`): mỗi người mỗi mục đích chỉ một mã còn hiệu lực |
 | `RefreshToken` | `tokenHash`, `expiresAt`, `revokedAt` | index `userId` |
 | `AuditLog` | `actorId`, `action` (mẫu route), `entityType`, `entityId`, `details` (JSON an toàn) | index `createdAt`, `actorId`, (`entityType`,`entityId`). **Chỉ thêm, không sửa / xóa** |
 | `Movie` | `slug` (dùng cho URL đẹp), `ageRating`, `status`, `posterUrl`, `trailerUrl` | UNIQUE `slug`; index `status` |
@@ -295,7 +298,7 @@ Chọn combo, áp mã, tạo thanh toán, hủy đơn: luôn kiểm tra `status 
 
 ## 6. Schema Prisma
 
-File đầy đủ: [`schema.prisma`](./schema.prisma) — 22 model, 16 enum (v1.3: bỏ `SeatLock`/`LockStatus`, thêm `TicketStatus`). Khi bắt đầu code, chép vào `server/prisma/schema.prisma`.
+File đầy đủ: [`schema.prisma`](./schema.prisma) — 23 model, 17 enum (v1.3: bỏ `SeatLock`/`LockStatus`, thêm `TicketStatus`). Khi bắt đầu code, chép vào `server/prisma/schema.prisma`.
 
 ### 6.1 Index và lý do
 
@@ -318,7 +321,7 @@ File đầy đủ: [`schema.prisma`](./schema.prisma) — 22 model, 16 enum (v1.
 | Quan hệ | Hành vi | Lý do |
 |---|---|---|
 | `Ticket`, `OrderCombo` → `Order` | Cascade | Là "con" của đơn; không tồn tại độc lập |
-| `RefreshToken` → `User`, `MovieGenre` → `Movie`/`Genre` | Cascade | Dữ liệu phụ trợ |
+| `RefreshToken` → `User`, `EmailCode` → `User`, `MovieGenre` → `Movie`/`Genre` | Cascade | Dữ liệu phụ trợ |
 | `AuditLog` → `User` | SetNull | Giữ nhật ký ngay cả khi tài khoản người thực hiện bị xóa |
 | Các quan hệ còn lại (Movie, Showtime, Seat, User → Order…) | Restrict (mặc định) | **Không cho xóa** dữ liệu đã có lịch sử giao dịch → admin dùng `isActive` / `status` để ẩn thay vì xóa |
 
@@ -344,3 +347,4 @@ File đầy đủ: [`schema.prisma`](./schema.prisma) — 22 model, 16 enum (v1.
 | 02/10/2026 | 1.1 | Thêm bảng chuẩn bị AI (`ChatSession`, `ChatMessage`), `Movie.searchKey`, `Order.source` |
 | 14/11/2026 | 1.2 | Đổi tên `OrderSeat` → `Ticket` |
 | 21/11/2026 | 1.3 | Theo nhận xét GVHD (18/11): bỏ `SeatLock`, `LockStatus`; `Ticket` thêm `showtimeId`, `status` (`TicketStatus`: HELD/SOLD/RELEASED), `occupiedSeatId`, `createdAt`, ràng buộc UNIQUE (showtimeId, occupiedSeatId); bỏ `Order.showtimeId`. Viết lại mục 1, 5. API không đổi |
+| 27/11/2026 | 1.4 | Thêm `User.emailVerifiedAt`, bảng `EmailCode`, enum `EmailCodePurpose` (FR-18a, FR-18b). Migration chỉ thêm, tài khoản cũ được coi là đã xác minh |

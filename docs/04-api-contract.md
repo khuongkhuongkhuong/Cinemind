@@ -58,6 +58,7 @@
 | 401 | `INVALID_CREDENTIALS` | Sai email hoặc mật khẩu |
 | 403 | `FORBIDDEN` | Không đủ quyền / không phải chủ đơn |
 | 403 | `ACCOUNT_DISABLED` | Tài khoản bị khóa |
+| 403 | `EMAIL_NOT_VERIFIED` | Chưa xác minh email nên chưa giữ ghế được (BR-40) |
 | 404 | `NOT_FOUND` | Không tìm thấy tài nguyên |
 | 409 | `EMAIL_EXISTS` | Đăng ký trùng email |
 | 409 | `SEAT_UNAVAILABLE` ⭐ | Ghế vừa bị người khác giữ / bán. `details.seatIds`, `details.seatLabels` |
@@ -68,6 +69,7 @@
 | 410 | `ORDER_EXPIRED` ⭐ | Đơn đã quá hạn giữ ghế |
 | 422 | `SHOWTIME_CLOSED` | Suất đã hủy hoặc còn < 15 phút trước giờ chiếu (BR-04) |
 | 422 | `SEAT_LIMIT_EXCEEDED` | Quá 8 ghế (BR-02) |
+| 422 | `CODE_INVALID` | Mã xác minh / đặt lại mật khẩu sai, hết hạn hoặc đã nhập quá 5 lần (BR-41) |
 | 422 | `COUPLE_SEAT_INCOMPLETE` | Chọn lẻ ghế đôi (BR-05) |
 | 422 | `PROMO_INVALID` | Mã không dùng được. `details.reason`: `NOT_FOUND` \| `NOT_STARTED` \| `EXPIRED` \| `USAGE_LIMIT_REACHED` \| `MIN_ORDER_NOT_MET` \| `ALREADY_USED` |
 | 422 | `TICKET_NOT_PAID` | Tra cứu vé của đơn chưa thanh toán |
@@ -103,6 +105,17 @@
 | POST | `/auth/refresh` | Cookie | — | `{ accessToken }` | `UNAUTHORIZED` |
 | POST | `/auth/logout` | USER | — | `204` (thu hồi refresh token, xóa cookie) | — |
 | GET | `/auth/me` | USER | — | `user` | `UNAUTHORIZED` |
+| POST | `/auth/verify-email` | USER | `{ code }` | `user` (`emailVerified: true`) | `VALIDATION_ERROR`, `CODE_INVALID`, `RATE_LIMITED` |
+| POST | `/auth/resend-code` | USER | — | `{ alreadyVerified }` | `RATE_LIMITED` (`details.retryAfterSec`) |
+| POST | `/auth/forgot-password` | Public | `{ email }` | `{ sent: true }` — **luôn giống nhau** dù email có tồn tại hay không | `VALIDATION_ERROR`, `RATE_LIMITED` |
+| POST | `/auth/reset-password` | Public | `{ email, code, newPassword (≥ 8) }` | `{ reset: true }` | `VALIDATION_ERROR`, `CODE_INVALID`, `RATE_LIMITED` |
+
+**Xác minh email, quên mật khẩu (v1.31, BR-40 → BR-42):**
+- Mọi `user` trả về (`register`, `login`, `me`, sửa hồ sơ) có thêm `emailVerified: boolean`. `register` tạo tài khoản **chưa xác minh** và gửi mã; gửi mail lỗi không làm đăng ký thất bại (dùng `resend-code`).
+- `verify-email` đã xác minh rồi thì trả nguyên `user`. Khi sai: `details.attemptsLeft` (số lần còn lại, 0 = phải xin mã mới).
+- `forgot-password` không tiết lộ email nào tồn tại: tài khoản không có / bị khóa / đang trong thời gian chờ đều nhận cùng phản hồi; việc gửi mail chạy sau khi đã trả lời. `reset-password` trả cùng một `CODE_INVALID` cho mọi nguyên nhân (không có `attemptsLeft`).
+- `POST /orders` (và tool `hold_seats` của trợ lý AI) trả `403 EMAIL_NOT_VERIFIED` khi chưa xác minh.
+- Email gửi qua SMTP Gmail (`MAIL_USER`, `MAIL_APP_PASSWORD`). Chưa cấu hình: chế độ dev **in mã ra log server**; production bắt buộc cấu hình.
 
 ### 2.2 Danh mục (công khai)
 
@@ -124,7 +137,7 @@
 
 | Method | Path | Quyền | Body | Response `data` | Lỗi chính |
 |---|---|---|---|---|---|
-| POST | `/orders` | USER | `{ showtimeId, seatIds: [] }` | `201 Order` (PENDING) — mẫu 3.4 | `SEAT_UNAVAILABLE`, `SEAT_LIMIT_EXCEEDED`, `COUPLE_SEAT_INCOMPLETE`, `SHOWTIME_CLOSED`, `VALIDATION_ERROR` |
+| POST | `/orders` | USER | `{ showtimeId, seatIds: [] }` | `201 Order` (PENDING) — mẫu 3.4 | `SEAT_UNAVAILABLE`, `EMAIL_NOT_VERIFIED`, `SEAT_LIMIT_EXCEEDED`, `COUPLE_SEAT_INCOMPLETE`, `SHOWTIME_CLOSED`, `VALIDATION_ERROR` |
 | GET | `/orders/:id` | Owner | — | `Order` | `NOT_FOUND`, `FORBIDDEN` |
 | PUT | `/orders/:id/combos` | Owner | `{ items: [{ comboId, quantity }] }` — **thay cả danh sách**; `[]` = bỏ hết | `Order` (tổng tiền mới) | `ORDER_EXPIRED`, `ORDER_NOT_PENDING`, `VALIDATION_ERROR` |
 | POST | `/orders/:id/promotion` | Owner | `{ code }` | `Order` | `PROMO_INVALID`, `ORDER_EXPIRED` |
@@ -223,7 +236,7 @@ Mọi endpoint danh sách admin trả `meta` phân trang; tạo mới trả `201
 
 **Suất chiếu (v1.10):** mỗi phần tử trả `{ id, startTime, endTime, format, audio, basePrice, status, movie: { id, title }, cinema: { id, name }, room: { id, name } }`. `startTime` nhận chuỗi ISO 8601 và phải ở tương lai. Trùng giờ = hai khoảng `[start, end)` chồng nhau trong cùng phòng, bỏ qua suất đã hủy; suất nối đuôi (bắt đầu đúng lúc suất trước kết thúc) **không** trùng. "Đã bán vé" (`RESOURCE_IN_USE`) = suất có đơn `PAID`, `REFUND_PENDING`, hoặc `PENDING` còn hạn giữ ghế. Hủy suất là đổi `status = CANCELLED` (không xóa); gọi lại trên suất đã hủy trả nguyên suất đó. Cả nhóm `/admin/*` chỉ ADMIN (STAFF nhận `403`).
 
-**Đơn hàng (v1.11):** `GET /admin/orders` trả mỗi đơn `{ id, code, status, total, createdAt, paidAt, checkedInAt, user: { id, email, fullName }, seatLabels, showtime: { startTime, movieTitle, cinemaName } }`, mới nhất trước; `q` tìm theo mã đơn / email / họ tên (không phân biệt hoa-thường); `from`/`to` là `YYYY-MM-DD` giờ VN, `to` gồm cả ngày đó. `GET /admin/orders/:id` trả `Order` + `user` + `payments[]` (không có dữ liệu thô của cổng thanh toán). `PATCH /admin/orders/:id/refund` chỉ nhận đơn `REFUND_PENDING`; đơn ở trạng thái khác (kể cả đã `REFUNDED`) → `409 ORDER_NOT_PENDING`. Hệ thống **không tự chuyển tiền**: admin hoàn qua VNPay rồi bấm ghi nhận.
+**Đơn hàng (v1.11):** `GET /admin/orders` trả mỗi đơn `{ id, code, status, total, createdAt, paidAt, checkedInAt, user: { id, email, fullName }, seatLabels, showtime: { startTime, movieTitle, cinemaName } }`, mới nhất trước; `q` tìm theo mã đơn / email / họ tên (không phân biệt hoa-thường); `from`/`to` là `YYYY-MM-DD` giờ VN, `to` gồm cả ngày đó. `GET /admin/orders/:id` trả `Order` + `createdAt` (v1.30) + `user` + `payments[]` (không có dữ liệu thô của cổng thanh toán). `PATCH /admin/orders/:id/refund` chỉ nhận đơn `REFUND_PENDING`; đơn ở trạng thái khác (kể cả đã `REFUNDED`) → `409 ORDER_NOT_PENDING`. Hệ thống **không tự chuyển tiền**: admin hoàn qua VNPay rồi bấm ghi nhận.
 
 **Báo cáo doanh thu (v1.12):** `GET /admin/reports/revenue?from&to&groupBy` — `from`/`to` là `YYYY-MM-DD` giờ VN, gồm cả ngày `to`; mặc định là 30 ngày kết thúc hôm nay; tối đa 366 ngày (quá hoặc `from > to` → `400 VALIDATION_ERROR`); `groupBy` ∈ `day` (mặc định) | `movie` | `cinema`. Chỉ tính đơn `PAID`, ngày tính theo `paidAt` (lúc thu tiền) theo giờ VN. `revenue` = tổng tiền khách thực trả (sau giảm giá), `ticketCount` = số ghế (ghế đôi tính 2), `orderCount` = số đơn. `day` trả đủ mọi ngày trong khoảng, ngày không có doanh thu có `revenue = 0` (để vẽ biểu đồ liên tục); `movie`/`cinema` chỉ liệt kê nhóm có doanh thu, xếp theo doanh thu giảm dần. Đơn `REFUND_PENDING`, `REFUNDED` không tính.
 
@@ -540,7 +553,8 @@ flowchart LR
 | `combo.service` | `Combo` (danh mục) — `getActiveCombos(comboIds)` lấy giá combo đang bán | — |
 | `payment.service` | `Payment` | `order` |
 | `pricing.service` | `PriceRule`, `SeatTypeSurcharge` | — |
-| `auth.service` | `RefreshToken` — thành phần của phiên đăng nhập | `user` |
+| `auth.service` | `RefreshToken` — thành phần của phiên đăng nhập | `user`, `emailCode` |
+| `emailCode.service` | `EmailCode` — cấp và kiểm mã 6 số | — |
 | `user.service` | `User` | — |
 | `promotion.service` | `Promotion` — luật dùng mã nhận **số lượt đã dùng** do `order.service` đếm (không tự đọc bảng `Order`) | — |
 | `movie.service` | `Movie` | — |
@@ -706,3 +720,5 @@ Bên trong mỗi phía, chia **theo nhóm chức năng** (mỗi nhóm một file
 | 26/11/2026 | 1.27 | Mục 3.0: thêm `trailerUrl` vào `MovieSummary` (thẻ phim ở trang chủ / danh sách có nút phát trailer). Chỉ thêm trường, không phá client cũ | Người A + B |
 | 26/11/2026 | 1.28 | Mục 2.7: thêm `POST /admin/showtimes/bulk` (tạo suất hàng loạt, có xem trước, FR-31b); `GET /admin/showtimes` thêm `bookedSeats` (FR-31a). Chỉ thêm, không phá client cũ | Người A + B |
 | 27/11/2026 | 1.29 | Mục 2.7, 5.2: quản lý phòng chiếu (`POST /admin/cinemas/:id/rooms`, `PUT` / `DELETE /admin/rooms/:id`, FR-32a); phòng ngưng hoặc rạp tắt thì suất đóng bán. Chỉ thêm endpoint, không phá client cũ | Người A + B |
+| 27/11/2026 | 1.30 | Mục 2.7: `GET /admin/orders/:id` thêm `createdAt` (trang chi tiết đơn cần hiển thị; thiếu trường này làm trang quản trị lỗi). Chỉ thêm trường | Người A + B |
+| 27/11/2026 | 1.31 | Mục 1.2, 2.1, 5.2: xác minh email và quên mật khẩu (4 endpoint `/auth/...`, mã `EMAIL_NOT_VERIFIED`, `CODE_INVALID`, `user.emailVerified`, `emailCode.service`). `POST /orders` thêm lỗi `EMAIL_NOT_VERIFIED` | Người A + B |

@@ -20,6 +20,10 @@
 4. Trong khung **Lịch chiếu**: chọn **thành phố**, chọn **ngày** (7 ngày tới), rồi bấm vào **giờ chiếu**. Giờ hiển thị theo giờ Việt Nam. Giờ bị gạch ngang và mờ là suất **đã đóng bán** (còn dưới 15 phút hoặc đã chiếu).
 
 > Bấm vào giờ chiếu khi chưa đăng nhập, hệ thống sẽ chuyển sang trang **Đăng nhập** rồi quay lại đúng suất bạn chọn. Chưa có tài khoản thì chọn **Đăng ký** (email, họ tên, mật khẩu từ 8 ký tự).
+>
+> Đăng ký xong, hệ thống gửi **mã 6 số** tới email: nhập mã để xác minh (mã hết hạn sau 10 phút, sai tối đa 5 lần, gửi lại cách nhau 60 giây; nhớ xem thư rác). Chưa xác minh vẫn xem phim được nhưng **chưa đặt vé được**.
+>
+> **Quên mật khẩu:** ở trang Đăng nhập bấm "Quên mật khẩu?", nhập email, rồi nhập mã nhận được cùng mật khẩu mới. Đổi xong mọi thiết bị đang đăng nhập bị đăng xuất.
 
 ### A2. Chọn ghế
 
@@ -140,9 +144,10 @@ Mục **Nhật ký** cho biết **ai** đã làm **việc gì**, **lúc nào** (
 | Tôi chọn ghế rồi mà báo ghế đã có người? | Có người vừa giữ trước bạn vài giây. Chọn ghế khác — những ghế còn lại của bạn vẫn được giữ. |
 | Hết 10 phút giữ ghế thì sao? | Ghế tự nhả; bạn quay lại trang chọn ghế để chọn lại. |
 | Bị trừ tiền nhưng chưa thấy vé? | Chờ vài phút rồi xem **Vé của tôi**. Nếu ghế đã bị người khác lấy, đơn chuyển sang "Chờ hoàn tiền" và rạp hoàn tiền thủ công. |
+| Không nhận được mã? | Xem thư rác, đợi 60 giây rồi bấm "Gửi lại mã". Mỗi giờ tối đa 5 mã. |
 | Có đổi / hủy vé đã mua được không? | Không (theo quy định của hệ thống). |
 | Sao không đặt được suất sắp chiếu? | Hệ thống ngừng bán online **15 phút** trước giờ chiếu. |
-| Quên mật khẩu? | Chức năng quên mật khẩu qua email chưa có trong phiên bản này; liên hệ quản trị viên. |
+| Quên mật khẩu? | Bấm "Quên mật khẩu?" ở trang Đăng nhập (xem mục A1). |
 | Admin: sao không xóa được phim / combo / mã? | Đã có suất chiếu hoặc đơn hàng tham chiếu. Dùng "Ngừng chiếu" / "Ngừng bán" / "Tắt" để ẩn khỏi khách. |
 
 ## Phần E — Cho người cài đặt

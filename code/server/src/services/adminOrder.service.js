@@ -54,7 +54,7 @@ export async function listAdminOrders({ status, from, to, q, page, pageSize }) {
 /**
  * Chi tiết một đơn (bất kể của ai) kèm khách hàng và lịch sử giao dịch — để admin đối soát.
  * @param {{ orderId: string }} params
- * @returns {Promise<object>} `Order` + `user` + `payments[]`
+ * @returns {Promise<object>} `Order` + `createdAt` + `user` + `payments[]`
  * @throws {AppError} NOT_FOUND
  */
 export async function getAdminOrder({ orderId }) {
@@ -70,7 +70,7 @@ export async function getAdminOrder({ orderId }) {
     },
   });
   if (!order) throw new AppError('NOT_FOUND', { message: 'Không tìm thấy đơn hàng.' });
-  return { ...toOrderDto(order), user: order.user, payments: order.payments };
+  return { ...toOrderDto(order), createdAt: order.createdAt, user: order.user, payments: order.payments };
 }
 
 /**

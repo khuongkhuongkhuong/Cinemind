@@ -71,6 +71,9 @@ export default function SeatSelectionPage() {
           setSelected((cur) => dropSeats(cur, e.details?.seatIds ?? [], seats)); // bỏ đúng ghế bị mất, GIỮ ghế còn hợp lệ
           toast.error(e.message);
           refetch(); // vẽ lại sơ đồ với trạng thái mới nhất
+        } else if (e.code === 'EMAIL_NOT_VERIFIED') {
+          toast.error(e.message);
+          navigate(`/verify-email?returnUrl=${encodeURIComponent(`/booking/showtimes/${showtimeId}`)}`); // xác minh xong quay lại đúng suất
         } else if (e.code === 'SHOWTIME_CLOSED') {
           setClosed(true);
         } else if (e.code === 'SEAT_LIMIT_EXCEEDED' || e.code === 'COUPLE_SEAT_INCOMPLETE') {

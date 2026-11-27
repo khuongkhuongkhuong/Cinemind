@@ -5,6 +5,8 @@ import {
   REFRESH_TTL_MS, signAccessToken, generateRefreshToken, hashRefreshToken,
 } from '../lib/jwt.js';
 import * as userService from './user.service.js';
+import * as emailCodeService from './emailCode.service.js';
+import { sendMail } from '../lib/mailer.js';
 
 // Hash giả để so sánh khi email không tồn tại -> thời gian phản hồi giống nhau, không lộ email nào đã đăng ký.
 const DUMMY_HASH = await hashPassword('mat-khau-gia-khong-ai-dung');
@@ -12,7 +14,20 @@ const DUMMY_HASH = await hashPassword('mat-khau-gia-khong-ai-dung');
 /** Chỉ trả các trường an toàn — tuyệt đối không có passwordHash. */
 const toPublicUser = (u) => ({
   id: u.id, email: u.email, fullName: u.fullName, phone: u.phone, role: u.role, points: u.points,
+  emailVerified: Boolean(u.emailVerifiedAt),
 });
+
+const MAILS = {
+  VERIFY_EMAIL: { subject: 'Mã xác minh email Cinemind', intro: 'Mã xác minh email của bạn là' },
+  RESET_PASSWORD: { subject: 'Mã đặt lại mật khẩu Cinemind', intro: 'Mã đặt lại mật khẩu của bạn là' },
+};
+
+/** Gửi mã qua email. Lỗi gửi thư chỉ ghi log (không kèm mã): người dùng bấm "Gửi lại mã" được. */
+function deliverCode({ email, purpose, code }) {
+  const { subject, intro } = MAILS[purpose];
+  const text = `${intro}: ${code}\nMã hết hạn sau 10 phút. Nếu bạn không yêu cầu, hãy bỏ qua thư này.`;
+  return sendMail({ to: email, subject, text }).catch((err) => console.error('[mail] không gửi được:', err.message));
+}
 
 export async function issueTokens(user) {
   const refreshToken = generateRefreshToken();
@@ -34,7 +49,9 @@ export async function register({ email, password, fullName, phone }) {
   const passwordHash = await hashPassword(password);
   try {
     // Ghi thẳng và để UNIQUE(email) làm trọng tài (giống tinh thần chống trùng ghế), không "check rồi insert".
-    const user = await userService.createUser({ email, passwordHash, fullName, phone: phone ?? null });
+    const user = await userService.createUser({ email, passwordHash, fullName, phone: phone ?? null, emailVerifiedAt: null }); // BR-40
+    const issued = await emailCodeService.issueCode({ userId: user.id, purpose: 'VERIFY_EMAIL' });
+    if (issued.issued) deliverCode({ email: user.email, purpose: 'VERIFY_EMAIL', code: issued.code }); // không chờ: gửi thư chậm không làm đăng ký chậm
     return { user: toPublicUser(user), ...(await issueTokens(user)) };
   } catch (err) {
     if (err.code === 'P2002') throw new AppError('EMAIL_EXISTS');
@@ -97,6 +114,78 @@ export async function logout({ refreshToken }) {
  */
 export async function getMe({ userId }) {
   return toPublicUser(await loadActiveUser(userId));
+}
+
+/**
+ * Xác minh email bằng mã 6 số (BR-40, BR-41). Đã xác minh rồi thì trả luôn user.
+ * @param {{ userId: string, code: string }} params userId lấy từ token
+ * @returns {Promise<object>} user công khai
+ * @throws {AppError} UNAUTHORIZED | ACCOUNT_DISABLED | CODE_INVALID (details.attemptsLeft)
+ */
+export async function verifyEmail({ userId, code }) {
+  const user = await loadActiveUser(userId);
+  if (user.emailVerifiedAt) return toPublicUser(user);
+  const result = await emailCodeService.consumeCode({ userId, purpose: 'VERIFY_EMAIL', code });
+  if (!result.ok) {
+    const message = result.attemptsLeft > 0 ? `Mã không đúng. Bạn còn ${result.attemptsLeft} lần nhập.` : 'Mã đã hết hạn hoặc nhập sai quá nhiều lần. Hãy bấm "Gửi lại mã".';
+    throw new AppError('CODE_INVALID', { message, details: { attemptsLeft: result.attemptsLeft } });
+  }
+  await userService.markEmailVerified({ userId });
+  return toPublicUser(await loadActiveUser(userId));
+}
+
+/**
+ * Gửi lại mã xác minh.
+ * @param {{ userId: string }} params
+ * @returns {Promise<{ alreadyVerified: boolean }>}
+ * @throws {AppError} UNAUTHORIZED | ACCOUNT_DISABLED | RATE_LIMITED (details.retryAfterSec)
+ */
+export async function resendVerificationCode({ userId }) {
+  const user = await loadActiveUser(userId);
+  if (user.emailVerifiedAt) return { alreadyVerified: true };
+  const issued = await emailCodeService.issueCode({ userId, purpose: 'VERIFY_EMAIL' });
+  if (!issued.issued) {
+    throw new AppError('RATE_LIMITED', { message: `Vui lòng đợi ${issued.retryAfterSec} giây rồi xin mã mới.`, details: { retryAfterSec: issued.retryAfterSec } });
+  }
+  deliverCode({ email: user.email, purpose: 'VERIFY_EMAIL', code: issued.code });
+  return { alreadyVerified: false };
+}
+
+/**
+ * Quên mật khẩu: gửi mã đặt lại NẾU tài khoản tồn tại và đang hoạt động. ⭐ Người gọi không biết được điều đó (BR-42):
+ * hàm trả về ngay, việc tra cứu và gửi thư chạy sau, nên phản hồi và thời gian trả lời giống nhau cho mọi email.
+ * @param {{ email: string }} params
+ * @returns {{ done: Promise<void> }} `done` chỉ để test chờ; controller không dùng
+ */
+export function requestPasswordReset({ email }) {
+  const done = (async () => {
+    const user = await userService.findUserByEmail(email);
+    if (!user || !user.isActive) return;
+    const issued = await emailCodeService.issueCode({ userId: user.id, purpose: 'RESET_PASSWORD' });
+    if (issued.issued) await deliverCode({ email: user.email, purpose: 'RESET_PASSWORD', code: issued.code });
+  })().catch((err) => console.error('[auth] không xử lý được yêu cầu quên mật khẩu:', err.message));
+  return { done };
+}
+
+/**
+ * Đặt mật khẩu mới bằng mã đã gửi qua email. Thành công: thu hồi MỌI phiên đăng nhập và coi email đã xác minh (người đặt lại
+ * đã chứng minh đọc được hộp thư). Mọi nguyên nhân thất bại trả CÙNG một lỗi (không lộ email nào tồn tại).
+ * @param {{ email: string, code: string, newPassword: string }} params
+ * @throws {AppError} CODE_INVALID
+ */
+export async function resetPassword({ email, code, newPassword }) {
+  const invalid = () => new AppError('CODE_INVALID', { message: 'Mã không đúng hoặc đã hết hạn. Hãy kiểm tra lại hoặc xin mã mới.' });
+  const user = await userService.findUserByEmail(email);
+  if (!user || !user.isActive) throw invalid();
+  const result = await emailCodeService.consumeCode({ userId: user.id, purpose: 'RESET_PASSWORD', code });
+  if (!result.ok) throw invalid();
+  const passwordHash = await hashPassword(newPassword);
+  await runInTransaction(async (tx) => {
+    await userService.setPassword({ userId: user.id, passwordHash }, tx);
+    await userService.markEmailVerified({ userId: user.id }, tx);
+    await emailCodeService.discardCode({ userId: user.id, purpose: 'VERIFY_EMAIL' }, tx);
+    await revokeAllOfUser({ userId: user.id, now: new Date() }, tx);
+  });
 }
 
 /** Lấy user đang đăng nhập và chắc chắn còn tồn tại / chưa bị khóa (requireAuth không hỏi DB). */
