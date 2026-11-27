@@ -6,7 +6,8 @@ import { formatDateTime, formatMoney, formatTime, vnDateKey } from '@/lib/format
 import BulkShowtimeForm from '@/components/admin/BulkShowtimeForm';
 import ShowtimeFields, { AUDIO, FORMATS } from '@/components/admin/ShowtimeFields';
 import ShowtimeTimeline from '@/components/admin/ShowtimeTimeline';
-import { startingOn } from '@/lib/showtimePlan';
+import ShowtimeSlotInfo from '@/components/admin/ShowtimeSlotInfo';
+import { filmEndOf, startingOn } from '@/lib/showtimePlan';
 import EmptyState from '@/components/ui/EmptyState';
 import ErrorState from '@/components/ui/ErrorState';
 import Skeleton from '@/components/ui/Skeleton';
@@ -57,6 +58,7 @@ function ShowtimeForm({ showtime, defaults, onClose, onCancelShowtime }) {
       )}
       <ShowtimeFields form={form} set={set} errors={errors}>
         <TextField label="Giờ chiếu (giờ Việt Nam)" type="datetime-local" value={form.start} onChange={set('start')} error={errors.start || errors.startTime} />
+        <ShowtimeSlotInfo form={form} excludeId={showtime?.id} />
       </ShowtimeFields>
       {showtime && onCancelShowtime && (
         <Button variant="danger" size="sm" onClick={() => onCancelShowtime(showtime)}>Hủy suất này</Button>
@@ -89,7 +91,7 @@ function TimelineView({ cinemas, cinemaId, onCinema, date, onDate, onAdd, onOpen
             : (
               <>
                 <p className="text-sm text-ink-300" role="status">
-                  {startingOn(list.data.items, date).filter((s) => s.status === 'OPEN' && cinema.rooms.some((r) => r.isActive && r.id === s.room.id)).length} suất đang mở. Bấm chỗ trống để thêm, bấm khối phim để sửa. 🎟 là số ghế đã đặt.
+                  {startingOn(list.data.items, date).filter((s) => s.status === 'OPEN' && cinema.rooms.some((r) => r.isActive && r.id === s.room.id)).length} suất đang mở. Bấm chỗ trống để thêm, bấm khối phim để sửa. Mỗi màu một phim, phần sọc xám cuối khối là 15 phút dọn phòng, 🎟 là số ghế đã đặt.
                 </p>
                 {list.data.meta.total > 100 && <p role="alert" className="text-sm text-red-300">Ngày này có hơn 100 suất, lịch chỉ hiện 100 suất đầu. Xem đủ ở chế độ Danh sách.</p>}
                 <ShowtimeTimeline rooms={cinema.rooms.filter((r) => r.isActive)} showtimes={list.data.items} date={date} onAdd={onAdd} onOpen={onOpen} />
@@ -124,7 +126,7 @@ export default function AdminShowtimesPage() {
   };
 
   const columns = [
-    { key: 'time', header: 'Giờ chiếu', render: (s) => <div><p className="font-semibold">{formatDateTime(s.startTime)}</p><p className="text-xs text-ink-300">đến {formatTime(s.endTime)} (gồm dọn phòng)</p></div> },
+    { key: 'time', header: 'Giờ chiếu', render: (s) => <div><p className="font-semibold">{formatDateTime(s.startTime)}</p><p className="text-xs text-ink-300">phim đến {formatTime(filmEndOf(s))} · dọn đến {formatTime(s.endTime)}</p></div> },
     { key: 'movie', header: 'Phim', render: (s) => <span className="block max-w-xs truncate">{s.movie.title}</span> },
     { key: 'room', header: 'Rạp / phòng', render: (s) => `${s.cinema.name} · ${s.room.name}` },
     { key: 'fmt', header: 'Định dạng', render: (s) => `${FORMATS[s.format]} · ${AUDIO[s.audio]}` },

@@ -21,7 +21,7 @@ function backend(sequence, { order = { id: 'o1', code: 'K7Q2M9XA' } } = {}) {
   server.use(
     http.get('/api/v1/payments/:txnRef/status', () => {
       const item = sequence[Math.min(calls.status++, sequence.length - 1)];
-      return item instanceof Response ? item : ok(item);
+      return item instanceof Response ? item.clone() : ok(item); // mỗi lần trả một bản sao: thân phản hồi chỉ đọc được một lần
     }),
     http.get('/api/v1/orders/:id', () => ok(order)),
   );

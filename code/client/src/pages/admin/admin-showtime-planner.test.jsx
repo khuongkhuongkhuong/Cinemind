@@ -4,7 +4,9 @@ import { setupServer } from 'msw/node';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AdminShowtimesPage from './AdminShowtimesPage';
-import { axisRange, clockLabel, dateList, parseTimes, slotValue, startingOn, validateBulk, EMPTY_BULK } from '@/lib/showtimePlan';
+import { axisRange, clockLabel, dateList, filmEndOf, findClashes, moviesByShowCount, parseTimes, planSlot, slotValue, startingOn, validateBulk, EMPTY_BULK } from '@/lib/showtimePlan';
+import ShowtimeTimeline, { COLORS, OTHER_COLOR } from '@/components/admin/ShowtimeTimeline';
+import { render } from '@testing-library/react';
 import { ok, renderPage } from '@/test/helpers';
 
 describe('showtimePlan (hàm thuần)', () => {
@@ -29,6 +31,22 @@ describe('showtimePlan (hàm thuần)', () => {
     expect(slotValue(0.5, range, date)).toBe('2030-10-05T16:00');
     expect(slotValue(0.5043, range, date)).toBe('2030-10-05T16:00'); // 16:04 làm tròn xuống
     expect(slotValue(1.5, { start: 480, end: 1560 }, date)).toBe('2030-10-06T02:00');
+  });
+
+  it('⭐ giờ kết thúc = thời lượng, phòng trống lại sau thêm 15 phút; nối đuôi không tính là trùng', () => {
+    const slot = planSlot('2030-10-05T08:00', 135);
+    expect(slot).toEqual({ start: '2030-10-05T01:00:00.000Z', filmEnd: '2030-10-05T03:15:00.000Z', roomFree: '2030-10-05T03:30:00.000Z' });
+    expect(planSlot('', 135)).toBeNull();
+    expect(planSlot('2030-10-05T08:00', undefined)).toBeNull();
+    const at = (from, to) => ({ id: from, startTime: `2030-10-05T${from}:00Z`, endTime: `2030-10-05T${to}:00Z` });
+    expect(findClashes([at('03:30', '05:00'), at('00:00', '01:00')], slot)).toEqual([]); // nối đuôi hai phía
+    expect(findClashes([at('00:00', '01:05'), at('03:25', '05:00')], slot).map((s) => s.id)).toEqual(['00:00', '03:25']);
+  });
+
+  it('giờ phim kết thúc = endTime trừ 15 phút dọn phòng; phim nhiều suất đứng trước', () => {
+    expect(filmEndOf({ endTime: '2030-10-05T03:30:00.000Z' })).toBe('2030-10-05T03:15:00.000Z');
+    const of = (...ids) => ids.map((id) => ({ movie: { id } }));
+    expect(moviesByShowCount(of('c', 'b', 'a', 'b', 'c', 'c'))).toEqual(['c', 'b', 'a']);
   });
 
   it('đọc giờ gõ tay: nhiều cách viết, bỏ trùng, báo giờ sai', () => {
@@ -58,7 +76,7 @@ const cinemas = [
   { id: 'c1', name: 'Rạp A', address: '1', city: { id: 'x', name: 'HN' }, isActive: true, rooms: [{ id: 'r1', name: 'Phòng 1', isActive: true, seatCount: 96 }, { id: 'r2', name: 'Phòng 2', isActive: true, seatCount: 96 }] },
   { id: 'c2', name: 'Rạp B', address: '2', city: { id: 'x', name: 'HN' }, isActive: true, rooms: [{ id: 'r9', name: 'Phòng 9', isActive: true, seatCount: 96 }] },
 ];
-const movie = { id: 'm1', title: 'Phim thử', status: 'NOW_SHOWING', genres: [] };
+const movie = { id: 'm1', title: 'Phim thử', status: 'NOW_SHOWING', durationMin: 120, genres: [] };
 const showtime = (extra = {}) => ({
   id: 's1', startTime: '2030-10-05T11:30:00.000Z', endTime: '2030-10-05T13:45:00.000Z', format: 'F2D', audio: 'SUBTITLE', basePrice: 80000, status: 'OPEN',
   movie: { id: 'm1', title: 'Phim thử' }, cinema: { id: 'c1', name: 'Rạp A' }, room: { id: 'r1', name: 'Phòng 1' }, bookedSeats: 0, ...extra,
@@ -83,7 +101,7 @@ describe('Lịch theo phòng (FR-31a)', () => {
     open();
     expect(await screen.findByRole('group', { name: 'Lịch Phòng 2' })).toBeInTheDocument();
     pickDate('2030-10-05');
-    const block = await screen.findByRole('button', { name: 'Phim thử, 18:30–20:45, 4 ghế đã đặt' });
+    const block = await screen.findByRole('button', { name: 'Phim thử, 18:30–20:30, dọn phòng đến 20:45, 4 ghế đã đặt' });
     expect(within(screen.getByRole('group', { name: 'Lịch Phòng 1' })).getByRole('button')).toBe(block);
     expect(screen.queryByText('Phim đã hủy')).not.toBeInTheDocument();
     await waitFor(() => expect(queries.at(-1)).toMatchObject({ cinemaId: 'c1', date: '2030-10-05', pageSize: '100' }));
@@ -127,12 +145,93 @@ describe('Lịch theo phòng (FR-31a)', () => {
   });
 });
 
+describe('Khối trên lịch: màu và phần dọn phòng', () => {
+  const room = { id: 'r1', name: 'Phòng 1', isActive: true };
+  // phim m0 có 2 suất, các phim còn lại 1 suất
+  const many = (n) => Array.from({ length: n + 1 }, (_, i) => {
+    const m = i === n ? 0 : i;
+    const start = Date.parse('2030-10-05T01:00:00Z') + i * 30 * 60_000;
+    return showtime({
+      id: `s${i}`, movie: { id: `m${String(m).padStart(2, '0')}`, title: `Phim ${m}` },
+      startTime: new Date(start).toISOString(), endTime: new Date(start + 25 * 60_000).toISOString(),
+    });
+  });
+  const colorClasses = (el) => [...el.classList].filter((c) => /^(bg|border)-[a-z]+(-\d+)?$/.test(c) && c !== 'border-l-4').join(' ');
+  const draw = (items) => {
+    render(<ShowtimeTimeline rooms={[room]} showtimes={items} date="2030-10-05" onAdd={() => {}} onOpen={() => {}} />);
+    return new Map(screen.getAllByRole('button', { name: /^Phim / }).map((b) => [b.getAttribute('aria-label').split(',')[0], colorClasses(b)]));
+  };
+
+  it('⭐ tới 16 phim thì mỗi phim một màu khác nhau', () => {
+    const colors = draw(many(16));
+    expect(colors.size).toBe(16);
+    expect(new Set(colors.values()).size).toBe(16);
+  });
+
+  it('hơn 16 phim: phim nhiều suất giữ màu riêng, phim ngoài 16 để nền trắng', () => {
+    const colors = draw(many(18));
+    expect(colors.get('Phim 0')).toBe(COLORS[0]);
+    expect([...colors.values()].filter((c) => c === OTHER_COLOR)).toHaveLength(2);
+    expect(new Set(colors.values()).size).toBe(17);
+  });
+
+  it('phần sọc dọn phòng dài đúng 15 phút trong khối', () => {
+    draw([showtime()]); // khối 18:30–20:45 = 135 phút
+    expect(parseFloat(screen.getByTestId('cleaning').style.width)).toBeCloseTo((15 / 135) * 100, 3);
+  });
+});
+
+describe('Form một suất: giờ kết thúc và cảnh báo trùng', () => {
+  const fill = async (start) => {
+    const user = userEvent.setup();
+    open();
+    await screen.findByRole('group', { name: 'Lịch Phòng 1' });
+    await user.click(screen.getByRole('button', { name: '+ Thêm suất chiếu' }));
+    await screen.findByRole('option', { name: 'Phim thử' });
+    await user.selectOptions(screen.getByLabelText('Phim'), 'm1');
+    await user.selectOptions(screen.getByLabelText('Phòng chiếu'), 'r1');
+    fireEvent.change(screen.getByLabelText('Giờ chiếu (giờ Việt Nam)'), { target: { value: start } });
+    return user;
+  };
+
+  it('⭐ chọn phim + giờ thì thấy ngay giờ kết thúc; đè lên suất đã có thì cảnh báo trước khi lưu', async () => {
+    const queries = backend([showtime()]); // đã có 18:30–20:45
+    await fill('2030-10-05T17:00');
+    expect(await screen.findByText(/Phim kết thúc/)).toHaveTextContent('Phim kết thúc 19:00 · phòng trống lại lúc 19:15');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Trùng với "Phim thử" 18:30–20:30 (dọn đến 20:45)');
+    expect(queries.at(-1)).toMatchObject({ roomId: 'r1', date: '2030-10-05' });
+
+    // đổi sang giờ nối ngay trước suất đó: hết cảnh báo, vẫn liệt kê suất đã có
+    fireEvent.change(screen.getByLabelText('Giờ chiếu (giờ Việt Nam)'), { target: { value: '2030-10-05T16:15' } });
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    expect(within(await screen.findByRole('list', { name: 'Suất đã có của phòng' })).getByText('18:30–20:30')).toBeInTheDocument();
+  });
+
+  it('suất qua nửa đêm ghi "hôm sau"; phòng trống thì báo chưa có suất', async () => {
+    backend([]);
+    await fill('2030-10-05T23:00');
+    expect(await screen.findByText(/Phim kết thúc/)).toHaveTextContent('phòng trống lại lúc 01:15 (hôm sau)');
+    expect(await screen.findByText(/Phòng chưa có suất nào ngày/)).toBeInTheDocument();
+  });
+
+  it('sửa suất: chính nó không bị tính là trùng', async () => {
+    backend([showtime()]);
+    const user = userEvent.setup();
+    open();
+    await screen.findByRole('group', { name: 'Lịch Phòng 1' });
+    pickDate('2030-10-05');
+    await user.click(await screen.findByRole('button', { name: /Phim thử, / }));
+    expect(await screen.findByText(/Phòng chưa có suất nào ngày/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
 describe('Tạo hàng loạt (FR-31b)', () => {
   const preview = {
     dryRun: true, okCount: 1, skippedCount: 1,
     items: [
-      { date: '2030-10-05', time: '09:00', basePrice: 70000, result: 'OK', conflict: null },
-      { date: '2030-10-05', time: '13:30', basePrice: 70000, result: 'OVERLAP', conflict: { showtimeId: 'x', movieTitle: 'Phim khác', startTime: '2030-10-05T06:00:00Z', endTime: '2030-10-05T08:00:00Z' } },
+      { date: '2030-10-05', time: '09:00', endTime: '2030-10-05T04:15:00Z', basePrice: 70000, result: 'OK', conflict: null },
+      { date: '2030-10-05', time: '13:30', endTime: '2030-10-05T08:45:00Z', basePrice: 70000, result: 'OVERLAP', conflict: { showtimeId: 'x', movieTitle: 'Phim khác', startTime: '2030-10-05T06:00:00Z', endTime: '2030-10-05T08:00:00Z' } },
     ],
   };
   const setup = async () => {
@@ -160,7 +259,8 @@ describe('Tạo hàng loạt (FR-31b)', () => {
     expect(screen.getByRole('button', { name: 'Tạo suất' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Xem trước' }));
     expect(await screen.findByText('Tạo được 1 suất, bỏ qua 1.')).toBeInTheDocument();
-    expect(screen.getByText(/Trùng suất "Phim khác" 13:00–15:00/)).toBeInTheDocument();
+    expect(screen.getByText(/Trùng suất "Phim khác" 13:00–14:45 \(dọn đến 15:00\)/)).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: '09:00–11:00' })).toBeInTheDocument();
     expect(bodies[0]).toEqual({ movieId: 'm1', roomId: 'r1', dates: ['2030-10-05', '2030-10-06'], times: ['09:00', '13:30'], format: 'F2D', audio: 'SUBTITLE', dryRun: true });
 
     await user.click(screen.getByRole('button', { name: 'Tạo 1 suất' }));

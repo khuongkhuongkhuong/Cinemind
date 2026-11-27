@@ -48,8 +48,9 @@
 | A11 | Nhật ký thao tác (ai làm gì, lúc nào) | `/admin/audit` | S |
 
 **A03 Suất chiếu (v1.1, FR-31a/b):** hai chế độ xem.
-- **Lịch theo phòng** (mặc định): chọn rạp và ngày; mỗi phòng một hàng, mỗi suất một khối dài theo thời lượng, mỗi phim một màu, khối có số ghế đã đặt. Bấm chỗ trống (hoặc nút "+" ở đầu hàng) mở form thêm suất điền sẵn phòng và giờ; bấm khối mở form sửa, có nút hủy suất. Trục giờ bắt đầu 08:00, cuộn ngang được.
+- **Lịch theo phòng** (mặc định): chọn rạp và ngày; mỗi phòng một hàng, mỗi suất một khối dài theo thời lượng (phần sọc cuối khối là 15 phút dọn phòng), mỗi phim một màu (tối đa 16 màu, cấp cho phim nhiều suất trước; phim còn lại nền trắng), khối có số ghế đã đặt. Bấm chỗ trống (hoặc nút "+" ở đầu hàng) mở form thêm suất điền sẵn phòng và giờ; bấm khối mở form sửa, có nút hủy suất. Trục giờ bắt đầu 08:00, cuộn ngang được.
 - **Danh sách:** bảng như trước.
+- **Giờ kết thúc:** khối trên lịch, bản xem trước hàng loạt, danh sách và form ghi "bắt đầu–giờ phim kết thúc"; giờ dọn xong ghi riêng. Form thêm / sửa một suất hiện ngay giờ phim kết thúc, giờ phòng trống lại, các suất phòng đã có trong ngày và cảnh báo nếu giờ chọn bị đè; server vẫn là nơi quyết định cuối cùng.
 - **Tạo hàng loạt:** chọn phim, phòng, từ ngày – đến ngày, các giờ; bấm "Xem trước" để thấy suất nào tạo được, suất nào trùng, rồi mới "Tạo N suất". Đổi bất kỳ ô nào thì phải xem trước lại.
 
 **A04 Rạp & phòng (v1.1, FR-32a):** mỗi thẻ rạp có nút "+ Phòng" (nhập tên, chọn mẫu sơ đồ nhỏ / vừa / lớn). Chọn một phòng để xem sơ đồ ghế, kèm các nút "Đổi tên", "Ngưng phòng" / "Mở lại", "Xóa phòng". Ngưng và xóa phải xác nhận; server từ chối thì hiện lý do. Phòng đã ngưng có nhãn "Ngưng".
