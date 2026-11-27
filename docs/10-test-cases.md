@@ -25,7 +25,7 @@ Quy ước cột "Cách kiểm": **A** = test tự động (tên file trong `cod
 | FR-11 ⭐ | Chọn ghế, giữ ghế có thời hạn | A `booking.concurrency.test.js` (50 người giành ghế → đúng 1 thắng), `order.lifecycle.test.js` · client `lib/seats.test.js` · T (2 trình duyệt) | Đạt |
 | FR-12 | Chọn combo | A `combo.promo.test.js` · client `pages/booking/*.test.jsx` | Đạt |
 | FR-13 | Mã khuyến mãi | A `combo.promo.test.js` (`PROMO_INVALID` kèm lý do) | Đạt |
-| FR-14 ⭐ | Thanh toán VNPay | A `payment.ipn.test.js` · client `payment-result.test.jsx` · **cổng giả lập** (chưa chạy với VNPay sandbox thật) | Đạt (giả lập) |
+| FR-14 ⭐ | Thanh toán VNPay | A `payment.ipn.test.js` · client `payment-result.test.jsx` · cổng giả lập · T **VNPay sandbox thật** 27/11/2026 (thẻ test NCB qua ngrok: IPN về, đơn `PAID`, 340.000đ, mã phản hồi 00) | Đạt |
 | FR-15 | Vé của tôi, chi tiết, QR | A `me.orders.test.js` · client `lib/tickets.test.js`, `pages/account/account-pages.test.jsx` | Đạt |
 | FR-16 | Hồ sơ, đổi mật khẩu | A `me.profile.test.js` · client `account-pages.test.jsx` | Đạt |
 | FR-17 | Tích điểm | A `payment.ipn.test.js` (cộng điểm đúng một lần) | Đạt |
@@ -148,7 +148,7 @@ Kiểm bằng **mô hình giả có kịch bản** (không gọi LLM thật): `t
 
 ## 5. Hạn chế của việc kiểm thử (nói thẳng với hội đồng)
 
-1. **Chưa kiểm với VNPay sandbox thật** — toàn bộ luồng thanh toán dùng cổng giả lập, dù vẫn đi qua đúng hàm `confirmPayment` với chữ ký hợp lệ.
+1. **VNPay sandbox thật mới thử luồng thành công** (một giao dịch, 27/11/2026). Các nhánh thất bại, IPN lặp, IPN muộn kiểm bằng test tự động với chữ ký tự tạo, chưa dựng lại trên sandbox.
 2. **NFR-11** (tải trang < 3 s trên 4G) mới ở mức ước tính theo dung lượng gói tải, chưa chạy Lighthouse; số đo NFR-10 là trên máy phát triển, một tiến trình, chưa phải môi trường triển khai.
 3. **Không có test giao diện đầu-cuối tự động** (Playwright/Cypress): luồng đặt vé trọn vẹn trên trình duyệt được kiểm tay theo kịch bản docs/09; phần giao diện còn lại được kiểm bằng test component (Testing Library + MSW).
 4. **Hai test phía client nhạy với tải máy** (đồng hồ đếm ngược, kết quả thanh toán): thỉnh thoảng đỏ khi máy đang bận, chạy lại thì xanh.

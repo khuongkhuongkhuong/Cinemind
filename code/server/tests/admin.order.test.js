@@ -78,6 +78,7 @@ test('danh sách: lọc theo trạng thái, khoảng ngày (giờ VN), phân tra
 test('chi tiết: có khách hàng, giao dịch (payments[]) và cấu trúc Order; id lạ -> NOT_FOUND', async () => {
   const d = await svc.getAdminOrder({ orderId: orders.refund.id });
   assert.equal(d.status, 'REFUND_PENDING');
+  assert.ok(d.createdAt instanceof Date, 'trang chi tiết đơn hiển thị "Tạo lúc" nên phải có createdAt');
   assert.equal(d.user.email, alice.email);
   assert.equal(d.payments.length, 1);
   assert.deepEqual([d.payments[0].txnRef, d.payments[0].amount, d.payments[0].status], [`${orders.refund.code}-1`, 100_000, 'SUCCESS']);
