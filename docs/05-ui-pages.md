@@ -24,6 +24,8 @@
 | P12 | Hồ sơ cá nhân | `/me/profile` | USER | S | FR-16 |
 | P13 | Không tìm thấy / Không có quyền | `*`, `/403` | Công khai | M | — |
 | P14 | Thành viên (điểm và cách tích điểm) | `/members` | Công khai | C | FR-17 |
+| P15 | Xác minh email (nhập mã 6 số) | `/verify-email?returnUrl=` | USER | S | FR-18a |
+| P16 | Quên mật khẩu (xin mã → đặt mật khẩu mới) | `/forgot-password` | Công khai | S | FR-18b |
 
 ### 1.2 Nhân viên
 
@@ -83,6 +85,8 @@ flowchart TD
 - Luồng đặt vé tối đa **4 màn hình** (P03 → P05 → P06 → P07).
 - Trang trí chủ đề điện ảnh (v1.1): dải "phim nhựa" đỏ có lỗ răng ở mép trên và dưới header, logo cuộn phim, nút vé "Mua vé ngay" (màn rộng ≥ 1024px, dẫn tới phim đang chiếu). Nhận diện riêng, không sao chép rạp khác. Khi cuộn trang, hàng tìm kiếm / tài khoản trôi đi, thanh menu ở lại.
 - Header (v1.1) hai hàng: hàng trên gồm ô tìm kiếm và Đăng nhập **hoặc** menu tài khoản (Vé của tôi, Hồ sơ, [Soát vé], [Quản trị], Đăng xuất) tùy vai trò; hàng dưới là logo, thanh menu giữa hai đường kẻ: Phim, Rạp Cinemind, Thành viên. Đã đăng nhập thì có thêm **"Vé của tôi"** ở bên phải thanh menu (và trong menu ☰); màn hình "Đặt vé thành công" (P07) có hai nút "Xem vé" và "Vé của tôi". Rê chuột (hoặc Tab) vào mỗi mục hiện menu con nền tối; bấm vào mục cha vẫn mở trang của nó. **Phim:** Phim đang chiếu, Phim sắp chiếu (P02 `?status=now|soon`). **Rạp Cinemind:** Tất cả các rạp, rồi mỗi thành phố một mục (P04 `?city=<id>`, mã lạ thì hiện tất cả). **Thành viên:** Tài khoản Cinemind (P12, khách được đưa tới đăng nhập), Quyền lợi (P14). Màn hình hẹp gộp thanh menu vào nút ☰. ("Quầy dịch vụ online" và trang Khuyến mãi chưa làm.)
+- **P15:** sau khi đăng ký được đưa tới đây; ô nhập 6 số, nút "Gửi lại mã" (đếm ngược 60 giây), nút "Để sau". Tài khoản chưa xác minh thấy dải nhắc ở đầu mọi trang khách; giữ ghế bị `EMAIL_NOT_VERIFIED` thì chuyển tới P15 rồi quay lại đúng suất.
+- **P16:** liên kết "Quên mật khẩu?" ở P08. Bước 1 nhập email (luôn báo "nếu email đã đăng ký thì mã đã được gửi"); bước 2 nhập mã + mật khẩu mới; xong về đăng nhập.
 - **P14:** khách chưa đăng nhập thấy cách tích điểm và nút Đăng ký / Đăng nhập; đã đăng nhập thấy điểm hiện có (lấy mới từ `GET /auth/me`), liên kết Vé của tôi và Hồ sơ. Chỉ nêu quyền lợi hệ thống thật sự có: tích 1 điểm / 10.000đ đã thanh toán (BR-25), **chưa đổi điểm**, chưa có hạng thành viên.
 
 ## 3. Wireframe các trang chính

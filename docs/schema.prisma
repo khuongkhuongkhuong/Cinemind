@@ -119,14 +119,39 @@ model User {
   role         Role     @default(USER)
   points       Int      @default(0)
   isActive     Boolean  @default(true)
+  // Mặc định "đã xác minh" cho tài khoản mẫu / nhân viên; ĐĂNG KÝ CÔNG KHAI đặt null cho tới khi nhập đúng mã (BR-40)
+  emailVerifiedAt DateTime? @default(now())
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  emailCodes      EmailCode[]
   refreshTokens   RefreshToken[]
   orders          Order[]        @relation("OrderUser")
   checkedInOrders Order[]        @relation("OrderCheckedInBy")
   chatSessions    ChatSession[]
   auditLogs       AuditLog[]
+}
+
+enum EmailCodePurpose {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+// Mã 6 số gửi qua email (BR-41): mỗi người, mỗi mục đích chỉ một mã còn hiệu lực
+model EmailCode {
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String           @db.Uuid
+  purpose     EmailCodePurpose
+  codeHash    String // HMAC của mã, không lưu mã gốc
+  expiresAt   DateTime
+  attempts    Int              @default(0) // số lần đã nhập
+  sentAt      DateTime
+  sendCount   Int              @default(1) // số mã đã cấp trong khung giờ hiện tại
+  windowStart DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, purpose])
 }
 
 model RefreshToken {

@@ -11,7 +11,7 @@ export function safeReturnUrl(raw, fallback = '/') {
   const url = raw.trim();
   const isLocalPath = url.startsWith('/') && !url.startsWith('//') && !url.includes('\\') && !/[\u0000-\u001f]/.test(url);
   if (!isLocalPath) return fallback;
-  if (/^\/(login|register)(\/|\?|#|$)/.test(url)) return fallback; // tránh vòng lặp đăng nhập
+  if (/^\/(login|register|forgot-password)(\/|\?|#|$)/.test(url)) return fallback; // tránh vòng lặp đăng nhập
   return url;
 }
 

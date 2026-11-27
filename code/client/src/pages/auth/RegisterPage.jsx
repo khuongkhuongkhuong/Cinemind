@@ -22,14 +22,15 @@ export function validateRegister(f) {
 }
 
 export default function RegisterPage() {
-  const { status, register } = useAuth();
+  const { status, user, register } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ fullName: '', email: '', phone: '', password: '', confirm: '' });
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  if (status === 'authenticated') return <Navigate to="/" replace />;
+  // Vừa đăng ký xong (chưa xác minh) -> sang trang nhập mã; người đã đăng nhập từ trước -> về trang chủ.
+  if (status === 'authenticated') return <Navigate to={user?.emailVerified === false ? '/verify-email' : '/'} replace />;
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const submit = async (e) => {
@@ -45,7 +46,7 @@ export default function RegisterPage() {
         email: form.email.trim(), password: form.password, fullName: form.fullName.trim(),
         ...(form.phone.trim() && { phone: form.phone.trim() }),
       });
-      navigate('/', { replace: true });
+      navigate('/verify-email', { replace: true }); // trang này tự chuyển về trang chủ nếu tài khoản đã xác minh
     } catch (err) {
       if (hasCode(err, 'EMAIL_EXISTS')) setErrors({ email: 'Email này đã được đăng ký' });
       else if (hasCode(err, 'VALIDATION_ERROR')) setErrors(fieldErrors(err));

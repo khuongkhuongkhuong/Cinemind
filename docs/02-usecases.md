@@ -43,6 +43,8 @@
 | UC22 | Xem báo cáo doanh thu | Admin | FR-37 | S |
 | UC23 | Quản lý banner | Admin | FR-38 | C |
 | UC24 | **Giải phóng ghế hết hạn** | Bộ hẹn giờ | FR-40 | M ⭐ |
+| UC25 | Xác minh email | Thành viên | FR-18a | S |
+| UC26 | Quên mật khẩu | Khách | FR-18b | S |
 
 **Quy ước:** "Đăng nhập" là **tiền điều kiện** (precondition) của UC07–UC23, không vẽ thành quan hệ include.
 
@@ -172,3 +174,10 @@ flowchart LR
 | BR-33 | **1 QR cho cả đơn**; check-in toàn bộ ghế trong đơn cùng lúc. |
 | BR-34 | Check-in hợp lệ từ **30 phút trước** đến **30 phút sau** giờ bắt đầu suất chiếu. |
 | BR-35 | Phân loại độ tuổi (P, K, T13, T16, T18): cảnh báo khi đặt; nhân viên kiểm tra tại cửa. |
+
+### 5.5 Xác minh email và đặt lại mật khẩu (v1.1)
+| Mã | Luật |
+|---|---|
+| 🔴 BR-40 | Tài khoản **đăng ký công khai** phải xác minh email trước khi **giữ ghế** (kể cả qua trợ lý AI). Vẫn đăng nhập, xem phim được. Tài khoản đã có từ trước, tài khoản mẫu và nhân viên do admin tạo coi như đã xác minh. |
+| 🔴 BR-41 | Mã gồm **6 chữ số**, sinh ngẫu nhiên an toàn, hết hạn sau **10 phút**, **dùng một lần**, tối đa **5 lần nhập**; chỉ lưu bản băm. Gửi lại cách nhau ít nhất **60 giây**, tối đa **5 mã mỗi giờ** cho mỗi tài khoản và mỗi mục đích. |
+| 🔴 BR-42 | Quên mật khẩu **không cho biết email có tồn tại hay không**. Đặt lại thành công thì thu hồi mọi phiên đăng nhập và coi email đã xác minh. |

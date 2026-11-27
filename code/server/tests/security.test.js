@@ -105,7 +105,7 @@ const prodEnv = (extra = {}) => ({
   NODE_ENV: 'production', DATABASE_URL: 'postgresql://u:p@db:5432/cinemind', CLIENT_URL: 'https://cinemind.example.com',
   JWT_ACCESS_SECRET: 'a8F3kQ9zLm2XvB7nR4tY6wC1eH5jD0pS', JWT_REFRESH_SECRET: 'Z1xV8bN3mK6qW9rT2yU5iO7pL4aS0dFg',
   VNP_TMN_CODE: 'ABCD1234', VNP_HASH_SECRET: 'HASHSECRETTHATSTHATLONGENOUGH123456', VNP_URL: 'https://pay.vnpay.vn/vpcpay.html',
-  VNP_RETURN_URL: 'https://cinemind.example.com/payment/result', ...extra,
+  VNP_RETURN_URL: 'https://cinemind.example.com/payment/result', MAIL_USER: 'rap@cinemind.example.com', MAIL_APP_PASSWORD: 'abcdabcdabcdabcd', ...extra,
 });
 const problems = (source) => { const r = parseEnv(source); return r.success ? [] : r.error.issues.map((i) => i.path[0]); };
 
@@ -126,6 +126,8 @@ test('⭐ production TỪ CHỐI khởi động với cấu hình nguy hiểm: s
   assert.ok(problems(prodEnv({ VNP_HASH_SECRET: undefined })).includes('VNP_HASH_SECRET'));
   assert.ok(problems(prodEnv({ VNP_TMN_CODE: 'DEMO0001' })).includes('VNP_HASH_SECRET'));
   assert.ok(problems(prodEnv({ VNP_RETURN_URL: undefined })).includes('VNP_RETURN_URL'));
+  assert.ok(problems(prodEnv({ MAIL_USER: undefined })).includes('MAIL_USER'));
+  assert.ok(problems(prodEnv({ MAIL_APP_PASSWORD: '' })).includes('MAIL_APP_PASSWORD'));
 });
 
 // -------------------------------------------------------------------- RATE LIMIT

@@ -29,6 +29,8 @@ import RequireRole from './RequireRole';
 import MembersPage from '@/pages/members/MembersPage';
 import LoginPage from '@/pages/auth/LoginPage';
 import RegisterPage from '@/pages/auth/RegisterPage';
+import VerifyEmailPage from '@/pages/auth/VerifyEmailPage';
+import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage';
 import { ForbiddenPage, NotFoundPage } from '@/pages/common/StatusPages';
 
 // Khai báo toàn bộ route của khách hàng (05-ui-pages.md). Các nhóm có đăng nhập sẽ bọc bằng <RequireAuth /> khi thêm trang.
@@ -44,9 +46,11 @@ export const routes = [
       { path: 'members', element: <MembersPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
+      { path: 'forgot-password', element: <ForgotPasswordPage /> },
       {
         element: <RequireAuth />, // luồng đặt vé cần đăng nhập; chưa đăng nhập -> /login?returnUrl=... rồi quay lại đúng trang
         children: [
+          { path: 'verify-email', element: <VerifyEmailPage /> },
           { path: 'booking/showtimes/:showtimeId', element: <SeatSelectionPage /> },
           { path: 'booking/orders/:orderId', element: <CheckoutPage /> },
           { path: 'payment/result', element: <PaymentResultPage /> },

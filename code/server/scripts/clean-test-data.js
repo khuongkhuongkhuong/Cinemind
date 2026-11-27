@@ -8,6 +8,7 @@ const testRooms = await prisma.room.findMany({ where: { name: { startsWith: 'Tes
 const roomIds = testRooms.map((r) => r.id);
 await prisma.order.deleteMany({ where: { tickets: { some: { showtime: { roomId: { in: roomIds } } } } } }); // Ticket xóa theo (cascade)
 await prisma.showtime.deleteMany({ where: { roomId: { in: roomIds } } });
+await prisma.seat.deleteMany({ where: { roomId: { in: roomIds } } }); // ghế giữ khóa ngoại tới phòng nên xóa trước
 await prisma.room.deleteMany({ where: { id: { in: roomIds } } });
 // Phim do test admin tạo (mô tả cố định 'Mô tả thử') và chưa có suất chiếu
 await prisma.movie.deleteMany({ where: { description: 'Mô tả thử', showtimes: { none: {} } } });

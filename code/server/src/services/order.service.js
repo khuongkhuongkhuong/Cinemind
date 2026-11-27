@@ -145,10 +145,11 @@ async function findConflicts({ showtimeId, seatIds }) {
  * @param {{ userId: string, showtimeId: string, seatIds: string[], source?: 'WEB' | 'AI_CHAT' }} params
  *   userId lấy từ token, không từ body. `source` mặc định WEB; chỉ kênh trợ lý AI (server) truyền AI_CHAT — API REST không nhận trường này.
  * @returns {Promise<object>} `Order` (04-api-contract mục 3.4)
- * @throws {AppError} NOT_FOUND | SHOWTIME_CLOSED | SEAT_LIMIT_EXCEEDED | COUPLE_SEAT_INCOMPLETE | SEAT_UNAVAILABLE
+ * @throws {AppError} EMAIL_NOT_VERIFIED | NOT_FOUND | SHOWTIME_CLOSED | SEAT_LIMIT_EXCEEDED | COUPLE_SEAT_INCOMPLETE | SEAT_UNAVAILABLE
  */
 export async function holdSeats({ userId, showtimeId, seatIds, source = 'WEB' }) {
   if (!['WEB', 'AI_CHAT'].includes(source)) throw new AppError('VALIDATION_ERROR', { details: { fields: { source: 'Nguồn đơn không hợp lệ.' } } });
+  await userService.assertEmailVerified({ userId }); // BR-40: đặt ở service nên cả web lẫn trợ lý AI đều bị chặn
   const request = await validateRequest({ showtimeId, seatIds });
 
   for (let attempt = 1; ; attempt++) {

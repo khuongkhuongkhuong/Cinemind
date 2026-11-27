@@ -54,6 +54,7 @@ export default function LoginPage() {
         {formError && <div role="alert" className="rounded-lg border border-bad/50 bg-bad/10 px-3 py-2 text-sm text-red-200">{formError}</div>}
         <TextField label="Email" type="email" autoComplete="email" value={form.email} onChange={set('email')} error={errors.email} autoFocus />
         <TextField label="Mật khẩu" type="password" autoComplete="current-password" value={form.password} onChange={set('password')} error={errors.password} />
+        <p className="text-right text-sm"><Link to="/forgot-password" className="font-semibold text-brand-400 hover:text-brand-500">Quên mật khẩu?</Link></p>
         <Button type="submit" size="lg" loading={submitting} className="w-full">Đăng nhập</Button>
       </form>
     </AuthCard>

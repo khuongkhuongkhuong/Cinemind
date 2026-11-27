@@ -18,6 +18,9 @@ const schema = z.object({
   // Cổng giả lập thanh toán (/dev/...) cho phép đánh dấu một đơn là ĐÃ TRẢ TIỀN mà không cần đăng nhập.
   // Phải được bật CÓ CHỦ ĐÍCH (mặc định tắt) và chỉ có tác dụng khi NODE_ENV=development.
   ENABLE_DEV_ROUTES: bool,
+  // Gửi email (mã xác minh, đặt lại mật khẩu): Gmail + "mật khẩu ứng dụng". Dev để trống thì mã được in ra log; production bắt buộc.
+  MAIL_USER: z.string().email().optional().or(z.literal('').transform(() => undefined)),
+  MAIL_APP_PASSWORD: z.string().optional(),
   // Số "bước nhảy" proxy tin cậy (vd 1 khi chạy sau Nginx) để req.ip là IP khách thật, không phải IP của proxy.
   TRUST_PROXY: z.coerce.number().int().min(0).max(10).optional(),
   // Trợ lý AI (docs/07): không có ANTHROPIC_API_KEY thì trợ lý TẮT (AI_UNAVAILABLE), phần còn lại của hệ thống vẫn chạy bình thường.
@@ -39,6 +42,9 @@ const schema = z.object({
   if (env.JWT_ACCESS_SECRET === env.JWT_REFRESH_SECRET) bad('JWT_REFRESH_SECRET', 'Hai secret phải khác nhau.');
   if (env.ENABLE_DEV_ROUTES) bad('ENABLE_DEV_ROUTES', 'Cổng giả lập thanh toán không được bật ở production.');
   if (!env.CLIENT_URL.startsWith('https://')) bad('CLIENT_URL', 'Production phải dùng HTTPS (cookie refresh có cờ Secure).');
+  for (const key of ['MAIL_USER', 'MAIL_APP_PASSWORD']) {
+    if (!env[key]) bad(key, 'Production bắt buộc cấu hình email (nếu không mã xác minh chỉ nằm trong log).');
+  }
   for (const key of ['VNP_TMN_CODE', 'VNP_HASH_SECRET', 'VNP_URL', 'VNP_RETURN_URL']) {
     if (!env[key]) bad(key, 'Production bắt buộc cấu hình VNPay.');
   }
