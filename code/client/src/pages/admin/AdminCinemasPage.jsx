@@ -4,6 +4,7 @@ import { useAdminCinemas, useCreateCinema, useRoomSeats, useUpdateCinema } from 
 import { useCities } from '@/hooks/useMovies';
 import { EMPTY_CINEMA, cinemaToBody, cinemaToForm, validateCinema } from '@/lib/adminCatalogForms';
 import FormModal from '@/components/admin/FormModal';
+import { RoomActions, RoomForm } from '@/components/admin/RoomManager';
 import SeatMap, { SeatLegend } from '@/components/booking/SeatMap';
 import ErrorState from '@/components/ui/ErrorState';
 import Skeleton from '@/components/ui/Skeleton';
@@ -15,8 +16,8 @@ import { useToast } from '@/components/ui/Toast';
 const NOOP = () => {};
 const EMPTY = new Set();
 
-/** Sơ đồ vật lý của phòng: chỉ xem. Ghế ngưng dùng (isActive=false) hiển thị như "không sử dụng được". */
-function RoomSeats({ roomId }) {
+/** Sơ đồ vật lý của phòng (chỉ xem), `actions` = các nút quản lý phòng. Ghế ngưng dùng (isActive=false) hiển thị như "không sử dụng được". */
+function RoomSeats({ roomId, actions }) {
   const q = useRoomSeats(roomId);
   const seats = useMemo(
     () => (q.data?.seats ?? []).map((s) => ({ ...s, status: s.isActive ? 'AVAILABLE' : 'UNAVAILABLE' })),
@@ -28,7 +29,10 @@ function RoomSeats({ roomId }) {
   seats.forEach((s) => { counts[s.type] += 1; });
   return (
     <div className="rounded-xl border border-ink-700 bg-ink-900 p-4">
-      <h2 className="mb-1 text-lg font-semibold">{q.data.room.cinema.name} · {q.data.room.name}</h2>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">{q.data.room.cinema.name} · {q.data.room.name}</h2>
+        {actions}
+      </div>
       <p className="mb-4 text-sm text-ink-300">{seats.length} ghế: {counts.STANDARD} thường · {counts.VIP} VIP · {counts.COUPLE} đôi</p>
       <SeatMap seats={seats} rows={q.data.rows} selected={EMPTY} onToggle={NOOP} disabled showPrice={false} />
       <div className="mt-4"><SeatLegend /></div>
@@ -75,7 +79,7 @@ function CinemaForm({ cinema, onClose }) {
       <TextField label="Địa chỉ" value={form.address} onChange={set('address')} error={errors.address} maxLength={255} />
       <TextField label="Số điện thoại (tùy chọn)" value={form.phone} onChange={set('phone')} error={errors.phone} inputMode="numeric" />
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))} /> Đang hoạt động</label>
-      <p className="text-xs text-ink-300">Rạp tắt sẽ biến khỏi trang khách. Không tắt được nếu còn suất sắp chiếu đã có người đặt vé. Phòng và sơ đồ ghế được nạp bằng dữ liệu mẫu (seed).</p>
+      <p className="text-xs text-ink-300">Rạp tắt sẽ biến khỏi trang khách. Không tắt được nếu còn suất sắp chiếu đã có người đặt vé. Phòng được quản lý ngay trên thẻ của từng rạp.</p>
     </FormModal>
   );
 }
@@ -84,13 +88,16 @@ export default function AdminCinemasPage() {
   const cinemas = useAdminCinemas();
   const [roomId, setRoomId] = useState('');
   const [editing, setEditing] = useState(null); // null · 'new' · rạp
+  const [addingTo, setAddingTo] = useState(null); // rạp đang được thêm phòng
+  const cinemaOfRoom = cinemas.data?.find((c) => c.rooms.some((r) => r.id === roomId));
+  const selected = cinemaOfRoom?.rooms.find((r) => r.id === roomId);
 
   return (
     <section>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Rạp & phòng chiếu</h1>
-          <p className="text-sm text-ink-300">Thêm / sửa rạp ở đây; phòng và sơ đồ ghế chỉ xem.</p>
+          <p className="text-sm text-ink-300">Thêm / sửa rạp và phòng chiếu; sơ đồ ghế chọn theo mẫu khi thêm phòng.</p>
         </div>
         <Button onClick={() => setEditing('new')}>+ Thêm rạp</Button>
       </div>
@@ -108,18 +115,24 @@ export default function AdminCinemasPage() {
                   <div className="flex flex-wrap gap-2">
                     {c.rooms.map((r) => (
                       <Button key={r.id} size="sm" variant={roomId === r.id ? 'primary' : 'secondary'} onClick={() => setRoomId(r.id)} aria-pressed={roomId === r.id}
-                        aria-label={`Xem sơ đồ ${c.name} ${r.name}, ${r.seatCount} ghế`}>
-                        {r.name} <span className="text-xs opacity-70">({r.seatCount})</span>
+                        aria-label={`Xem sơ đồ ${c.name} ${r.name}, ${r.seatCount} ghế${r.isActive ? '' : ', đã ngưng'}`}>
+                        <span className={r.isActive ? '' : 'line-through opacity-60'}>{r.name}</span> <span className="text-xs opacity-70">({r.seatCount})</span>
+                        {!r.isActive && <span className="ml-1 text-xs font-bold">Ngưng</span>}
                       </Button>
                     ))}
                   </div>
                 )}
+                <Button size="sm" variant="ghost" className="mt-3 w-full border border-dashed border-ink-500" onClick={() => setAddingTo(c)} aria-label={`Thêm phòng cho ${c.name}`}>+ Phòng</Button>
               </div>
             ))}
           </div>
-          <div>{roomId ? <RoomSeats roomId={roomId} /> : <p className="rounded-xl border border-dashed border-ink-600 p-10 text-center text-ink-300">Chọn một phòng để xem sơ đồ ghế.</p>}</div>
+          <div className="min-w-0">{selected ? (
+            <RoomSeats key={selected.id} roomId={selected.id}
+              actions={<RoomActions cinema={cinemaOfRoom} room={selected} onDeleted={() => setRoomId('')} />} />
+          ) : <p className="rounded-xl border border-dashed border-ink-600 p-10 text-center text-ink-300">Chọn một phòng để xem sơ đồ ghế.</p>}</div>
         </div>
       )}
+      {addingTo && <RoomForm cinema={addingTo} onClose={() => setAddingTo(null)} onCreated={(r) => setRoomId(r.id)} />}
       {editing && <CinemaForm key={editing === 'new' ? 'new' : editing.id} cinema={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </section>
   );

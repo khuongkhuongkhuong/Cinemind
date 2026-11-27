@@ -17,3 +17,13 @@ export const createCinemaSchema = z.object({
 export const updateCinemaSchema = z.object(
   Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, v.optional()])),
 ).strict().refine((v) => Object.keys(v).length > 0, { message: 'Cần ít nhất một trường để sửa.' });
+
+const roomName = z.string().trim().min(1, 'Vui lòng nhập tên phòng').max(30, 'Tên phòng tối đa 30 ký tự');
+
+export const createRoomSchema = z.object({
+  name: roomName,
+  template: z.enum(['SMALL', 'MEDIUM', 'LARGE'], 'Chọn mẫu sơ đồ ghế'),
+}).strict();
+
+export const updateRoomSchema = z.object({ name: roomName.optional(), isActive: z.boolean().optional() })
+  .strict().refine((v) => Object.keys(v).length > 0, { message: 'Cần ít nhất một trường để sửa.' });

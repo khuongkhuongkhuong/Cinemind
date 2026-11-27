@@ -39,6 +39,11 @@ export const useCancelShowtime = () => useInvalidatingMutation(adminApi.cancelSh
 // Rạp & phòng
 export const useAdminCinemas = () => useQuery({ queryKey: ['adminCinemas'], queryFn: adminApi.listAdminCinemas, staleTime: 5 * 60_000 });
 export const useRoomSeats = (roomId) => useQuery({ queryKey: ['roomSeats', roomId], queryFn: () => adminApi.getRoomSeats(roomId), enabled: Boolean(roomId) });
+// Đổi phòng ảnh hưởng cả lịch chiếu (phòng ngưng thì suất bị ẩn khỏi trang khách).
+const ROOM_KEYS = ['adminCinemas', 'roomSeats', 'adminShowtimes', 'showtimes', 'cinemaShowtimes'];
+export const useCreateRoom = () => useInvalidatingMutation(({ cinemaId, body }) => adminApi.createRoom(cinemaId, body), ROOM_KEYS);
+export const useUpdateRoom = () => useInvalidatingMutation(({ id, body }) => adminApi.updateRoom(id, body), ROOM_KEYS);
+export const useDeleteRoom = () => useInvalidatingMutation(adminApi.deleteRoom, ['adminCinemas', 'adminShowtimes']);
 
 // Bảng giá
 export const usePricing = () => useQuery({ queryKey: ['pricing'], queryFn: adminApi.getPricing, staleTime: 0 });

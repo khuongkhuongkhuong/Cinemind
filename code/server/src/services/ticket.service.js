@@ -89,6 +89,16 @@ export async function hasActiveSales({ showtimeId, now = new Date() }, db) {
   return (await countActiveSalesOfShowtime({ showtimeId, now }, db)) > 0;
 }
 
+/**
+ * Trong các suất đã cho, có vé nào đang được mua / giữ không? (cùng định nghĩa với `hasActiveSales`)
+ * @param {{ showtimeIds: string[], now?: Date }} params
+ * @param {object} [db]
+ * @returns {Promise<boolean>}
+ */
+export async function hasActiveSalesInShowtimes({ showtimeIds, now = new Date() }, db) {
+  return (await countActiveSalesOfShowtime({ showtimeId: { in: showtimeIds }, now }, db)) > 0;
+}
+
 // =============================================================================================
 // TRUY VẤN NỘI BỘ (@internal) — bảng Ticket. Mỗi hàm MỘT thao tác đọc / ghi; chỉ file này gọi chúng (docs/04 v1.26).
 // Tham số cuối `db = prisma`: truyền `tx` khi chạy trong transaction. Lỗi CSDL (vd P2002) đi xuyên ra cho hàm nghiệp vụ xử lý.

@@ -191,6 +191,14 @@ export async function listCinemasByCityName({ cityName }) {
 }
 
 /**
+ * Rạp theo id, kể cả đang tắt (room.service kiểm tra trước khi thêm phòng).
+ * @param {string} cinemaId
+ * @param {object} [db]
+ * @returns {Promise<{ id: string }|null>}
+ */
+export const findCinemaById = (cinemaId, db = prisma) => db.cinema.findUnique({ where: { id: cinemaId }, select: { id: true } });
+
+/**
  * Rạp ĐANG HOẠT ĐỘNG theo id (rạp đã tắt coi như không có). Service khác (showtime) gọi hàm này.
  * @param {string} cinemaId
  * @param {object} [db]

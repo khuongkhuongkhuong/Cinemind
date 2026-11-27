@@ -4,7 +4,7 @@
 > Mục đích: với **mỗi** yêu cầu (FR / NFR / BR) chỉ ra *kiểm bằng cái gì* và *kết quả lần chạy gần nhất*. Hội đồng hỏi "yêu cầu X đã được kiểm chưa?" thì mở bảng này.
 >
 > **Cách chạy lại:** `npm run db:seed` → `npm test` (trong `code/server`) · `npx vitest run` (trong `code/client`).
-> **Kết quả lần chạy 26/11/2026:** backend **361/361** (gồm 9 ca chuyển đổi dữ liệu TMDB, 4 ca xếp lịch chiếu mẫu) · frontend **381/381** (thêm trailer, thẻ phim, thanh menu, trang Thành viên, lịch timeline và tạo suất hàng loạt) · build production thành công.
+> **Kết quả lần chạy 27/11/2026:** backend **372/372** (gồm 9 ca chuyển đổi dữ liệu TMDB, 4 ca xếp lịch chiếu mẫu) · frontend **388/388** (thêm trailer, thẻ phim, thanh menu, trang Thành viên, lịch timeline, tạo suất hàng loạt và quản lý phòng chiếu) · build production thành công.
 > Lưu ý: test backend cần dữ liệu mẫu còn suất chiếu sắp tới (seed chỉ tạo 7 ngày). Hết hạn thì chạy lại `db:seed`.
 
 Quy ước cột "Cách kiểm": **A** = test tự động (tên file trong `code/server/tests/` hoặc `code/client/src/`), **T** = thử tay trên trình duyệt (kịch bản ở `docs/09`), **Đo** = có số liệu đo, **—** = chưa làm (đúng phạm vi: mức Could).
@@ -45,7 +45,8 @@ Quy ước cột "Cách kiểm": **A** = test tự động (tên file trong `cod
 |---|---|---|---|
 | FR-30 | Quản lý phim | A `admin.movie.test.js` · client `pages/admin/admin-pages.test.jsx` | Đạt |
 | FR-31 ⭐ | Suất chiếu, chặn trùng phòng + giờ | A `admin.showtime.test.js` (trùng giờ, đồng thời, sửa/hủy suất đã bán) | Đạt |
-| FR-32 | Rạp, phòng, sơ đồ ghế | A `admin.cinema.test.js`, `admin.cinema.crud.test.js` | Đạt (phòng / ghế: seed) |
+| FR-32 | Rạp, phòng, sơ đồ ghế | A `admin.cinema.test.js`, `admin.cinema.crud.test.js` | Đạt (sơ đồ ghế: seed hoặc theo mẫu) |
+| FR-32a | Thêm / sửa / ngưng / xóa phòng chiếu | A `admin.room.test.js` (phân quyền, ngưng phòng đóng bán, không xóa phòng đã có suất) · client `pages/admin/admin-rooms.test.jsx` | Đạt |
 | FR-33 | Bảng giá | A `admin.pricing.test.js`, `pricing.test.js` | Đạt |
 | FR-34 | Danh sách đơn hàng, vé | A `admin.order.test.js` | Đạt |
 | FR-35 | Combo, khuyến mãi | A `admin.catalog.test.js` · client `pages/admin/admin-extras.test.jsx` | Đạt |

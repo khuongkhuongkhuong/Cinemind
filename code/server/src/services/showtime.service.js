@@ -14,7 +14,7 @@ import * as seatService from './seat.service.js';
 /** Phim + phòng + rạp của suất (cho ShowtimeDetail). */
 export const SHOWTIME_INCLUDE = {
   movie: { select: { id: true, title: true, ageRating: true, posterUrl: true } },
-  room: { select: { id: true, name: true, cinema: { select: { id: true, name: true } } } },
+  room: { select: { id: true, name: true, isActive: true, cinema: { select: { id: true, name: true, isActive: true } } } },
 };
 
 /** Các trường suất cho trang quản trị. */
@@ -30,11 +30,13 @@ const minutesOf = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3)
 
 /**
  * Suất còn mở bán không? (BR-04) — hàm thuần, order.service dùng lại khi giữ ghế.
- * @param {{ status: string, startTime: Date }} showtime
+ * Nếu dòng suất có kèm phòng / rạp (SHOWTIME_INCLUDE) thì phòng ngưng hoặc rạp tắt cũng là đóng bán (v1.29).
+ * @param {{ status: string, startTime: Date, room?: { isActive?: boolean, cinema?: { isActive?: boolean } } }} showtime
  * @param {Date} [now]
  */
 export const isOpenForSale = (showtime, now = new Date()) =>
-  showtime.status === 'OPEN' && showtime.startTime.getTime() - now.getTime() > SALE_CUTOFF_MS;
+  showtime.status === 'OPEN' && showtime.startTime.getTime() - now.getTime() > SALE_CUTOFF_MS
+  && showtime.room?.isActive !== false && showtime.room?.cinema?.isActive !== false;
 
 /** "2026-10-02" (theo giờ VN) -> khoảng [00:00, 24:00) của ngày đó, tính bằng mốc UTC. */
 export function vnDayRange(dateStr) {
@@ -52,7 +54,7 @@ export const toDetail = (s, now) => ({
   audio: s.audio,
   isOpenForSale: isOpenForSale(s, now),
   movie: s.movie,
-  cinema: s.room.cinema,
+  cinema: { id: s.room.cinema.id, name: s.room.cinema.name },
   room: { id: s.room.id, name: s.room.name },
 });
 
@@ -113,7 +115,7 @@ export async function loadShowtime({ showtimeId, withDetail = false }) {
  * @throws {AppError} NOT_FOUND | SHOWTIME_CLOSED
  */
 export async function getOpenShowtime({ showtimeId, now = new Date() }) {
-  const showtime = await loadShowtime({ showtimeId });
+  const showtime = await loadShowtime({ showtimeId, withDetail: true }); // kèm phòng / rạp để chặn phòng ngưng, rạp tắt
   if (!isOpenForSale(showtime, now)) throw new AppError('SHOWTIME_CLOSED');
   return showtime;
 }
@@ -146,7 +148,7 @@ const hasSales = (db, showtimeId) => ticketService.hasActiveSales({ showtimeId }
  * trùng không rồi mới ghi" là check-then-insert nên bị race. Khóa tư vấn (advisory lock) theo roomId xếp họ thành hàng
  * (tự nhả khi transaction kết thúc): người sau sẽ thấy suất của người trước và nhận SHOWTIME_OVERLAP.
  */
-const withRoomLock = (roomId, work) =>
+export const withRoomLock = (roomId, work) =>
   runInTransaction(async (tx) => {
     await lockRoom(tx, roomId);
     return work(tx);
@@ -327,6 +329,27 @@ export async function cancelShowtime({ showtimeId }) {
 }
 
 /**
+ * Phòng đã từng có suất chiếu chưa (kể cả đã qua / đã hủy)? room.service gọi trước khi xóa phòng.
+ * @param {{ roomId: string }} params
+ * @param {object} [db]
+ * @returns {Promise<boolean>}
+ */
+export async function roomHasShowtimes({ roomId }, db) {
+  return (await countAdminShowtimes({ roomId }, db)) > 0;
+}
+
+/**
+ * Phòng còn suất CHƯA chiếu, còn mở, đã có người mua / giữ vé không? room.service gọi trước khi ngưng phòng.
+ * @param {{ roomId: string, now?: Date }} params
+ * @param {object} [db]
+ * @returns {Promise<boolean>}
+ */
+export async function roomHasUpcomingSales({ roomId, now = new Date() }, db) {
+  const showtimeIds = (await listUpcomingShowtimeIds({ roomId, now }, db)).map((s) => s.id);
+  return showtimeIds.length > 0 && ticketService.hasActiveSalesInShowtimes({ showtimeIds, now }, db);
+}
+
+/**
  * Lịch chiếu của MỘT RẠP trong một ngày, nhóm theo phim -> (định dạng, phụ đề/lồng tiếng) (docs 3.2b).
  * Chỉ suất OPEN; rạp đã tắt coi như không tồn tại với khách.
  * @param {{ cinemaId: string, date: string }} params date dạng YYYY-MM-DD (giờ VN)
@@ -458,7 +481,7 @@ export const listOpenShowtimesOfMovie = ({ movieId, from, to, cityId }, db = pri
       movieId,
       status: 'OPEN',
       startTime: { gte: from, lt: to },
-      room: { cinema: { cityId, isActive: true } },
+      room: { isActive: true, cinema: { cityId, isActive: true } },
     },
     orderBy: { startTime: 'asc' },
     select: {
@@ -473,7 +496,7 @@ export const listOpenShowtimesOfMovie = ({ movieId, from, to, cityId }, db = pri
  */
 export const listOpenShowtimesOfCinema = ({ cinemaId, from, to }, db = prisma) =>
   db.showtime.findMany({
-    where: { status: 'OPEN', startTime: { gte: from, lt: to }, room: { cinemaId } },
+    where: { status: 'OPEN', startTime: { gte: from, lt: to }, room: { cinemaId, isActive: true } },
     orderBy: { startTime: 'asc' },
     select: {
       id: true, startTime: true, format: true, audio: true, status: true,
@@ -502,6 +525,13 @@ export const searchOpenShowtimes = ({ from, to, movieId, format, cinemaId, cityI
       room: { select: { cinema: { select: { id: true, name: true } } } },
     },
   });
+
+/**
+ * Id các suất OPEN chưa bắt đầu của một phòng.
+ * @internal
+ */
+export const listUpcomingShowtimeIds = ({ roomId, now }, db = prisma) =>
+  db.showtime.findMany({ where: { roomId, status: 'OPEN', startTime: { gt: now } }, select: { id: true } });
 
 /** Điều kiện lọc của trang quản trị: phòng, rạp, khoảng thời gian [from, to). */
 const adminWhere = ({ roomId, cinemaId, from, to }) => ({

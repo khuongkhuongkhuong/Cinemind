@@ -89,7 +89,7 @@ function TimelineView({ cinemas, cinemaId, onCinema, date, onDate, onAdd, onOpen
             : (
               <>
                 <p className="text-sm text-ink-300" role="status">
-                  {startingOn(list.data.items, date).filter((s) => s.status === 'OPEN').length} suất đang mở. Bấm chỗ trống để thêm, bấm khối phim để sửa. 🎟 là số ghế đã đặt.
+                  {startingOn(list.data.items, date).filter((s) => s.status === 'OPEN' && cinema.rooms.some((r) => r.isActive && r.id === s.room.id)).length} suất đang mở. Bấm chỗ trống để thêm, bấm khối phim để sửa. 🎟 là số ghế đã đặt.
                 </p>
                 {list.data.meta.total > 100 && <p role="alert" className="text-sm text-red-300">Ngày này có hơn 100 suất, lịch chỉ hiện 100 suất đầu. Xem đủ ở chế độ Danh sách.</p>}
                 <ShowtimeTimeline rooms={cinema.rooms.filter((r) => r.isActive)} showtimes={list.data.items} date={date} onAdd={onAdd} onOpen={onOpen} />
