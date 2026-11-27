@@ -14,12 +14,19 @@ export const deleteMovie = (id) => api.delete(`/admin/movies/${id}`).then(() => 
 // ---- Suất chiếu ----
 export const listAdminShowtimes = (params) => paged(api.get('/admin/showtimes', { params }));
 export const createShowtime = (body) => unwrap(api.post('/admin/showtimes', body));
+/** Tạo hàng loạt; `body.dryRun` = chỉ xem trước. */
+export const bulkShowtimes = (body) => unwrap(api.post('/admin/showtimes/bulk', body));
 export const updateShowtime = (id, body) => unwrap(api.put(`/admin/showtimes/${id}`, body));
 export const cancelShowtime = (id) => unwrap(api.patch(`/admin/showtimes/${id}/cancel`));
 
-// ---- Rạp & phòng (chỉ đọc) ----
+// ---- Rạp & phòng ----
 export const listAdminCinemas = () => unwrap(api.get('/admin/cinemas'));
 export const getRoomSeats = (roomId) => unwrap(api.get(`/admin/rooms/${roomId}/seats`));
+/** @param {{ name: string, template: 'SMALL'|'MEDIUM'|'LARGE' }} body */
+export const createRoom = (cinemaId, body) => unwrap(api.post(`/admin/cinemas/${cinemaId}/rooms`, body));
+/** @param {{ name?: string, isActive?: boolean }} body */
+export const updateRoom = (id, body) => unwrap(api.put(`/admin/rooms/${id}`, body));
+export const deleteRoom = (id) => api.delete(`/admin/rooms/${id}`).then(() => undefined);
 
 // ---- Bảng giá ----
 export const getPricing = () => unwrap(api.get('/admin/pricing'));

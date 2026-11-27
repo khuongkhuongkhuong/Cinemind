@@ -10,6 +10,11 @@ export async function create(req, res) {
   ok(res, await showtimeService.createShowtime(req.body), 201);
 }
 
+export async function createBulk(req, res) {
+  const result = await showtimeService.createShowtimesBulk(req.body);
+  ok(res, result, result.dryRun ? 200 : 201);
+}
+
 export async function update(req, res) {
   ok(res, await showtimeService.updateShowtime({ showtimeId: req.params.id, ...req.body }));
 }

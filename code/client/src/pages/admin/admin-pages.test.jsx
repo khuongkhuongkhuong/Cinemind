@@ -160,6 +160,7 @@ describe('AdminShowtimesPage (A03)', () => {
     common();
     server.use(http.get(`${A}/admin/showtimes`, () => ok([{ ...showtime, status: 'CANCELLED' }], meta)));
     renderPage([{ path: '/', element: <AdminShowtimesPage /> }], '/');
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Danh sách' }));
     expect(await screen.findByText('Đã hủy')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Hủy suất' })).not.toBeInTheDocument();
   });

@@ -37,8 +37,8 @@
 |---|---|---|---|
 | A01 | Tổng quan / báo cáo doanh thu | `/admin` | S |
 | A02 | Phim (danh sách + form) | `/admin/movies` | M |
-| A03 | Suất chiếu (lọc theo rạp, phòng, ngày) | `/admin/showtimes` | M |
-| A04 | Rạp, phòng, xem sơ đồ ghế | `/admin/cinemas` | S |
+| A03 | Suất chiếu: lịch timeline theo rạp + ngày, danh sách (lọc rạp, ngày), tạo hàng loạt | `/admin/showtimes` | M |
+| A04 | Rạp, phòng (thêm / sửa / ngưng / xóa), xem sơ đồ ghế | `/admin/cinemas` | S |
 | A05 | Bảng giá | `/admin/pricing` | M |
 | A06 | Đơn hàng (lọc theo trạng thái, xử lý REFUND_PENDING) | `/admin/orders` | M |
 | A07 | Combo | `/admin/combos` | S |
@@ -46,6 +46,13 @@
 | A09 | Tài khoản & phân quyền | `/admin/users` | S |
 | A10 | Banner | `/admin/banners` | C |
 | A11 | Nhật ký thao tác (ai làm gì, lúc nào) | `/admin/audit` | S |
+
+**A03 Suất chiếu (v1.1, FR-31a/b):** hai chế độ xem.
+- **Lịch theo phòng** (mặc định): chọn rạp và ngày; mỗi phòng một hàng, mỗi suất một khối dài theo thời lượng, mỗi phim một màu, khối có số ghế đã đặt. Bấm chỗ trống (hoặc nút "+" ở đầu hàng) mở form thêm suất điền sẵn phòng và giờ; bấm khối mở form sửa, có nút hủy suất. Trục giờ bắt đầu 08:00, cuộn ngang được.
+- **Danh sách:** bảng như trước.
+- **Tạo hàng loạt:** chọn phim, phòng, từ ngày – đến ngày, các giờ; bấm "Xem trước" để thấy suất nào tạo được, suất nào trùng, rồi mới "Tạo N suất". Đổi bất kỳ ô nào thì phải xem trước lại.
+
+**A04 Rạp & phòng (v1.1, FR-32a):** mỗi thẻ rạp có nút "+ Phòng" (nhập tên, chọn mẫu sơ đồ nhỏ / vừa / lớn). Chọn một phòng để xem sơ đồ ghế, kèm các nút "Đổi tên", "Ngưng phòng" / "Mở lại", "Xóa phòng". Ngưng và xóa phải xác nhận; server từ chối thì hiện lý do. Phòng đã ngưng có nhãn "Ngưng".
 
 > **Mẹo tiết kiệm công:** A02, A07, A08, A09, A10 dùng chung một khuôn "bảng danh sách + bộ lọc + form trong modal". Làm kỹ một lần (A02), các trang còn lại sao chép và đổi cột.
 

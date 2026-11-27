@@ -55,6 +55,53 @@ export async function getSeatMap({ showtimeId }) {
   return (await loadSeatMap({ showtimeId })).map;
 }
 
+// Mẫu sơ đồ ghế khi quản trị viên thêm phòng (v1.29): hàng cuối là ghế đôi, `standardRows` hàng đầu là ghế thường, còn lại VIP.
+export const ROOM_TEMPLATES = {
+  SMALL: { rows: 6, perRow: 10, standardRows: 2 },
+  MEDIUM: { rows: 8, perRow: 12, standardRows: 3 }, // giống dữ liệu mẫu (seed)
+  LARGE: { rows: 10, perRow: 14, standardRows: 3 },
+};
+
+/** Danh sách ghế của một mẫu (hàm thuần). Ghế đôi ghép theo cặp số (1-2, 3-4...) với pairCode "H1-2". */
+export function buildTemplateSeats(template) {
+  const { rows, perRow, standardRows } = ROOM_TEMPLATES[template];
+  return Array.from({ length: rows }, (_, r) => {
+    const row = String.fromCharCode(65 + r);
+    return Array.from({ length: perRow }, (__, i) => {
+      const number = i + 1;
+      if (r < rows - 1) return { row, number, type: r < standardRows ? 'STANDARD' : 'VIP', pairCode: null };
+      const first = number % 2 === 1 ? number : number - 1;
+      return { row, number, type: 'COUPLE', pairCode: `${row}${first}-${first + 1}` };
+    });
+  }).flat();
+}
+
+/**
+ * Tạo toàn bộ ghế của một phòng mới theo mẫu. room.service gọi trong transaction tạo phòng.
+ * @param {{ roomId: string, template: 'SMALL'|'MEDIUM'|'LARGE' }} params
+ * @param {object} [db]
+ * @returns {Promise<number>} số ghế đã tạo
+ */
+export async function createSeatsForRoom({ roomId, template }, db) {
+  const seats = buildTemplateSeats(template).map((s) => ({ ...s, roomId }));
+  return (await insertSeats(seats, db)).count;
+}
+
+/**
+ * Xóa mọi ghế của một phòng (chỉ dùng khi xóa phòng chưa từng có suất chiếu).
+ * @param {string} roomId
+ * @param {object} [db]
+ */
+export const removeSeatsOfRoom = (roomId, db) => deleteSeatsOfRoom(roomId, db);
+
+/**
+ * Tổng số ghế (kể cả ghế hỏng) của một phòng.
+ * @param {string} roomId
+ * @param {object} [db]
+ * @returns {Promise<number>}
+ */
+export const countSeatsOfRoom = async (roomId, db) => (await getSeatsOfRoom(roomId, db)).length;
+
 /**
  * Số ghế DÙNG ĐƯỢC (chưa hỏng) của mỗi phòng.
  * @param {string[]} roomIds
@@ -233,3 +280,9 @@ export const getSeatsOfRoom = (roomId, db = prisma) => db.seat.findMany({ where:
  * @internal
  */
 export const findSeatsInRoom = ({ roomId, seatIds }, db = prisma) => db.seat.findMany({ where: { id: { in: seatIds }, roomId } });
+
+/** Thêm nhiều ghế trong một câu lệnh. @internal */
+export const insertSeats = (rows, db = prisma) => db.seat.createMany({ data: rows });
+
+/** Xóa mọi ghế của một phòng. @internal */
+export const deleteSeatsOfRoom = (roomId, db = prisma) => db.seat.deleteMany({ where: { roomId } });

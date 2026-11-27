@@ -3,7 +3,7 @@ import * as adminApi from '@/api/admin.api';
 import * as catalogApi from '@/api/catalog.api';
 
 // Danh sách luôn được làm mới sau khi tạo / sửa / xóa: invalidate theo "họ" khóa truy vấn.
-const useListQuery = (key, fn, params) => useQuery({ queryKey: [key, params], queryFn: () => fn(params), placeholderData: keepPreviousData });
+const useListQuery = (key, fn, params, options) => useQuery({ queryKey: [key, params], queryFn: () => fn(params), placeholderData: keepPreviousData, ...options });
 
 function useInvalidatingMutation(fn, keys) {
   const queryClient = useQueryClient();
@@ -21,7 +21,17 @@ export const useSetMovieStatus = () => useInvalidatingMutation(({ id, status }) 
 export const useDeleteMovie = () => useInvalidatingMutation(adminApi.deleteMovie, ['adminMovies', 'movies']);
 
 // Suất chiếu
-export const useAdminShowtimes = (params) => useListQuery('adminShowtimes', adminApi.listAdminShowtimes, params);
+export const useAdminShowtimes = (params, options) => useListQuery('adminShowtimes', adminApi.listAdminShowtimes, params, options);
+/** Tạo hàng loạt: xem trước không đổi dữ liệu nên không cần làm mới danh sách. */
+export function useBulkShowtimes() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: adminApi.bulkShowtimes,
+    onSuccess: (data) => {
+      if (!data.dryRun) ['adminShowtimes', 'showtimes'].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
+    },
+  });
+}
 export const useCreateShowtime = () => useInvalidatingMutation(adminApi.createShowtime, ['adminShowtimes', 'showtimes']);
 export const useUpdateShowtime = () => useInvalidatingMutation(({ id, body }) => adminApi.updateShowtime(id, body), ['adminShowtimes', 'showtimes']);
 export const useCancelShowtime = () => useInvalidatingMutation(adminApi.cancelShowtime, ['adminShowtimes', 'showtimes']);
@@ -29,6 +39,11 @@ export const useCancelShowtime = () => useInvalidatingMutation(adminApi.cancelSh
 // Rạp & phòng
 export const useAdminCinemas = () => useQuery({ queryKey: ['adminCinemas'], queryFn: adminApi.listAdminCinemas, staleTime: 5 * 60_000 });
 export const useRoomSeats = (roomId) => useQuery({ queryKey: ['roomSeats', roomId], queryFn: () => adminApi.getRoomSeats(roomId), enabled: Boolean(roomId) });
+// Đổi phòng ảnh hưởng cả lịch chiếu (phòng ngưng thì suất bị ẩn khỏi trang khách).
+const ROOM_KEYS = ['adminCinemas', 'roomSeats', 'adminShowtimes', 'showtimes', 'cinemaShowtimes'];
+export const useCreateRoom = () => useInvalidatingMutation(({ cinemaId, body }) => adminApi.createRoom(cinemaId, body), ROOM_KEYS);
+export const useUpdateRoom = () => useInvalidatingMutation(({ id, body }) => adminApi.updateRoom(id, body), ROOM_KEYS);
+export const useDeleteRoom = () => useInvalidatingMutation(adminApi.deleteRoom, ['adminCinemas', 'adminShowtimes']);
 
 // Bảng giá
 export const usePricing = () => useQuery({ queryKey: ['pricing'], queryFn: adminApi.getPricing, staleTime: 0 });

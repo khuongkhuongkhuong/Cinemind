@@ -86,7 +86,10 @@ flowchart LR
 |---|---|---|
 | FR-30 | Quản lý phim | M |
 | FR-31 | Quản lý suất chiếu (chặn trùng phòng + giờ) | M ⭐ |
+| FR-31a | Xem lịch chiếu của một rạp trong một ngày dạng trục thời gian (mỗi phòng một hàng), thêm / sửa / hủy suất ngay trên đó (bổ sung 26/11/2026) | S |
+| FR-31b | Tạo nhiều suất một lần: một phim, một phòng, khoảng ngày và nhiều giờ; xem trước suất nào tạo được, suất nào trùng (bổ sung 26/11/2026) | S |
 | FR-32 | Rạp, phòng, sơ đồ ghế — dữ liệu mẫu (seed) | M (màn hình CRUD: S) |
+| FR-32a | Quản lý phòng chiếu: thêm phòng theo mẫu sơ đồ ghế (nhỏ / vừa / lớn), đổi tên, ngưng / mở lại, xóa phòng chưa từng có suất chiếu. Không có trình vẽ sơ đồ ghế (bổ sung 27/11/2026) | S |
 | FR-33 | Bảng giá theo loại ghế / định dạng / ngày | M |
 | FR-34 | Xem danh sách đơn hàng, vé | M |
 | FR-35 | Quản lý combo, mã khuyến mãi | S |

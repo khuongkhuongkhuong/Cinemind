@@ -149,7 +149,7 @@ test('⭐ lọc rạp / phòng / khoảng thời gian: rạp hoặc phòng đã 
     assert.equal((await showtimeSvc.searchOpenShowtimes({ from, to: at(11_501), cinemaId: cinema.id })).some((s) => s.id === sEdge.id), true);
 
     const ofCinema = await showtimeSvc.listOpenShowtimesOfCinema({ cinemaId: cinema.id, from, to: at(11_501) });
-    assert.deepEqual(ofCinema.map((s) => s.id).sort(), [sEdge.id, sOffRoom.id].sort()); // đúng rạp (phòng tắt vẫn thuộc rạp này); KHÔNG có suất rạp khác
+    assert.deepEqual(ofCinema.map((s) => s.id), [sEdge.id]); // đúng rạp; phòng tắt bị ẩn khỏi lịch khách (v1.29); KHÔNG có suất rạp khác
     assert.ok(!ofCinema.some((s) => s.id === sOther.id || s.id === sOffCinema.id));
     await prisma.showtime.deleteMany({ where: { roomId: { in: [room2.id, offRoom.id, roomInOff.id] } } });
     await prisma.showtime.deleteMany({ where: { id: sEdge.id } });
