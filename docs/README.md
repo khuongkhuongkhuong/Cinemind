@@ -9,7 +9,7 @@
 |---|---|---|
 | [01-requirements.md](./01-requirements.md) | Tác nhân, luồng nghiệp vụ, 30 yêu cầu chức năng (MoSCoW), 20 yêu cầu phi chức năng, phạm vi MVP, nhật ký quyết định | SRS |
 | [02-usecases.md](./02-usecases.md) | 24 use case + sơ đồ, 30 luật nghiệp vụ, đặc tả "Đặt vé", vòng đời đơn hàng, sơ đồ tuần tự | Use case, sơ đồ tuần tự |
-| [03-database.md](./03-database.md) | 23 bảng, ERD, **cơ chế giữ ghế & chống trùng ghế**, index | ERD, thiết kế CSDL |
+| [03-database.md](./03-database.md) | 22 bảng, ERD, **cơ chế giữ ghế & chống trùng ghế**, index | ERD, thiết kế CSDL |
 | [schema.prisma](./schema.prisma) | Schema Prisma đầy đủ | — |
 | [04-api-contract.md](./04-api-contract.md) | Quy ước, mã lỗi, ~50 endpoint, mẫu JSON, kiến trúc & cấu trúc thư mục | Thiết kế API |
 | [05-ui-pages.md](./05-ui-pages.md) | 24 trang, luồng điều hướng, wireframe | Thiết kế giao diện |
@@ -20,8 +20,6 @@
 | [10-test-cases.md](./10-test-cases.md) | Bảng test case: mỗi FR / NFR / BR được kiểm bằng gì, kết quả, số đo hiệu năng và responsive | Test case |
 | [11-user-guide.md](./11-user-guide.md) | Hướng dẫn sử dụng cho khách hàng, nhân viên, quản trị viên (có ảnh chụp) | Hướng dẫn sử dụng |
 | [../CLAUDE.md](../CLAUDE.md) | Tóm tắt bối cảnh + quy tắc cho Claude Code ở bước lập trình | — |
-
-**Còn phải viết trong lúc làm (Sprint 1–4):** test case, hướng dẫn sử dụng, README cài đặt.
 
 ## 2. Nên đọc theo thứ tự nào
 

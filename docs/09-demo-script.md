@@ -2,6 +2,7 @@
 
 > Mục đích: chạy được một buổi demo ~12 phút **không phụ thuộc may rủi**, và trả lời được các câu hỏi hội đồng hay hỏi nhất.
 > Mọi lệnh chạy trong `code/server` (backend) hoặc `code/client` (frontend), trừ khi ghi khác.
+> Cập nhật 27/11/2026: theo mô hình vé là lớp trung gian (bỏ `SeatLock`), `order.service`, lịch chiếu theo phòng, tạo hàng loạt, quản lý phòng, trailer và menu mới.
 
 ## 1. Chuẩn bị (làm 1 lần, trước ngày bảo vệ)
 
@@ -9,7 +10,7 @@
 |---|---|---|
 | 1 | Cài đặt, tạo DB, áp migration | `npm install` · `npm run db:migrate` (trong `code/server` và `code/client`) |
 | 2 | Bật cổng thanh toán giả lập | `code/server/.env`: `ENABLE_DEV_ROUTES=true` · `code/client/.env`: `VITE_PAYMENT_SIMULATOR=true` (chỉ chạy ở chế độ dev) |
-| 3 | Nạp dữ liệu mẫu (xóa dữ liệu cũ!) | `npm run db:seed` — suất chiếu chỉ tạo cho **7 ngày kể từ lúc chạy**, nên seed lại trong **ngày bảo vệ** |
+| 3 | Nạp dữ liệu mẫu (xóa dữ liệu cũ!) | `npm run db:seed` — suất chiếu tạo cho **14 ngày kể từ lúc chạy**, nên seed lại gần ngày bảo vệ |
 | 4 | Nạp dữ liệu demo (đơn đã bán, doanh thu) | `npm run db:demo` — 45 đơn đã thanh toán rải 14 ngày, 3 đơn hủy, 1 đơn chờ hoàn tiền |
 | 5 | Chạy thử toàn bộ test | `npm test` (backend) · `npx vitest run` (frontend) — phải xanh hết |
 
@@ -29,12 +30,12 @@
 
 | Phút | Bước | Nói gì / chỉ gì |
 |---|---|---|
-| 0–1 | **Trang chủ → Phim → chi tiết phim** | Luồng giống CGV: chọn thành phố → ngày → rạp → suất. Giờ hiển thị theo giờ Việt Nam, lưu UTC. Suất còn < 15 phút hoặc đã chiếu bị làm mờ (BR-04) do **server** quyết định. |
-| 1–4 | ⭐ **Chọn ghế — hai người cùng chọn một ghế** | Tab khách A và tab khách B cùng vào một suất. A giữ ghế G7 → B bấm G7 → B nhận thông báo "ghế vừa có người chọn" và sơ đồ tự cập nhật. **Trọng tài là khóa chính `SeatLock(showtimeId, seatId)` trong DB**, không phải code "kiểm tra rồi mới ghi" (check-then-insert). Giữ ghế **tất cả hoặc không**. Ghế đôi chọn cả cặp. |
+| 0–1 | **Trang chủ → Phim → chi tiết phim** | Rê chuột vào poster để phát **trailer** tại chỗ; menu Phim / Rạp Cinemind / Thành viên. Luồng giống CGV: chọn thành phố → ngày → rạp → suất. Giờ hiển thị theo giờ Việt Nam, lưu UTC. Suất còn < 15 phút hoặc đã chiếu bị làm mờ (BR-04) do **server** quyết định. |
+| 1–4 | ⭐ **Chọn ghế — hai người cùng chọn một ghế** | Tab khách A và tab khách B cùng vào một suất. A giữ ghế G7 → B bấm G7 → B nhận thông báo "ghế vừa có người chọn" và sơ đồ tự cập nhật. **Trọng tài là ràng buộc UNIQUE `Ticket(showtimeId, occupiedSeatId)` trong DB**, không phải code "kiểm tra rồi mới ghi" (check-then-insert). Giữ ghế **tất cả hoặc không**. Ghế đôi chọn cả cặp. |
 | 4–6 | **Combo + mã khuyến mãi + thanh toán** | Chọn combo, nhập mã `CINE10`. Tổng tiền do **server tính**, giá được chốt vào đơn (đổi bảng giá sau không ảnh hưởng đơn cũ). Đếm ngược 10 phút. Bấm Thanh toán → cổng giả lập. |
 | 6–7 | ⭐ **Nhận vé** | Chỉ **IPN** (đã kiểm chữ ký + số tiền, idempotent) mới chuyển đơn sang `PAID`; trang kết quả chỉ đọc trạng thái. Vé có mã + QR (trang "Vé của tôi"). |
 | 7–8 | **Soát vé (nhân viên)** | Tab nhân viên → `/staff/check-in` → nhập mã vé hoặc nội dung QR → hợp lệ → xác nhận. Quét **lần thứ hai** → báo vé đã dùng (check-in là **một câu cập nhật có điều kiện**, hai nhân viên quét cùng lúc chỉ một người thành công). |
-| 8–10 | **Quản trị** | Tổng quan doanh thu (theo ngày / phim / rạp — chỉ tính đơn `PAID`). Suất chiếu: thử tạo suất trùng giờ cùng phòng → `SHOWTIME_OVERLAP`. Bảng giá. Đơn hàng: mở đơn **chờ hoàn tiền** → "Ghi nhận đã hoàn tiền" (hệ thống không tự chuyển tiền). |
+| 8–10 | **Quản trị** | Tổng quan doanh thu (theo ngày / phim / rạp — chỉ tính đơn `PAID`). **Suất chiếu:** lịch 12 phòng theo trục giờ (sọc xám = 15 phút dọn phòng) → bấm chỗ trống, chọn giờ đè lên suất khác: form **cảnh báo ngay**, bấm Lưu thì server từ chối (`SHOWTIME_OVERLAP`) → **Tạo hàng loạt** → *Xem trước* (không bấm tạo cũng được). **Rạp & phòng:** thử ngưng một phòng còn vé đã bán → bị từ chối. Đơn hàng: mở đơn **chờ hoàn tiền** → "Ghi nhận đã hoàn tiền" (hệ thống không tự chuyển tiền). |
 | 10–11 | ⭐ **Phân quyền & nhật ký** | Đăng nhập khách → vào `/admin` → bị chặn (403). Admin tự khóa / hạ quyền chính mình → bị từ chối; luôn còn ≥ 1 admin. Trang **Nhật ký**: ai làm gì, lúc nào; mật khẩu không bao giờ được lưu. |
 | 11–12 | **Chất lượng** | `npm test`: có test đồng thời giữ ghế (`booking.concurrency`), IPN (`payment.ipn`), phân quyền, và test **đối chiếu docs ↔ code** (`docs.conformance`). |
 
@@ -42,23 +43,25 @@
 
 | Câu hỏi | Trả lời ngắn | Chỉ ở đâu |
 |---|---|---|
-| Hai người đặt cùng một ghế thì sao? | Ràng buộc UNIQUE `(showtimeId, occupiedSeatId)` của bảng `Ticket` (mỗi ghế của một suất chỉ có một vé còn hiệu lực) — DB chỉ cho một transaction thắng; người thua nhận `SEAT_UNAVAILABLE` và transaction của họ rollback (không giữ nửa chừng). | docs/03 mục 5; `booking.service.js`; `tests/booking.concurrency.test.js` |
+| Hai người đặt cùng một ghế thì sao? | Ràng buộc UNIQUE `(showtimeId, occupiedSeatId)` của bảng `Ticket` (mỗi ghế của một suất chỉ có một vé còn hiệu lực) — DB chỉ cho một transaction thắng; người thua nhận `SEAT_UNAVAILABLE` và transaction của họ rollback (không giữ nửa chừng). | docs/03 mục 5; `order.service.js`, `ticket.service.js`; `tests/booking.concurrency.test.js` |
 | Sao không "kiểm tra ghế trống rồi mới chèn"? | Giữa hai bước đó người khác có thể chèn xen vào (race condition). Ràng buộc của DB là nơi duy nhất đảm bảo tuyệt đối. | docs/03 mục 5.8 |
 | Ghế giữ quá hạn xử lý thế nào? | "Dọn lười": lượt giữ quá hạn coi như trống ngay khi đọc/giữ; cron chỉ dọn dữ liệu. Không có khoảng hở nếu cron chậm. | docs/03 mục 5.6 |
 | Sao tin được là khách đã trả tiền? | Chỉ IPN của VNPay (kiểm chữ ký HMAC + số tiền khớp + idempotent) được đổi trạng thái; trang return và client không thể giả mạo. | `payment.service.js`; `tests/payment.ipn.test.js` |
 | IPN đến hai lần? / đến muộn khi ghế đã bị lấy? | Idempotent (cập nhật có điều kiện, chỉ một lần thành công). Đến muộn mà ghế đã mất → đơn `REFUND_PENDING` để admin hoàn tiền thủ công. | docs/03 mục 5.7 |
-| Khách tự sửa giá / số tiền được không? | Không: server tự tính mọi khoản tiền từ bảng giá, giá chốt vào `Ticket` / `OrderCombo`. Client chỉ hiển thị. | `pricing.service.js`, `booking.service.js` |
+| Khách tự sửa giá / số tiền được không? | Không: server tự tính mọi khoản tiền từ bảng giá, giá chốt vào `Ticket` / `OrderCombo`. Client chỉ hiển thị. | `pricing.service.js`, `order.service.js` |
 | Phân quyền thế nào? | JWT 15 phút + refresh 7 ngày (cookie httpOnly). Route `/admin`, `/staff` đọc **lại vai trò từ DB mỗi request** nên khóa tài khoản / hạ quyền có hiệu lực ngay. UI ẩn nút chỉ là tiện lợi. | `middlewares/auth.js` |
 | Có chống lỗi bảo mật phổ biến không? | bcrypt; zod `.strict()` chống mass assignment; URL chỉ http(s)/đường dẫn nội bộ (chống XSS, open redirect); rate limit; header bảo mật; truy vấn qua Prisma (chống SQL injection). | docs/08 |
 | Hạn chế còn lại? | Nêu thẳng (docs/08 mục "Hạn chế đã biết"): access token 15 phút trên route khách; rate limit trong bộ nhớ; chưa phát hiện tái sử dụng refresh token; nhật ký ghi sau phản hồi (best-effort, không atomic). | docs/08 |
-| Phần AI Agent? | Mọi nghiệp vụ nằm trong `services/` nhận object, trả object, ném `AppError` — Agent gọi service như tool; `userId` luôn từ phiên đăng nhập. Thiết kế 14 tool ở docs/07. | docs/07 |
+| Hai admin cùng tạo suất trùng giờ? | Tạo suất chạy trong transaction có **khóa tư vấn (advisory lock) theo phòng**: người sau chờ người trước rồi mới kiểm tra trùng. Tạo hàng loạt cũng xét lại sau khi khóa, nên kết quả có thể khác bản xem trước. | `showtime.service.js`; `tests/admin.showtime.bulk.test.js` |
+| Sao không xóa được phòng? Ngưng phòng thì sao? | Phòng đã từng có suất thì giữ để không mất lịch sử vé, doanh thu. Phòng ngưng: suất còn trong DB nhưng ẩn khỏi khách và đóng bán; còn vé đã bán thì không cho ngưng. Hạn chế: giữ ghế đúng khoảnh khắc admin ngưng vẫn có thể lọt. | `room.service.js`; `tests/admin.room.test.js` |
+| Phần AI Agent? | Mọi nghiệp vụ nằm trong `services/` nhận object, trả object, ném `AppError` — Agent gọi service như tool; `userId` luôn từ phiên đăng nhập. 14 tool (9 đọc, 5 ghi); tool ghi chỉ chạy sau khi khách bấm **Xác nhận**. Đã kiểm bằng mô hình giả; hội thoại với mô hình thật cần `ANTHROPIC_API_KEY`. | docs/07; `src/ai/tools.js` |
 
 ## 4. Kế hoạch dự phòng khi sự cố
 
 | Sự cố | Xử lý |
 |---|---|
 | Không có tài khoản VNPay sandbox | Dùng cổng giả lập (mục 1, bước 2). Giả lập vẫn đi qua **đúng** hàm `confirmPayment` với chữ ký hợp lệ, nên vẫn kiểm cả phần kiểm chữ ký. Nói rõ với hội đồng là "giả lập VNPay", đừng nói là VNPay thật. |
-| Không có suất chiếu hôm nay | Seed chỉ tạo 7 ngày: `npm run db:seed` rồi `npm run db:demo`. |
+| Không có suất chiếu hôm nay | Seed chỉ tạo 14 ngày: `npm run db:seed` rồi `npm run db:demo`. |
 | Ghế đã bị giữ bởi lần thử trước | Đợi 10 phút hoặc chọn suất khác; hoặc `npm run db:seed` để làm lại từ đầu. |
 | Vé soát vé báo "ngoài khung giờ" | Chạy lại `npm run db:demo -- --only-live` (suất mới sau 25 phút). |
 | Mạng / DB chập chờn | Chạy sẵn `npm test`, chụp màn hình các bước chính làm tài liệu dự phòng. |
@@ -69,6 +72,7 @@
 - [ ] `git pull` nhánh `main`, không còn thay đổi chưa commit.
 - [ ] `npm run db:seed` rồi `npm run db:demo` (và `-- --only-live` trước giờ demo ~20 phút).
 - [ ] `npm test` (backend) và `npx vitest run` (frontend) đều xanh.
+- [ ] Nếu demo trợ lý AI: log server in "Trợ lý AI: BẬT" và đã thử một hội thoại đặt vé. Chưa có khóa thì **đừng mở** bong bóng chat khi demo.
 - [ ] Đăng nhập sẵn 3 tab: khách A, khách B, admin (+ nhân viên nếu dùng thêm thiết bị).
 - [ ] Đã ghi lại mã vé của suất "live".
 - [ ] Mở sẵn docs/03 mục 5, docs/08, và `tests/booking.concurrency.test.js` để chỉ khi được hỏi.

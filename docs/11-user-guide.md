@@ -1,7 +1,7 @@
 # 11 — Hướng dẫn sử dụng Cinemind
 
-> Phiên bản: 1.0 — 29/10/2026 · Dành cho: **khách hàng**, **nhân viên soát vé**, **quản trị viên**.
-> Ảnh chụp từ bản chạy thật với dữ liệu mẫu. Địa chỉ khi chạy trên máy: http://localhost:5173
+> Phiên bản: 1.1 — 27/11/2026 · Dành cho: **khách hàng**, **nhân viên soát vé**, **quản trị viên**.
+> Ảnh chụp từ bản 29/10/2026 nên một số màn hình (menu, trang chủ, quản trị) đã khác; phần chữ mô tả bản hiện tại. Địa chỉ khi chạy trên máy: http://localhost:5173
 
 ---
 
@@ -12,8 +12,8 @@
 ![Trang chủ](images/01-trang-chu.jpg)
 
 1. Ở **Trang chủ**, chọn tab **Đang chiếu** hoặc **Sắp chiếu**. Có thể tìm phim theo tên (không cần gõ dấu) ở ô tìm kiếm trên đầu trang.
-2. Bấm vào một phim để xem mô tả, thời lượng, **phân loại độ tuổi** (P, K, T13, T16, T18) và lịch chiếu. Bấm **MUA VÉ** ở danh sách để vào thẳng trang phim.
-3. Mục **Rạp** trên thanh menu liệt kê các rạp theo thành phố; bấm vào một rạp để xem lịch chiếu của rạp đó.
+2. Bấm vào một phim để xem mô tả, thời lượng, **phân loại độ tuổi** (P, K, T13, T16, T18) và lịch chiếu. Trên máy tính, **rê chuột vào poster** để hiện nút **phát trailer** (xem ngay trong trang), **Xem chi tiết** và **Mua vé**; trên điện thoại các nút này luôn hiện.
+3. Thanh menu có **Phim** (đang chiếu, sắp chiếu), **Rạp Cinemind** (tất cả hoặc theo thành phố; bấm vào một rạp để xem lịch chiếu), **Thành viên**, **Vé của tôi** (sau khi đăng nhập) và nút **Mua vé ngay**.
 
 ![Lịch chiếu](images/02-lich-chieu.jpg)
 
@@ -47,13 +47,21 @@
 
 ![Vé và mã QR](images/05-ve-qr.jpg)
 
-- Vào menu tên bạn (góc phải) → **Vé của tôi** để xem các vé đã mua; bấm vào một vé để xem **mã QR** và **mã đặt vé** (ví dụ `6HS2-MBJT`).
+- Bấm **Vé của tôi** trên thanh menu (hoặc trong menu tên bạn ở góc phải) để xem các vé đã mua; bấm vào một vé để xem **mã QR** và **mã đặt vé** (ví dụ `6HS2-MBJT`).
 - Khi đến rạp, **đưa mã QR (hoặc đọc mã đặt vé) cho nhân viên soát vé**. Một mã dùng cho cả đơn và chỉ vào được **một lần**.
 - Vé chỉ soát được trong khoảng **30 phút trước đến 30 phút sau** giờ chiếu.
 - Phim có giới hạn độ tuổi: nhân viên có thể kiểm tra giấy tờ tại cửa.
 - **Hồ sơ cá nhân** (cũng trong menu) cho phép đổi họ tên, số điện thoại và mật khẩu.
 
 > Vé đã thanh toán **không hủy / hoàn** được trên hệ thống. Nếu bị trừ tiền mà không có ghế (ví dụ ghế bị người khác lấy trước khi thanh toán được xác nhận), đơn chuyển sang **Chờ hoàn tiền** và rạp sẽ hoàn tiền thủ công.
+
+### A5. Thành viên
+
+Mục **Thành viên → Quyền lợi** cho biết số điểm hiện có và cách tích: mỗi 10.000đ thực trả được 1 điểm, cộng tự động khi thanh toán thành công. Hiện điểm chỉ để ghi nhận, chưa đổi được ưu đãi.
+
+### A6. Trợ lý đặt vé
+
+Sau khi đăng nhập, bấm bong bóng ở góc phải để hỏi phim, suất chiếu và nhờ chọn ghế bằng tin nhắn. Mọi thao tác làm thay đổi dữ liệu (giữ ghế, thêm combo, áp mã, tạo link thanh toán, hủy đơn) đều hiện **hộp xác nhận**; chỉ khi bạn bấm **Xác nhận** hệ thống mới thực hiện. Nếu quản trị viên chưa bật trợ lý, khung chat báo trợ lý đang tạm nghỉ.
 
 ---
 
@@ -86,12 +94,24 @@ Chọn khoảng ngày và cách nhóm (**theo ngày / phim / rạp**). Báo cáo
 | Mục | Làm được gì | Lưu ý |
 |---|---|---|
 | **Phim** | Thêm, sửa, đổi trạng thái (Sắp chiếu / Đang chiếu / Ngừng chiếu), xóa | Phim đã có suất chiếu **không xóa được** → chuyển sang "Ngừng chiếu". Ảnh nhập dạng đường dẫn `http(s)://`. |
-| **Suất chiếu** | Thêm, sửa, hủy; lọc theo rạp, ngày | Nhập **giờ Việt Nam**. Hệ thống tự tính giờ kết thúc (thời lượng + 15 phút dọn phòng) và **chặn trùng giờ** trong cùng phòng. Để trống giá gốc = lấy theo Bảng giá. Suất đã có người đặt vé **không sửa / hủy được**. |
-| **Rạp & phòng** | Thêm, sửa rạp; xem sơ đồ ghế từng phòng | Tắt rạp bị từ chối nếu còn suất sắp chiếu đã có người mua. Phòng và ghế do dữ liệu mẫu tạo. |
+| **Suất chiếu** | Thêm, sửa, hủy, tạo hàng loạt (xem mục C2b) | Nhập **giờ Việt Nam**. Hệ thống **chặn trùng giờ** trong cùng phòng. Để trống giá gốc = lấy theo Bảng giá. Suất đã có người đặt vé **không sửa / hủy được**. |
+| **Rạp & phòng** | Thêm, sửa rạp; thêm phòng (mẫu 60 / 96 / 140 ghế), đổi tên, ngưng / mở lại, xóa phòng; xem sơ đồ ghế | Không tắt rạp / ngưng phòng khi còn suất sắp chiếu đã có người mua. Phòng ngưng thì suất bị ẩn khỏi khách. Chỉ xóa được phòng **chưa từng** có suất. Sơ đồ ghế không sửa được sau khi tạo. |
 | **Bảng giá** | Giá gốc theo định dạng (2D / 3D / IMAX) × ngày thường / cuối tuần; phụ thu ghế VIP, ghế đôi | Phải điền đủ 6 giá và 3 phụ thu. Đổi giá chỉ áp cho suất tạo **sau đó**; đơn đã tạo giữ nguyên giá. |
 | **Combo** | Thêm, sửa, ngừng bán, xóa | Combo đã nằm trong đơn không xóa được → bỏ chọn "Đang bán". |
 | **Khuyến mãi** | Thêm, sửa, tắt, xóa mã | Giảm % (có mức giảm tối đa) hoặc số tiền cố định; có thời gian hiệu lực, giá trị đơn tối thiểu, giới hạn lượt. **Mã không đổi được** sau khi tạo. |
 | **Banner** | Thêm, sửa, xóa ảnh trang chủ | Chỉ nhận URL `http(s)://` hoặc đường dẫn nội bộ. |
+
+### C2b. Xếp lịch chiếu
+
+**Lịch theo phòng** (mặc định): chọn rạp và ngày, mỗi phòng một hàng.
+
+- Mỗi khối là một suất, ghi giờ bắt đầu và giờ phim kết thúc; **phần sọc xám** cuối khối là 15 phút dọn phòng. Mỗi phim một màu; 🎟 là số ghế đã đặt.
+- Bấm **chỗ trống** (hoặc nút **+** đầu hàng) để thêm suất; bấm **khối** để sửa hoặc hủy.
+- Trong form, chọn phim và giờ là thấy ngay **giờ phim kết thúc**, **giờ phòng trống lại**, các suất phòng đã có và cảnh báo nếu bị trùng.
+
+**Tạo hàng loạt:** chọn phim, phòng, từ ngày – đến ngày và các giờ (ví dụ `09:00, 14:00`) → **Xem trước** → **Tạo N suất**. Suất trùng hoặc đã qua bị bỏ qua và được nêu lý do. Tối đa 31 ngày, 12 giờ, 200 suất một lần. Chưa có nút xóa cả lô.
+
+Tab **Danh sách** hiện bảng suất, lọc theo rạp và ngày.
 
 ### C3. Đơn hàng và hoàn tiền
 
