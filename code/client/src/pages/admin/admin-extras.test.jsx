@@ -26,15 +26,66 @@ describe('AdminDashboardPage (A01)', () => {
     { key: '2026-10-01', label: '2026-10-01', revenue: 200000, ticketCount: 2, orderCount: 1 },
     { key: '2026-10-02', label: '2026-10-02', revenue: 0, ticketCount: 0, orderCount: 0 },
   ];
-  it('hiện tổng doanh thu / vé / đơn và gửi groupBy đúng; đổi nhóm thì gọi lại', async () => {
-    const seen = [];
-    server.use(http.get(`${A}/reports/revenue`, ({ request }) => { seen.push(new URL(request.url).searchParams.get('groupBy')); return ok(rows); }));
+  const films = Array.from({ length: 7 }, (_, i) => ({ key: `m${i}`, label: `Phim ${i + 1}`, revenue: (7 - i) * 10000, ticketCount: 1, orderCount: 1 }));
+  /** Server giả: kỳ đang xem trả `rows`, kỳ trước trả một nửa doanh thu. */
+  const backend = () => {
+    const calls = [];
+    server.use(http.get(`${A}/reports/revenue`, ({ request }) => {
+      const q = Object.fromEntries(new URL(request.url).searchParams);
+      calls.push(q);
+      if (q.groupBy === 'movie') return ok(films);
+      if (q.groupBy === 'cinema') return ok([{ key: 'c1', label: 'Rạp A', revenue: 200000, ticketCount: 2, orderCount: 1 }]);
+      const current = calls.filter((c) => c.groupBy === 'day')[0];
+      return ok(q.from === current.from ? rows : [{ ...rows[0], revenue: 100000, ticketCount: 2, orderCount: 1 }]);
+    }));
+    return calls;
+  };
+
+  it('⭐ bốn thẻ số liệu so với kỳ trước; hỏi đủ ngày, phim, rạp và kỳ liền trước dài bằng nhau', async () => {
+    const calls = backend();
+    page(<AdminDashboardPage />);
+    expect(await screen.findByText('Trung bình mỗi đơn')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText(/so với kỳ trước/)).toHaveLength(4));
+    expect(screen.getAllByText(/tăng 100%/)).toHaveLength(2); // doanh thu và trung bình mỗi đơn
+    expect(screen.getAllByText(/không đổi/)).toHaveLength(2); // số vé và số đơn
+    const days = calls.filter((c) => c.groupBy === 'day');
+    expect(days).toHaveLength(2);
+    const length = (c) => (Date.parse(c.to) - Date.parse(c.from)) / 86_400_000;
+    expect(length(days[0])).toBe(29);
+    expect(length(days[1])).toBe(29);
+    expect(Date.parse(days[0].from) - Date.parse(days[1].to)).toBe(86_400_000);
+    expect(new Set(calls.map((c) => c.groupBy))).toEqual(new Set(['day', 'movie', 'cinema']));
+  });
+
+  it('biểu đồ có cột đọc được cho từng ngày, xem được dạng bảng', async () => {
+    backend();
     const user = userEvent.setup();
     page(<AdminDashboardPage />);
-    expect(await screen.findByText('200.000đ')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: /Biểu đồ doanh thu 2 ngày/ })).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText('Nhóm'), 'movie');
-    await waitFor(() => expect(seen).toContain('movie'));
+    expect(await screen.findByRole('group', { name: 'Biểu đồ doanh thu 2 ngày' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: '01/10/2026: 200.000đ · 2 vé · 1 đơn' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Xem dạng bảng' }));
+    expect(screen.getByRole('cell', { name: '02/10/2026' })).toBeInTheDocument();
+  });
+
+  it('xếp hạng phim chỉ hiện 5 phim đầu, bấm "Xem tất cả" thì đủ', async () => {
+    backend();
+    const user = userEvent.setup();
+    page(<AdminDashboardPage />);
+    const list = await screen.findByRole('region', { name: 'Phim doanh thu cao nhất' });
+    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(5));
+    await user.click(within(list).getByRole('button', { name: 'Xem tất cả (7)' }));
+    expect(within(list).getAllByRole('listitem')).toHaveLength(7);
+  });
+
+  it('chọn nhanh 7 ngày: đổi khoảng ngày và đánh dấu nút đang chọn', async () => {
+    const calls = backend();
+    const user = userEvent.setup();
+    page(<AdminDashboardPage />);
+    await screen.findByText('Trung bình mỗi đơn');
+    expect(screen.getByRole('button', { name: '30 ngày' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: '7 ngày' }));
+    expect(screen.getByRole('button', { name: '7 ngày' })).toHaveAttribute('aria-pressed', 'true');
+    await waitFor(() => expect(calls.some((c) => (Date.parse(c.to) - Date.parse(c.from)) / 86_400_000 === 6)).toBe(true));
   });
   it('không có doanh thu: báo trống thay vì biểu đồ rỗng', async () => {
     server.use(http.get(`${A}/reports/revenue`, () => ok([{ ...rows[1] }])));

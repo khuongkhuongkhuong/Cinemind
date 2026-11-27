@@ -57,6 +57,8 @@
 
 **A04 Rạp & phòng (v1.1, FR-32a):** mỗi thẻ rạp có nút "+ Phòng" (nhập tên, chọn mẫu sơ đồ nhỏ / vừa / lớn). Chọn một phòng để xem sơ đồ ghế, kèm các nút "Đổi tên", "Ngưng phòng" / "Mở lại", "Xóa phòng". Ngưng và xóa phải xác nhận; server từ chối thì hiện lý do. Phòng đã ngưng có nhãn "Ngưng".
 
+**A01 Tổng quan (v1.1, FR-37):** chọn khoảng ngày (có nút nhanh 7 / 14 / 30 ngày, mặc định 30). Bốn thẻ: doanh thu, số vé, số đơn, trung bình mỗi đơn — mỗi thẻ ghi tăng / giảm so với kỳ liền trước dài bằng nhau. Biểu đồ cột doanh thu theo ngày (trục tiền, lưới, nhãn ngày, số ở cột cao nhất, rê chuột xem chi tiết, xem dạng bảng). Hai bảng cạnh nhau: phim doanh thu cao nhất (5 phim, xem tất cả) và doanh thu theo rạp. Dùng `GET /admin/reports/revenue`.
+
 > **Mẹo tiết kiệm công:** A02, A07, A08, A09, A10 dùng chung một khuôn "bảng danh sách + bộ lọc + form trong modal". Làm kỹ một lần (A02), các trang còn lại sao chép và đổi cột.
 
 ## 2. Luồng điều hướng
